@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 interface PdfJsTextItem {
   str: string;
-  transform: number[];
+  transform: [number, number, number, number, number, number];
 }
 
 async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
