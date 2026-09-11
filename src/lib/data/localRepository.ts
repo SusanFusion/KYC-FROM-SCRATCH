@@ -1,0 +1,128 @@
+import type { DataRepository } from "./repository";
+import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
+import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import { SEED_AGENTS } from "./seed/agents";
+import { SEED_TEAMS } from "./seed/teams";
+import { SEED_PERIODS } from "./seed/periods";
+import { buildSeedRawMetrics, buildSeedGateMetrics } from "./seed/rawMetrics";
+
+/**
+ * In-memory data store, module-level so it survives across requests within
+ * the same warm server process, seeded once from the PDF-derived data. This
+ * is the zero-config default (see repository.ts) — fine for evaluating and
+ * demoing the app, but NOT durable: a serverless cold start on Vercel resets
+ * it back to the seed. Anything imported through Data Import during a
+ * session is kept here until that happens.
+ */
+class Store {
+  teams: Team[] = [...SEED_TEAMS];
+  agents: Agent[] = [...SEED_AGENTS];
+  periods: Period[] = [...SEED_PERIODS];
+  rawMetricsByPeriod = new Map<string, RawAgentMetrics[]>();
+  gateByPeriod = new Map<string, RawGateMetrics>();
+  penalties: PenaltyEntry[] = [];
+  imports: ImportRecord[] = [];
+  importRows = new Map<string, ImportRow[]>();
+  private seq = 0;
+
+  constructor() {
+    const period = SEED_PERIODS[0]!;
+    this.rawMetricsByPeriod.set(period.id, buildSeedRawMetrics());
+    this.gateByPeriod.set(period.id, buildSeedGateMetrics());
+  }
+
+  nextId(prefix: string): string {
+    this.seq += 1;
+    return `${prefix}_${Date.now()}_${this.seq}`;
+  }
+}
+
+// A true singleton across hot-reloads in dev / within one lambda instance.
+const globalKey = "__kycLocalStore__";
+type GlobalWithStore = typeof globalThis & { [globalKey]?: Store };
+const g = globalThis as GlobalWithStore;
+if (!g[globalKey]) g[globalKey] = new Store();
+const store: Store = g[globalKey]!;
+
+export class LocalRepository implements DataRepository {
+  async getTeams() {
+    return store.teams;
+  }
+
+  async getAgents() {
+    return store.agents;
+  }
+
+  async getPeriods() {
+    return [...store.periods].sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+  }
+
+  async getRawMetrics(periodId?: string) {
+    if (periodId) return store.rawMetricsByPeriod.get(periodId) ?? [];
+    return [...store.rawMetricsByPeriod.values()].flat();
+  }
+
+  async getGateMetrics(periodId: string) {
+    return store.gateByPeriod.get(periodId) ?? null;
+  }
+
+  async getAllGateMetrics() {
+    return [...store.gateByPeriod.values()];
+  }
+
+  async getPenalties(periodId?: string) {
+    return periodId ? store.penalties.filter((p) => p.periodId === periodId) : store.penalties;
+  }
+
+  async addPenalty(entry: Omit<PenaltyEntry, "id">) {
+    const full: PenaltyEntry = { ...entry, id: store.nextId("pen") };
+    store.penalties.push(full);
+    return full;
+  }
+
+  async getImports() {
+    return [...store.imports].sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
+  }
+
+  async createImport(record: Omit<ImportRecord, "id">, rows: Omit<ImportRow, "id" | "importId">[]) {
+    const importId = store.nextId("imp");
+    const fullRecord: ImportRecord = { ...record, id: importId };
+    const fullRows: ImportRow[] = rows.map((r) => ({ ...r, id: store.nextId("row"), importId }));
+    store.imports.push(fullRecord);
+    store.importRows.set(importId, fullRows);
+    return { record: fullRecord, rows: fullRows };
+  }
+
+  async getImportRows(importId: string) {
+    return store.importRows.get(importId) ?? [];
+  }
+
+  async commitImport(
+    importId: string,
+    period: Omit<Period, "id"> & { id?: string },
+    metrics: RawAgentMetrics[],
+    gate: RawGateMetrics
+  ) {
+    const periodId = period.id ?? store.nextId("period");
+    const fullPeriod: Period = { ...period, id: periodId };
+
+    const existingIdx = store.periods.findIndex((p) => p.id === periodId);
+    if (existingIdx >= 0) store.periods[existingIdx] = fullPeriod;
+    else store.periods.push(fullPeriod);
+
+    store.rawMetricsByPeriod.set(
+      periodId,
+      metrics.map((m) => ({ ...m, periodId }))
+    );
+    store.gateByPeriod.set(periodId, { ...gate, periodId });
+
+    const imp = store.imports.find((i) => i.id === importId);
+    if (imp) {
+      imp.status = "committed";
+      imp.committedAt = new Date().toISOString();
+      imp.periodLabel = fullPeriod.label;
+    }
+
+    return fullPeriod;
+  }
+}
