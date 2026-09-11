@@ -3,7 +3,8 @@ import { Target, Users, Trophy, Gauge, ArrowRight } from "lucide-react";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { GradeBadge, TierBadge } from "@/components/dashboard/PerformanceBadge";
+import { GradeBadge, TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
+import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default async function DashboardPage() {
             value={teamAverage.toFixed(2)}
             sublabel="out of 3.00 · Individual Scorecard (Layer 2)"
             icon={Gauge}
+            tone={teamAverage >= 2.4 ? "success" : "warning"}
             statusBadge={<Badge variant={teamAverage >= 2.4 ? "success" : "warning"}>{teamAverage >= 2.4 ? "On Target" : "Needs Attention"}</Badge>}
           />
           <KpiCard
@@ -55,18 +57,21 @@ export default async function DashboardPage() {
             value={results[0] ? `${results[0].gate.gateMultiplier.toFixed(4)}×` : "—"}
             sublabel={results[0] ? `${results[0].gate.overallTier} · Layer 1, team-level` : "Team-level bonus multiplier (Layer 1)"}
             icon={Target}
+            tone={results[0] ? tierTone(results[0].gate.overallTier) : "muted"}
           />
           <KpiCard
             label="Agents On Target"
             value={`${onTarget} / ${results.length}`}
             sublabel="Final score ≥ 2.40"
             icon={Users}
+            tone={results.length > 0 && onTarget === results.length ? "success" : "primary"}
           />
           <KpiCard
             label="Top Performer"
             value={topPerformer ? topPerformer.agent.name : "—"}
             sublabel={topPerformer ? `Score ${topPerformer.individual.finalScore.toFixed(2)}${tieForTop ? " (tied — confirm manually)" : ""}` : undefined}
             icon={Trophy}
+            tone="primary"
           />
         </div>
 
@@ -92,15 +97,17 @@ export default async function DashboardPage() {
                   = {((results[0]?.gate.gateMultiplier ?? 1) * 100).toFixed(2)}% of base bonus
                 </span>
               </div>
-              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {results[0]?.gate.metrics.map((m) => (
-                  <div key={m.key} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                    <span className="text-xs text-muted-foreground">{m.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-foreground">{m.actualDisplay}</span>
-                      <TierBadge tier={m.tier} />
-                    </div>
-                  </div>
+                  <MetricBlockCard
+                    key={m.key}
+                    label={m.name}
+                    value={m.actualDisplay}
+                    tone={tierTone(m.tier)}
+                    badge={<TierBadge tier={m.tier} />}
+                    bufferLabel={m.tierScore === null ? "Not available this period" : m.bufferLabel}
+                    bufferGood={m.bufferGood}
+                  />
                 ))}
               </div>
             </CardContent>

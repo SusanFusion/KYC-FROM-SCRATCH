@@ -141,6 +141,11 @@ export interface MetricScoreBreakdown {
   gradeLabel: GradeLabel | "No Data";
   weightedPoints: number | null; // grade * weight, null if excluded (no data)
   excluded: boolean;
+  /** e.g. "5.2s under" — distance to the On Target/Below Target boundary,
+   *  regardless of which band the value actually falls in. Null if excluded. */
+  bufferLabel: string | null;
+  /** true = safe margin before the "needs attention" tier; false = already past it. */
+  bufferGood: boolean | null;
 }
 
 export interface IndividualScoreResult {
@@ -166,6 +171,11 @@ export interface GateMetricBreakdown {
   tier: GateTier | null;
   tierScore: number | null;
   weightedContribution: number | null;
+  /** e.g. "5.2s under" — distance to the Green/Amber boundary, regardless of
+   *  which tier the value actually falls in. Null if no data. */
+  bufferLabel: string | null;
+  /** true = safe margin before Amber; false = already past it. */
+  bufferGood: boolean | null;
 }
 
 export interface BusinessGateResult {

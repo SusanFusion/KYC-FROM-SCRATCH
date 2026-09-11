@@ -3,6 +3,15 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { Tone } from "@/components/dashboard/PerformanceBadge";
+
+const TONE_BORDER: Record<Tone, string> = {
+  primary: "border-t-primary",
+  success: "border-t-success",
+  warning: "border-t-warning",
+  danger: "border-t-danger",
+  muted: "border-t-border",
+};
 
 export function KpiCard({
   label,
@@ -13,6 +22,7 @@ export function KpiCard({
   trendLabel,
   trendGood,
   statusBadge,
+  tone = "muted",
 }: {
   label: string;
   value: string;
@@ -22,10 +32,11 @@ export function KpiCard({
   trendLabel?: string;
   trendGood?: boolean;
   statusBadge?: ReactNode;
+  tone?: Tone;
 }) {
   const TrendIcon = trend === null || trend === undefined || trend === 0 ? Minus : trend > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <Card className="animate-slide-up">
+    <Card className={cn("animate-slide-up border-t-4", TONE_BORDER[tone])}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>

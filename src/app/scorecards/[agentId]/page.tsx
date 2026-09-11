@@ -5,9 +5,13 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GradeBadge, gradeTone } from "@/components/dashboard/PerformanceBadge";
+import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { ScoreBreakdown } from "@/components/scorecard/ScoreBreakdown";
 import { CalculationDetails } from "@/components/scorecard/CalculationDetails";
 import { loadAgentPeriodResult } from "@/lib/data/query";
+import { buildIndividualScaleTable } from "@/lib/scoring/display";
 import { formatPhp, initials } from "@/lib/utils";
 
 export default async function AgentScorecardPage({ params }: { params: { agentId: string } }) {
@@ -16,6 +20,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
   if (!result || !dataset.period) notFound();
 
   const { agent, individual, bonus } = result;
+  const { columns, rows } = buildIndividualScaleTable();
 
   return (
     <>
@@ -61,10 +66,44 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
           </CardContent>
         </Card>
 
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Individual Scorecard Scoring Scale</CardTitle>
+            <CardDescription>Every metric that feeds the score (Layer 2), per the Proposed Individual Grading Scales.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScoringScaleTable columns={columns} rows={rows} title="Metric" />
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>{agent.name}&apos;s metrics this period</CardTitle>
+            <CardDescription>Actuals against the scale above.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {individual.metrics.map((m) => (
+                <MetricBlockCard
+                  key={m.key}
+                  label={m.name}
+                  value={m.actualDisplay}
+                  tone={gradeTone(m.grade)}
+                  badge={<GradeBadge grade={m.grade} label={m.gradeLabel} />}
+                  bufferLabel={m.excluded ? "No data this period — excluded, weights renormalized" : m.bufferLabel}
+                  bufferGood={m.bufferGood}
+                  weightLabel={m.excluded ? `Weight ${(m.weight * 100).toFixed(0)}%` : `Weight ${(m.weight * 100).toFixed(0)}% · ${m.weightedPoints?.toFixed(2)} pts`}
+                  tooltip={`Target: ${m.target}. Distance shown is to the On Target / Below Target boundary.`}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
           <Card className="lg:col-span-3">
             <CardHeader>
-              <CardTitle>Score Breakdown</CardTitle>
+              <CardTitle>Detailed Breakdown</CardTitle>
               <CardDescription>Every metric that feeds the individual scorecard (Layer 2), per the Proposed Individual Grading Scales.</CardDescription>
             </CardHeader>
             <CardContent>

@@ -1,5 +1,6 @@
 import { GATE_METRICS, GATE_TIER_SCORES, GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX } from "./thresholds";
 import { gradeGateMetric } from "./grade";
+import { computeBuffer } from "./display";
 import { formatMinutes, formatSeconds } from "../data/time";
 import type { BusinessGateResult, GateMetricBreakdown, GateTier, RawGateMetrics } from "./types";
 
@@ -45,6 +46,8 @@ export function calculateBusinessGate(raw: RawGateMetrics): BusinessGateResult {
         tier: null,
         tierScore: null,
         weightedContribution: null,
+        bufferLabel: null,
+        bufferGood: null,
       };
     }
     const band = gradeGateMetric(value, def.bands, def.direction);
@@ -55,6 +58,8 @@ export function calculateBusinessGate(raw: RawGateMetrics): BusinessGateResult {
     // rounding each term to 2dp before summing was found (via
     // scripts/verify-scoring.ts) to shift the final multiplier by ~0.01.
     const weightedContribution = round4(score * def.weight);
+    const safeBand = def.bands.find((b) => b.tier === "Green");
+    const buffer = computeBuffer(value, safeBand, def.unit, def.direction);
     return {
       key: def.key,
       name: def.name,
@@ -64,6 +69,8 @@ export function calculateBusinessGate(raw: RawGateMetrics): BusinessGateResult {
       tier,
       tierScore: score,
       weightedContribution,
+      bufferLabel: buffer?.label ?? null,
+      bufferGood: buffer?.good ?? null,
     };
   });
 

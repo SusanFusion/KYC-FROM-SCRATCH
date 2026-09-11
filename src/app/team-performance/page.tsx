@@ -1,11 +1,12 @@
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TierBadge } from "@/components/dashboard/PerformanceBadge";
+import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
+import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { Progress } from "@/components/ui/progress";
 import { loadPeriodDataset } from "@/lib/data/query";
-import { GATE_TIER_SCORES } from "@/lib/scoring";
+import { buildGateScaleTable } from "@/lib/scoring/display";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 export default async function TeamPerformancePage() {
@@ -26,6 +27,7 @@ export default async function TeamPerformancePage() {
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
     : 0;
+  const { columns, rows } = buildGateScaleTable();
 
   return (
     <>
@@ -33,42 +35,39 @@ export default async function TeamPerformancePage() {
       <PageShell>
         <Card>
           <CardHeader>
-            <CardTitle>How the Gate Multiplier is calculated</CardTitle>
+            <CardTitle>Business Gate Scoring Scale</CardTitle>
             <CardDescription>
-              Each metric is scored into a tier, tiers convert to a score, and the weighted average of those scores is the multiplier applied to every agent&apos;s bonus.
+              Each metric is scored into a tier; the weighted average of the tier scores becomes the multiplier applied to every agent&apos;s bonus.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {GATE_TIER_SCORES.map((t) => (
-                <Badge key={t.tier} variant="outline">
-                  {t.tier} = {t.score.toFixed(2)}
-                </Badge>
-              ))}
-            </div>
-            <div className="space-y-3">
+            <ScoringScaleTable columns={columns} rows={rows} title="Metric" />
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>{period.label}</CardTitle>
+            <CardDescription>This period&apos;s actuals against the scale above.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {gate.metrics.map((m) => (
-                <div key={m.key} className="rounded-lg border border-border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">Weight {(m.weight * 100).toFixed(0)}%</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{m.actualDisplay}</span>
-                      <TierBadge tier={m.tier} />
-                    </div>
-                  </div>
-                  {m.tierScore !== null && (
-                    <div className="mt-3 flex items-center gap-3">
-                      <Progress value={m.tierScore} max={1.15} className="flex-1" />
-                      <span className="w-32 text-right text-xs text-muted-foreground">
-                        {m.tierScore.toFixed(2)} × {(m.weight * 100).toFixed(0)}% = {m.weightedContribution?.toFixed(4)}
-                      </span>
-                    </div>
-                  )}
-                  {m.tierScore === null && <p className="mt-2 text-xs text-muted-foreground">Not available in this period&apos;s import — excluded from the weighted average, not scored as 0.</p>}
-                </div>
+                <MetricBlockCard
+                  key={m.key}
+                  label={m.name}
+                  value={m.actualDisplay}
+                  tone={tierTone(m.tier)}
+                  badge={<TierBadge tier={m.tier} />}
+                  bufferLabel={m.tierScore === null ? "Not available this period — excluded, not scored as 0" : m.bufferLabel}
+                  bufferGood={m.bufferGood}
+                  weightLabel={
+                    m.tierScore !== null
+                      ? `Weight ${(m.weight * 100).toFixed(0)}% · contributes ${m.weightedContribution?.toFixed(4)}`
+                      : `Weight ${(m.weight * 100).toFixed(0)}%`
+                  }
+                  tooltip="Distance to the Amber threshold (the Green tier's boundary) — how much room is left before this metric needs attention."
+                />
               ))}
             </div>
             <div className="mt-5 flex items-center justify-between rounded-lg bg-primary-50 px-4 py-3">

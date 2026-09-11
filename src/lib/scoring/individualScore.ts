@@ -1,5 +1,6 @@
 import { INDIVIDUAL_METRICS, INDIVIDUAL_MAX_SCORE } from "./thresholds";
 import { gradeIndividualMetric } from "./grade";
+import { computeBuffer } from "./display";
 import { calculatePenalty, totalPenaltyDeduction } from "./penalties";
 import { formatSeconds, formatMinutes } from "../data/time";
 import type {
@@ -76,10 +77,14 @@ export function calculateIndividualScore(
         gradeLabel: "No Data",
         weightedPoints: null,
         excluded: true,
+        bufferLabel: null,
+        bufferGood: null,
       };
     }
     const band = gradeIndividualMetric(value, def.bands, def.direction);
     const grade = band ? band.grade : 0;
+    const safeBand = def.bands.find((b) => b.label === "On Target");
+    const buffer = computeBuffer(value, safeBand, def.unit, def.direction);
     return {
       key: def.key,
       name: def.name,
@@ -91,6 +96,8 @@ export function calculateIndividualScore(
       gradeLabel: band ? band.label : "Failing",
       weightedPoints: grade * def.weight,
       excluded: false,
+      bufferLabel: buffer?.label ?? null,
+      bufferGood: buffer?.good ?? null,
     };
   });
 
