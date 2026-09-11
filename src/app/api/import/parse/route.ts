@@ -19,7 +19,7 @@ async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     pages.push(
-      (content.items as PdfJsTextItem[]).map((item) => ({
+      (content.items as unknown as PdfJsTextItem[]).map((item) => ({
         str: item.str,
         x: Math.round(item.transform[4]),
         y: Math.round(item.transform[5]),
