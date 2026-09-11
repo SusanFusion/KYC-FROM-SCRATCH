@@ -80,7 +80,7 @@ async function main() {
     const seedField = fieldMap[row.metricKey];
     if (!seed || !seedField) continue;
     const expected = seed[seedField];
-    if (expected === null || row.parsedValue === null) continue;
+    if (expected === null || expected === undefined || row.parsedValue === null) continue;
     const diff = Math.abs(expected - row.parsedValue);
     if (diff > 0.01) {
       mismatches++;
