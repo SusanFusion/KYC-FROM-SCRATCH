@@ -2,22 +2,35 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ImportWorkflow } from "@/components/shared/ImportWorkflow";
+import { ManualEntryForm } from "@/components/shared/ManualEntryForm";
 import { getRepository } from "@/lib/data/repository";
 import { formatDate } from "@/lib/utils";
 
 export default async function ImportPage() {
   const repo = await getRepository();
-  const imports = await repo.getImports();
+  const [imports, agents] = await Promise.all([repo.getImports(), repo.getAgents()]);
 
   return (
     <>
       <TopHeader
         title="Data Import"
-        description="Upload a Daily/Monthly KYC Team Performance Report PDF — review before anything is saved"
+        description="Upload one or more Daily/Monthly KYC Team Performance Report PDFs, or enter data manually — review before anything is saved"
       />
       <PageShell>
-        <ImportWorkflow />
+        <Tabs defaultValue="upload">
+          <TabsList>
+            <TabsTrigger value="upload">Upload PDF</TabsTrigger>
+            <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+          </TabsList>
+          <TabsContent value="upload" className="mt-4">
+            <ImportWorkflow />
+          </TabsContent>
+          <TabsContent value="manual" className="mt-4">
+            <ManualEntryForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} />
+          </TabsContent>
+        </Tabs>
 
         <Card className="mt-6">
           <CardHeader>

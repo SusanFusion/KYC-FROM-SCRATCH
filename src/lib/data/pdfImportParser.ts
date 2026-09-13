@@ -113,10 +113,27 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
 
     const pageText = nonEmpty.map((i) => i.str).join(" ");
 
+    // When multiple PDFs are merged into one import (see /api/import/parse),
+    // each one's pages flow through here in sequence. Keep the FIRST guess
+    // found rather than letting a later file silently overwrite it, and
+    // flag it instead if a later file disagrees — that's a real signal the
+    // files may not all be for the same reporting period.
     const genDateMatch = pageText.match(/Generated Date:\s*([\d-]+)/i);
-    if (genDateMatch) generatedDateGuess = genDateMatch[1] ?? null;
+    if (genDateMatch) {
+      const found = genDateMatch[1] ?? null;
+      if (generatedDateGuess === null) generatedDateGuess = found;
+      else if (found && found !== generatedDateGuess) {
+        warnings.push(`One of the uploaded PDFs has a different Generated Date ("${found}") than the first ("${generatedDateGuess}") — confirm they're all for the same period.`);
+      }
+    }
     const rangeMatch = pageText.match(/Date Range\s*:\s*([A-Za-z0-9 ]+?)(?=\s{2}|$)/i);
-    if (rangeMatch) periodLabelGuess = rangeMatch[1]?.trim() ?? null;
+    if (rangeMatch) {
+      const found = rangeMatch[1]?.trim() ?? null;
+      if (periodLabelGuess === null) periodLabelGuess = found;
+      else if (found && found !== periodLabelGuess) {
+        warnings.push(`One of the uploaded PDFs has a different Date Range ("${found}") than the first ("${periodLabelGuess}") — confirm they're all for the same period.`);
+      }
+    }
 
     const tableType = TABLE_MATCHERS.find((m) => m.test(pageText))?.type;
     const allRows = groupIntoRows(nonEmpty);

@@ -45,12 +45,13 @@ export function ImportWorkflow() {
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  async function handleFiles(files: File[]) {
+    if (files.length === 0) return;
     setPhase("uploading");
     setErrorMsg(null);
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      for (const file of files) formData.append("file", file);
       const res = await fetch("/api/import/parse", { method: "POST", body: formData });
       const data: ParseResponse = await res.json();
       if (!res.ok) {
@@ -116,22 +117,24 @@ export function ImportWorkflow() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFile(file);
+              handleFiles(Array.from(e.dataTransfer.files ?? []));
             }}
           >
             {phase === "uploading" ? (
               <>
                 <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" />
-                <p className="text-sm font-medium text-foreground">Reading PDF…</p>
+                <p className="text-sm font-medium text-foreground">Reading PDF(s)…</p>
               </>
             ) : (
               <>
                 <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Drag a KYC Team Performance Report PDF here</p>
-                <p className="mt-1 text-xs text-muted-foreground">or click to browse — text-based PDFs only</p>
+                <p className="text-sm font-medium text-foreground">Drag one or more KYC Team Performance Report PDFs here</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  or click to browse — text-based PDFs only. Upload several at once if they cover different
+                  metrics for the same period; they&apos;ll be merged into one import.
+                </p>
                 <Button className="mt-4" onClick={() => fileInputRef.current?.click()}>
-                  Choose file
+                  Choose file(s)
                 </Button>
               </>
             )}
@@ -139,10 +142,11 @@ export function ImportWorkflow() {
               ref={fileInputRef}
               type="file"
               accept="application/pdf"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
+                handleFiles(Array.from(e.target.files ?? []));
+                e.target.value = "";
               }}
             />
           </div>

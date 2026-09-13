@@ -1,3 +1,16 @@
+// pdf.js has no real Worker thread to hand off to here, so it falls back to
+// a "fake worker" that runs its worker-side code inline — but that code
+// still lives in a separate file (pdf.worker.mjs) that pdf.js loads via a
+// dynamically *computed* import path at runtime. Vercel's build only
+// bundles files it can see via a static import/require, so that computed
+// path was silently missing from the deployed function ("Cannot find
+// module .../pdf.worker.mjs"), even though the PDF and every other part of
+// the setup were fine. This plain side-effect import gives the bundler a
+// literal path to see and include; pdf.js's own internal dynamic import of
+// the exact same file then resolves from Node's module cache instead of
+// hitting the filesystem gap.
+import "pdfjs-dist/legacy/build/pdf.worker.mjs";
+
 import { NextResponse } from "next/server";
 import { parseKycReportPages, type PageTextItem } from "@/lib/data/pdfImportParser";
 import { getRepository } from "@/lib/data/repository";
@@ -78,25 +91,38 @@ async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    // Multiple files can be uploaded in one go and are merged into a single
+    // import/period — e.g. one report has response-time metrics and another
+    // has CSAT/QA data for the same week. Every existing single-file upload
+    // still works unchanged: it's just one file in this list.
+    const files = formData.getAll("file").filter((f): f is File => f instanceof File);
+    if (files.length === 0) {
       return NextResponse.json({ error: "No PDF file was provided." }, { status: 400 });
     }
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json({ error: "Only PDF files are supported." }, { status: 400 });
+    const nonPdf = files.find((f) => f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf"));
+    if (nonPdf) {
+      return NextResponse.json({ error: `"${nonPdf.name}" is not a PDF file.` }, { status: 400 });
     }
 
-    const buffer = new Uint8Array(await file.arrayBuffer());
+    let allPages: PageTextItem[][] = [];
+    const perFileErrors: string[] = [];
+    for (const file of files) {
+      const buffer = new Uint8Array(await file.arrayBuffer());
+      try {
+        allPages = allPages.concat(await extractPages(buffer));
+      } catch (err) {
+        perFileErrors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
-    let pages: PageTextItem[][];
-    try {
-      pages = await extractPages(buffer);
-    } catch (err) {
+    if (allPages.length === 0) {
       return NextResponse.json(
         {
           error:
-            "Could not read this PDF. It may be image-only (scanned) or corrupted — this parser requires a text-based PDF.",
-          detail: err instanceof Error ? err.message : String(err),
+            files.length > 1
+              ? "Could not read any of the uploaded PDFs. They may be image-only (scanned) or corrupted — this parser requires text-based PDFs."
+              : "Could not read this PDF. It may be image-only (scanned) or corrupted — this parser requires a text-based PDF.",
+          detail: perFileErrors.join(" | "),
         },
         { status: 422 }
       );
@@ -104,13 +130,20 @@ export async function POST(request: Request) {
 
     const repo = await getRepository();
     const agents = await repo.getAgents();
-    const parsed = parseKycReportPages(pages, agents);
+    const parsed = parseKycReportPages(allPages, agents);
+    // One or more files parsed fine even if others in the batch didn't —
+    // surface those as warnings rather than failing the whole import.
+    if (perFileErrors.length > 0) {
+      parsed.warnings.push(
+        ...perFileErrors.map((e) => `Skipped a file that couldn't be read: ${e}`)
+      );
+    }
 
     if (parsed.rows.length === 0) {
       return NextResponse.json(
         {
           error:
-            "No recognized KYC performance tables were found in this PDF. Expected the Daily/Monthly KYC Team Performance Report layout.",
+            "No recognized KYC performance tables were found in the uploaded PDF(s). Expected the Daily/Monthly KYC Team Performance Report layout.",
           warnings: parsed.warnings,
         },
         { status: 422 }
@@ -119,7 +152,7 @@ export async function POST(request: Request) {
 
     const { record, rows } = await repo.createImport(
       {
-        fileName: file.name,
+        fileName: files.map((f) => f.name).join(", "),
         uploadedAt: new Date().toISOString(),
         periodLabel: parsed.periodLabelGuess,
         status: "pending_review",

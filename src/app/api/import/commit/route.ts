@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getRepository } from "@/lib/data/repository";
-import type { RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
-import type { ImportRow, Period, PeriodType } from "@/types/domain";
+import { commitImportRows } from "@/lib/data/commitImportRows";
+import type { ImportRow } from "@/types/domain";
+import type { RawGateMetrics } from "@/lib/scoring/types";
 
 export const runtime = "nodejs";
 
@@ -28,65 +28,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing importId or rows." }, { status: 400 });
     }
 
-    const validRows = body.rows.filter((r) => r.status !== "failed" && r.matchedAgentId);
-    if (validRows.length === 0) {
-      return NextResponse.json(
-        { error: "No valid rows to commit. Resolve the flagged rows first (unmatched agents or failed parses)." },
-        { status: 422 }
-      );
+    const endDateIso = parseDdMmYyyy(body.generatedDateGuess) ?? new Date().toISOString().slice(0, 10);
+
+    const result = await commitImportRows({
+      importId: body.importId,
+      rows: body.rows,
+      periodLabel: body.periodLabel,
+      endDateIso,
+      gate: body.gate,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 422 });
     }
 
-    const endDate = parseDdMmYyyy(body.generatedDateGuess) ?? new Date().toISOString().slice(0, 10);
-    const isMonth = /month/i.test(body.periodLabel ?? "");
-    const startDate = isMonth ? `${endDate.slice(0, 7)}-01` : endDate;
-    const periodType: PeriodType = isMonth ? "month-to-date" : "custom";
-    const periodId = `import-${endDate}-${body.importId.slice(-6)}`;
-
-    const period: Omit<Period, "id"> & { id?: string } = {
-      id: periodId,
-      label: body.periodLabel ? `${body.periodLabel} (imported ${endDate})` : `Imported period (${endDate})`,
-      type: periodType,
-      startDate,
-      endDate,
-      generatedAt: endDate,
-    };
-
-    const byAgent = new Map<string, RawAgentMetrics>();
-    for (const row of validRows) {
-      const agentId = row.matchedAgentId!;
-      if (!byAgent.has(agentId)) {
-        byAgent.set(agentId, {
-          agentId,
-          periodId,
-          totalChatConversations: null,
-          avgFirstResponseTimeSec: null,
-          avgResponseTimeSec: null,
-          emailAHTSec: null,
-          appAHTSec: null,
-          totalChats: null,
-          csatCount: null,
-          dsatCount: null,
-          qaAuditPct: null,
-        });
-      }
-      const entry = byAgent.get(agentId)!;
-      if (row.metricKey in entry && row.parsedValue !== null) {
-        (entry as unknown as Record<string, number | null>)[row.metricKey] = row.parsedValue;
-      }
-    }
-
-    const gate: RawGateMetrics = {
-      periodId,
-      clientAvgWaitTimeMin: body.gate?.clientAvgWaitTimeMin ?? null,
-      teamProcessingTimeMin: body.gate?.teamProcessingTimeMin ?? null,
-      chatTeamAvgResponseSec: body.gate?.chatTeamAvgResponseSec ?? null,
-      teamTicketAHTMin: body.gate?.teamTicketAHTMin ?? null,
-    };
-
-    const repo = await getRepository();
-    const committedPeriod = await repo.commitImport(body.importId, period, [...byAgent.values()], gate);
-
-    return NextResponse.json({ period: committedPeriod, agentsUpdated: byAgent.size });
+    return NextResponse.json({ period: result.period, agentsUpdated: result.agentsUpdated });
   } catch (err) {
     return NextResponse.json(
       { error: "Unexpected error while committing the import.", detail: err instanceof Error ? err.message : String(err) },
