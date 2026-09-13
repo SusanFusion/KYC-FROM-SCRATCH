@@ -3,7 +3,7 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MetricBarChart, type MetricBarDatum } from "@/components/charts/MetricBarChart";
-import { TrendChart } from "@/components/charts/TrendChart";
+import { TrendChart, type TrendPoint } from "@/components/charts/TrendChart";
 import { loadPeriodDataset } from "@/lib/data/query";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -22,7 +22,24 @@ export default async function TrendsPage() {
     );
   }
 
-  const teamAverage = results.length ? results.reduce((s, r) => s + r.individual.finalScore, 0) / results.length : 0;
+  const hasHistory = periods.length > 1;
+
+  // With more than one period imported (via PDF or manual entry), build a
+  // real point-per-period series instead of the single current-period dot —
+  // each additional commit to a new period shows up here automatically,
+  // nothing is backfilled or fabricated for periods that don't exist.
+  const chronological = [...periods].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+  const trendData: TrendPoint[] = hasHistory
+    ? await Promise.all(
+        chronological.map(async (p) => {
+          const ds = p.id === period.id ? { results } : await loadPeriodDataset(p.id);
+          const avg = ds.results.length
+            ? ds.results.reduce((s, r) => s + r.individual.finalScore, 0) / ds.results.length
+            : 0;
+          return { period: p.label.split(" ")[0] ?? p.id, score: Number(avg.toFixed(2)) };
+        })
+      )
+    : [{ period: period.label.split(" ")[0] ?? period.id, score: Number((results.length ? results.reduce((s, r) => s + r.individual.finalScore, 0) / results.length : 0).toFixed(2)) }];
 
   const metricAverages: MetricBarDatum[] = INDIVIDUAL_METRICS.map((def) => {
     const values = results
@@ -37,8 +54,6 @@ export default async function TrendsPage() {
     };
   });
 
-  const hasHistory = periods.length > 1;
-
   return (
     <>
       <TopHeader title="Trends" description="Performance over time, by metric and period" />
@@ -48,8 +63,8 @@ export default async function TrendsPage() {
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p>
               Only one reporting period (<strong>{period.label}</strong>) has been imported so far, so month-over-month trend
-              lines aren&apos;t meaningful yet. Import additional periods via Data Import and this page will automatically
-              chart the team average and per-metric trends over time — nothing here is fabricated to fill the gap.
+              lines aren&apos;t meaningful yet. Import additional periods via Data Import (PDF or manual entry) and this page
+              will automatically chart the team average over time — nothing here is fabricated to fill the gap.
             </p>
           </div>
         )}
@@ -58,17 +73,17 @@ export default async function TrendsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Team Average Score</CardTitle>
-              <CardDescription>{hasHistory ? "Across all imported periods." : "Current period only — more points will appear as periods are added."}</CardDescription>
+              <CardDescription>{hasHistory ? `Across all ${chronological.length} imported periods.` : "Current period only — more points will appear as periods are added."}</CardDescription>
             </CardHeader>
             <CardContent>
-              <TrendChart data={[{ period: period.label.split(" ")[0] ?? period.id, score: Number(teamAverage.toFixed(2)) }]} />
+              <TrendChart data={trendData} />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Average Grade by Metric</CardTitle>
-              <CardDescription>0-3 scale, this period. Lower-is-better metrics are already converted to grade before averaging.</CardDescription>
+              <CardDescription>0-3 scale, current period ({period.label}). Lower-is-better metrics are already converted to grade before averaging.</CardDescription>
             </CardHeader>
             <CardContent>
               <MetricBarChart data={metricAverages} />

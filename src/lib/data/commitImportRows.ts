@@ -25,10 +25,16 @@ export async function commitImportRows(params: CommitImportRowsParams): Promise<
   const { importId, rows, periodLabel, endDateIso, gate: gateInput } = params;
 
   const validRows = rows.filter((r) => r.status !== "failed" && r.matchedAgentId);
-  if (validRows.length === 0) {
+  const hasGateValue = Object.values(gateInput ?? {}).some((v) => typeof v === "number" && Number.isFinite(v));
+  // A commit needs SOME data, but not necessarily both kinds — a manual
+  // entry of only the two Business Gate fields the team actually has this
+  // week, with zero individual rows, is a completely valid partial period
+  // (it updates the gate multiplier; individual scores simply stay "no
+  // data" until a later import adds them, same as any other missing metric).
+  if (validRows.length === 0 && !hasGateValue) {
     return {
       ok: false,
-      error: "No valid rows to commit. Resolve the flagged rows first (unmatched agents or failed parses).",
+      error: "No data to commit. Enter at least one agent metric or one Business Gate value.",
     };
   }
 

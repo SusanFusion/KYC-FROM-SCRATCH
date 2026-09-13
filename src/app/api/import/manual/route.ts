@@ -54,7 +54,12 @@ export async function POST(request: Request) {
     const agentIds = new Set(agents.map((a) => a.id));
     const validEntries = numericEntries.filter((e) => agentIds.has(e.agentId));
 
-    if (validEntries.length === 0) {
+    const gateHasValue = body.gate ? Object.values(body.gate).some((v) => typeof v === "number" && Number.isFinite(v)) : false;
+
+    // Gate-only submissions (e.g. just the two Business Gate fields the team
+    // has this week, no per-agent data at all) are valid — only reject if
+    // NEITHER kind of value was entered anywhere on the form.
+    if (validEntries.length === 0 && !gateHasValue) {
       return NextResponse.json({ error: "Enter at least one value before saving." }, { status: 422 });
     }
 

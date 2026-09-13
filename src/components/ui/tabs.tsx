@@ -65,6 +65,14 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
 
 export function TabsContent({ value, children, className }: { value: string; children: React.ReactNode; className?: string }) {
   const ctx = React.useContext(TabsContext);
-  if (!ctx || ctx.value !== value) return null;
-  return <div className={cn("animate-fade-in", className)}>{children}</div>;
+  if (!ctx) return null;
+  const active = ctx.value === value;
+  // Stay mounted (just visually hidden) rather than returning null when
+  // inactive — a form like Manual Entry would otherwise lose everything
+  // typed into it the moment the user glances at another tab and back.
+  return (
+    <div className={cn(active && "animate-fade-in", className)} hidden={!active}>
+      {children}
+    </div>
+  );
 }

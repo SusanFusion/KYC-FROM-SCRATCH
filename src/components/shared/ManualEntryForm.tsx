@@ -159,7 +159,10 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
       <Card>
         <CardHeader>
           <CardTitle>Business Gate (team-level)</CardTitle>
-          <CardDescription>Layer 1 — one value per metric for the whole team this period.</CardDescription>
+          <CardDescription>
+            Layer 1 — one value per metric for the whole team this period. Fill in only what you have; you can save with
+            just one or two of these and nothing else on the page at all.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {GATE_FIELDS.map((f) => (
