@@ -38,6 +38,12 @@ interface PdfJsTextItem {
 async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
   // Dynamic import: pdfjs-dist's legacy Node build isn't Edge-compatible,
   // and importing it lazily keeps it out of any client bundle.
+  //
+  // pdfjs-dist internally needs DOMMatrix/Path2D/ImageData even for plain
+  // text extraction (no rendering) — globals Node doesn't have. It
+  // auto-detects the "@napi-rs/canvas" package (a native, prebuilt-binary
+  // dependency — see package.json) to supply those; no manual wiring is
+  // needed here as long as that package is installed and resolvable.
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
   const pages: PageTextItem[][] = [];
