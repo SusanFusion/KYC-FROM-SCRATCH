@@ -5,11 +5,11 @@ import { PageShell } from "@/components/layout/PageShell";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { GradeBadge, TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
 import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import { RankMedal } from "@/components/rankings/RankMedal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { loadPeriodDataset } from "@/lib/data/query";
-import { formatPhp } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 export default async function DashboardPage() {
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
           <KpiCard
             label="Business Gate Multiplier"
             value={results[0] ? `${results[0].gate.gateMultiplier.toFixed(4)}×` : "—"}
-            sublabel={results[0] ? `${results[0].gate.overallTier} · Layer 1, team-level` : "Team-level bonus multiplier (Layer 1)"}
+            sublabel={results[0] ? `${results[0].gate.overallTier} · Layer 1, team-level` : "Team-level multiplier (Layer 1)"}
             icon={Target}
             tone={results[0] ? tierTone(results[0].gate.overallTier) : "muted"}
           />
@@ -81,7 +81,7 @@ export default async function DashboardPage() {
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Business Gate — Layer 1</CardTitle>
-                <CardDescription>Team-level multiplier applied to every agent&apos;s bonus this period.</CardDescription>
+                <CardDescription>Team-level multiplier applied to every agent&apos;s score this period.</CardDescription>
               </div>
               <Link href="/team-performance" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
                 View details <ArrowRight className="h-3.5 w-3.5" />
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
                 </span>
                 <TierBadge tier={results[0]?.gate.overallTier ?? null} />
                 <span className="text-xs text-muted-foreground">
-                  = {((results[0]?.gate.gateMultiplier ?? 1) * 100).toFixed(2)}% of base bonus
+                  = {((results[0]?.gate.gateMultiplier ?? 1) * 100).toFixed(2)}% applied to the base score
                 </span>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -156,24 +156,19 @@ export default async function DashboardPage() {
                 <Link
                   key={r.agent.id}
                   href={`/scorecards/${r.agent.id}`}
-                  className="flex items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted",
+                    i === 0 && "rank-row-gold",
+                    i === 1 && "rank-row-silver",
+                    i === 2 && "rank-row-bronze"
+                  )}
                 >
                   <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
-                        i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                    <span className="font-medium text-foreground">{r.agent.name}</span>
+                    <RankMedal rank={i + 1} size="sm" />
+                    <span className={cn("text-foreground", i < 3 ? "font-semibold" : "font-medium")}>{r.agent.name}</span>
                     {r.individual.hasIncompleteData && <Badge variant="outline">Incomplete</Badge>}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">{formatPhp(r.bonus.totalBonusPhp)}</span>
-                    <GradeBadge grade={(r.individual.finalScore >= 3 ? 3 : r.individual.finalScore >= 2 ? 2 : r.individual.finalScore >= 1 ? 1 : 0) as 0 | 1 | 2 | 3} label={r.individual.finalScore.toFixed(2)} />
-                  </div>
+                  <GradeBadge grade={(r.individual.finalScore >= 3 ? 3 : r.individual.finalScore >= 2 ? 2 : r.individual.finalScore >= 1 ? 1 : 0) as 0 | 1 | 2 | 3} label={r.individual.finalScore.toFixed(2)} />
                 </Link>
               ))}
             </div>

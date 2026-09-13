@@ -24,7 +24,7 @@ export const DATA_NOTES: DataNote[] = [
       `The framework's own "Elena" worked example contradicts its threshold tables`,
     severity: "inconsistency",
     detail:
-      `In the Full Bonus Calculation example, "Agent Chat Avg Response Time" of 25 seconds is graded 3 (weighted 0.45), but the framework's own grading table defines 3 = <=19 sec and 2 = 20-25 sec -- 25 sec should grade 2 (weighted 0.30). Likewise CSAT of 92% is graded 3 (weighted 0.30) in the example, but the table defines 3 = >=95% and 2 = 90-94% -- 92% should grade 2 (weighted 0.20). Using the table correctly, Elena's total is 2.40 (bonus bracket 2.40-2.59 -> PHP 10,800), not the 2.65 / PHP 16,201 shown in the example. This app implements the stated threshold tables exactly as written, not the example's arithmetic -- the example is kept as a reference/test case with the discrepancy flagged rather than treated as ground truth. Recommend confirming with the framework's authors which is correct.`,
+      `In the Full Bonus Calculation example, "Agent Chat Avg Response Time" of 25 seconds is graded 3 (weighted 0.45), but the framework's own grading table defines 3 = <=19 sec and 2 = 20-25 sec -- 25 sec should grade 2 (weighted 0.30). Likewise CSAT of 92% is graded 3 (weighted 0.30) in the example, but the table defines 3 = >=95% and 2 = 90-94% -- 92% should grade 2 (weighted 0.20). Using the table correctly, Elena's total is 2.40, not the 2.65 shown in the example. This app implements the stated threshold tables exactly as written, not the example's arithmetic -- the example is kept as a reference/test case with the discrepancy flagged rather than treated as ground truth. Recommend confirming with the framework's authors which is correct.`,
   },
   {
     id: "csat-percentage-derivation",
@@ -66,14 +66,7 @@ export const DATA_NOTES: DataNote[] = [
     title: '"Top 1 agent" is read as the #1 overall final-score rank for the period',
     severity: "assumption",
     detail:
-      "The framework states the Top 1 agent receives an additional ₱1,350 on top of their calculated bonus, applied after the Business Gate multiplier (confirmed by the worked example: 17,051.55 + 1,350 = 18,401.55). It does not explicitly define how ties are broken. This app ranks by final individual score (post-penalty, pre-gate) and, in the event of an exact tie for #1, does not silently pick one agent — both are flagged for manual confirmation.",
-  },
-  {
-    id: "quarterly-vs-monthly",
-    title: "Bonus eligibility note mixes quarterly and monthly language",
-    severity: "inconsistency",
-    detail:
-      'The Individual Bonus Bracket table\'s note ties bonus eligibility to "6 months tenure" and "completing the current quarter", implying a quarterly bonus cycle — yet every worked calculation in the framework (and the only data available) is monthly. This app computes and displays scores/bonuses for whatever reporting period is selected (the data provided is monthly), and surfaces the tenure/quarter-completion rule as an eligibility flag rather than guessing a quarterly aggregation formula that was never specified.',
+      "The framework identifies a Top 1 agent for the period based on final individual score. It does not explicitly define how ties are broken. This app ranks by final individual score (post-penalty, pre-gate) and, in the event of an exact tie for #1, does not silently pick one agent — both are flagged for manual confirmation. (This app surfaces rank/standing only; it does not calculate or display any bonus payout.)",
   },
   {
     id: "gate-metrics-partial",
@@ -81,13 +74,6 @@ export const DATA_NOTES: DataNote[] = [
     severity: "gap",
     detail:
       'The Daily Report\'s KPI cards only show "Chat Team Avg Response Time" and "Team Ticket Resolution Time" for the Business Gate. "KYC Applications - Client Avg Wait Time" and "KYC Applications – Avg Team Processing Time" (the two heaviest-weighted gate metrics, 35% and 30%) were not present. The Gate Multiplier for this snapshot is computed from only the two available metrics, re-weighted proportionally, and clearly marked partial in the UI — it should not be treated as the true multiplier until all four metrics are imported.',
-  },
-  {
-    id: "tenure-unknown",
-    title: "Tenure / bonus eligibility is not in the source data",
-    severity: "gap",
-    detail:
-      'The bonus bracket table requires "6 months tenure" and "completing the current quarter" to qualify for a bonus, but neither PDF provides per-agent tenure or hire dates. Every seeded agent defaults to tenure-eligible so bonus figures are visible for comparison, with an explicit "eligibility not verified" flag — this should be confirmed against HR records before any bonus is actually paid out.',
   },
   {
     id: "fd-abbreviation",

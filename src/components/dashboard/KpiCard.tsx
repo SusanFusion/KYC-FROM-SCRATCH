@@ -13,6 +13,22 @@ const TONE_BORDER: Record<Tone, string> = {
   muted: "border-t-border",
 };
 
+const TONE_ICON: Record<Tone, string> = {
+  primary: "bg-primary-50 text-primary-600",
+  success: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  danger: "bg-danger/10 text-danger",
+  muted: "bg-muted text-muted-foreground",
+};
+
+const TONE_WASH: Record<Tone, string> = {
+  primary: "from-primary-50/70",
+  success: "from-success/[0.06]",
+  warning: "from-warning/[0.06]",
+  danger: "from-danger/[0.06]",
+  muted: "from-transparent",
+};
+
 export function KpiCard({
   label,
   value,
@@ -36,12 +52,12 @@ export function KpiCard({
 }) {
   const TrendIcon = trend === null || trend === undefined || trend === 0 ? Minus : trend > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <Card className={cn("animate-slide-up border-t-4", TONE_BORDER[tone])}>
+    <Card className={cn("animate-slide-up overflow-hidden border-t-4 bg-gradient-to-br to-transparent", TONE_BORDER[tone], TONE_WASH[tone])}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
           {Icon && (
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-50 text-primary-600">
+            <span className={cn("flex h-8 w-8 items-center justify-center rounded-md transition-transform", TONE_ICON[tone])}>
               <Icon className="h-4 w-4" />
             </span>
           )}

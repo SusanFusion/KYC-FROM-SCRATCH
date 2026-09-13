@@ -4,8 +4,9 @@ import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AgentSearch } from "@/components/scorecard/AgentSearch";
+import { RankMedal } from "@/components/rankings/RankMedal";
 import { loadPeriodDataset } from "@/lib/data/query";
-import { formatPhp, initials } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 export default async function ScorecardsPage() {
@@ -33,7 +34,7 @@ export default async function ScorecardsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ranked.map((r, i) => (
             <Link key={r.agent.id} href={`/scorecards/${r.agent.id}`}>
-              <Card className="h-full cursor-pointer">
+              <Card className={cn("h-full cursor-pointer", i === 0 && "rank-row-gold", i === 1 && "rank-row-silver", i === 2 && "rank-row-bronze")}>
                 <CardContent className="flex items-start gap-3 p-5">
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-50 text-sm font-semibold text-primary-700">
                     {initials(r.agent.name)}
@@ -41,7 +42,7 @@ export default async function ScorecardsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-semibold text-foreground">{r.agent.name}</p>
-                      <span className="text-xs text-muted-foreground">#{i + 1}</span>
+                      <RankMedal rank={i + 1} size="sm" />
                     </div>
                     <p className="text-xs text-muted-foreground">{r.agent.department}</p>
                     <div className="mt-2 flex items-center gap-2">
@@ -49,7 +50,6 @@ export default async function ScorecardsPage() {
                       <span className="text-xs text-muted-foreground">/ 3.00</span>
                       {r.individual.hasIncompleteData && <Badge variant="outline">Incomplete</Badge>}
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatPhp(r.bonus.totalBonusPhp)} bonus</p>
                   </div>
                 </CardContent>
               </Card>

@@ -1,25 +1,26 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GradeBadge, gradeTone } from "@/components/dashboard/PerformanceBadge";
+import { RankMedal } from "@/components/rankings/RankMedal";
 import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { ScoreBreakdown } from "@/components/scorecard/ScoreBreakdown";
 import { CalculationDetails } from "@/components/scorecard/CalculationDetails";
 import { loadAgentPeriodResult } from "@/lib/data/query";
 import { buildIndividualScaleTable } from "@/lib/scoring/display";
-import { formatPhp, initials } from "@/lib/utils";
+import { initials } from "@/lib/utils";
 
 export default async function AgentScorecardPage({ params }: { params: { agentId: string } }) {
   const { result, rank, dataset } = await loadAgentPeriodResult(params.agentId);
 
   if (!result || !dataset.period) notFound();
 
-  const { agent, individual, bonus } = result;
+  const { agent, individual } = result;
   const { columns, rows } = buildIndividualScaleTable();
 
   return (
@@ -42,26 +43,18 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-foreground">{agent.name}</h2>
-                {bonus.isTopPerformer && (
-                  <Badge variant="primary">
-                    <Trophy className="h-3 w-3" /> Top 1
-                  </Badge>
-                )}
                 {individual.hasIncompleteData && <Badge variant="outline">Incomplete data</Badge>}
               </div>
               <p className="text-sm text-muted-foreground">
                 Rank #{rank} of {dataset.ranked.length} · {agent.department}
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-semibold text-foreground">{individual.finalScore.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">/ 3.00 final score</p>
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-semibold text-primary-600">{formatPhp(bonus.totalBonusPhp)}</p>
-              <p className="text-xs text-muted-foreground">
-                {bonus.bracket.label} bracket · gate {bonus.gateMultiplier.toFixed(4)}×
-              </p>
+            <div className="flex items-center gap-3 text-right">
+              {rank !== null && <RankMedal rank={rank} size="lg" />}
+              <div>
+                <p className="text-3xl font-semibold text-foreground">{individual.finalScore.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">/ 3.00 final score</p>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -36,7 +36,7 @@ export default function QaQualityPage() {
               review practical at current team size — but that sample is too small to be statistically representative
               of the hundreds or thousands of interactions each agent handles. Until quality measurement scales, the
               framework intentionally keeps QA Audits at a low 5% weight in the individual scorecard rather than
-              relying on an unreliable sample for a big share of anyone&apos;s bonus.
+              relying on an unreliable sample for a big share of anyone&apos;s score.
             </p>
             <p className="mt-3 text-sm font-medium text-foreground">Where the team wants to get to:</p>
             <ul className="mt-2 space-y-2">

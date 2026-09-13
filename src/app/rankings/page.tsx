@@ -24,8 +24,6 @@ export default async function RankingsPage() {
     name: r.agent.name,
     department: r.agent.department,
     finalScore: r.individual.finalScore,
-    totalBonusPhp: r.bonus.totalBonusPhp,
-    isTopPerformer: r.bonus.isTopPerformer,
     hasIncompleteData: r.individual.hasIncompleteData,
     appAHT: r.individual.metrics.find((m) => m.key === "appAHT")?.actualDisplay ?? "—",
     emailAHT: r.individual.metrics.find((m) => m.key === "emailAHT")?.actualDisplay ?? "—",

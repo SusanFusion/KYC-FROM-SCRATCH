@@ -37,7 +37,7 @@ export default async function TeamPerformancePage() {
           <CardHeader>
             <CardTitle>Business Gate Scoring Scale</CardTitle>
             <CardDescription>
-              Each metric is scored into a tier; the weighted average of the tier scores becomes the multiplier applied to every agent&apos;s bonus.
+              Each metric is scored into a tier; the weighted average of the tier scores becomes this period&apos;s team-level multiplier.
             </CardDescription>
           </CardHeader>
           <CardContent>

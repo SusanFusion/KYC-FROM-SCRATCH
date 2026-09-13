@@ -1,10 +1,9 @@
 import { ChevronDown } from "lucide-react";
-import { formatPhp } from "@/lib/utils";
 import type { AgentPeriodResult } from "@/lib/data/query";
 
 /** "How was this score calculated?" — a plain <details> element so it works with zero client JS. */
 export function CalculationDetails({ result }: { result: AgentPeriodResult }) {
-  const { individual, gate, bonus } = result;
+  const { individual } = result;
 
   return (
     <details className="group rounded-lg border border-border" open>
@@ -14,7 +13,7 @@ export function CalculationDetails({ result }: { result: AgentPeriodResult }) {
       </summary>
       <div className="space-y-4 border-t border-border p-4 font-mono text-xs leading-relaxed text-muted-foreground">
         <div>
-          <p className="mb-1 font-semibold text-foreground">Step 1 — Score each metric (Layer 2)</p>
+          <p className="mb-1 font-semibold text-foreground">Step 1 — Score each metric</p>
           {individual.metrics.map((m) => (
             <p key={m.key}>
               {m.name}: {m.actualDisplay} → {m.excluded ? "No data (excluded)" : m.gradeLabel} → Grade{" "}
@@ -29,7 +28,7 @@ export function CalculationDetails({ result }: { result: AgentPeriodResult }) {
           </p>
           {individual.penaltiesApplied.length > 0 && (
             <>
-              <p className="mt-1 font-semibold text-danger">Penalties:</p>
+              <p className="mt-1 font-semibold text-danger">Step 2 — Penalties</p>
               {individual.penaltiesApplied.map((p) => (
                 <p key={p.code}>
                   {p.label} × {p.count} = -{p.deduction.toFixed(2)}
@@ -37,30 +36,10 @@ export function CalculationDetails({ result }: { result: AgentPeriodResult }) {
               ))}
             </>
           )}
-          <p className="mt-1 font-semibold text-foreground">
-            Final Individual Score: {individual.baseScore.toFixed(2)} - {individual.penaltyTotal.toFixed(2)} ={" "}
-            {individual.finalScore.toFixed(2)} / 3.00
-          </p>
-        </div>
-        <div>
-          <p className="mb-1 font-semibold text-foreground">Step 2 — Apply the Business Gate (Layer 1, team-level)</p>
-          <p>Bonus bracket for {individual.finalScore.toFixed(2)}: {bonus.bracket.label} → {formatPhp(bonus.baseBonusPhp)}</p>
-          <p>
-            Gate multiplier this period: {gate.gateMultiplier.toFixed(4)} ({gate.overallTier})
-          </p>
-          <p>
-            {formatPhp(bonus.baseBonusPhp)} × {gate.gateMultiplier.toFixed(4)} = {formatPhp(bonus.bonusAfterGate)}
-          </p>
-        </div>
-        <div>
-          <p className="mb-1 font-semibold text-foreground">Step 3 — Top performer bonus</p>
-          <p>
-            {bonus.isTopPerformer ? `+ ${formatPhp(bonus.topPerformerBonusPhp)} (Top 1 this period)` : "Not the Top 1 agent this period — no additional bonus."}
-          </p>
         </div>
         <div className="rounded-md bg-primary-50 p-3 font-sans text-sm font-semibold text-primary-700">
-          Final Bonus: {formatPhp(bonus.bonusAfterGate)} {bonus.isTopPerformer ? `+ ${formatPhp(bonus.topPerformerBonusPhp)} = ${formatPhp(bonus.totalBonusPhp)}` : `= ${formatPhp(bonus.totalBonusPhp)}`}
-          {!bonus.tenureEligible && " — withheld pending tenure/quarter-completion verification"}
+          Final Score: {individual.baseScore.toFixed(2)}
+          {individual.penaltyTotal > 0 && ` - ${individual.penaltyTotal.toFixed(2)}`} = {individual.finalScore.toFixed(2)} / 3.00
         </div>
       </div>
     </details>

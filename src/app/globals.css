@@ -62,3 +62,38 @@ body {
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* A soft diagonal highlight that sweeps across top-3 rank medals on a loop. */
+.rank-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.65) 48%, transparent 65%);
+  transform: translateX(-100%);
+  animation: rank-shine-sweep 2.6s ease-in-out infinite;
+}
+@keyframes rank-shine-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  35%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rank-shine {
+    animation: none;
+    display: none;
+  }
+}
+
+/* A faint tinted wash behind top-3 leaderboard rows, matching each medal. */
+.rank-row-gold {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.09), transparent 70%);
+}
+.rank-row-silver {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), transparent 70%);
+}
+.rank-row-bronze {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.09), transparent 70%);
+}
