@@ -36,14 +36,28 @@ interface PdfJsTextItem {
 }
 
 async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
-  // Dynamic import: pdfjs-dist's legacy Node build isn't Edge-compatible,
-  // and importing it lazily keeps it out of any client bundle.
-  //
   // pdfjs-dist internally needs DOMMatrix/Path2D/ImageData even for plain
-  // text extraction (no rendering) — globals Node doesn't have. It
-  // auto-detects the "@napi-rs/canvas" package (a native, prebuilt-binary
-  // dependency — see package.json) to supply those; no manual wiring is
-  // needed here as long as that package is installed and resolvable.
+  // text extraction (no rendering) — globals Node doesn't have. Rather than
+  // rely on pdfjs-dist auto-detecting @napi-rs/canvas on its own (it
+  // doesn't, for this Node entry point), assign its real DOMMatrix/Path2D/
+  // ImageData classes onto globalThis ourselves, once, before pdfjs-dist
+  // ever runs. Cast through Record<string, unknown> rather than the
+  // ambient lib.dom.d.ts globals — @napi-rs/canvas's classes are a
+  // different concrete type than TypeScript's DOM lib types, and we only
+  // need pdf.js's own internal code (which expects the real runtime shape,
+  // not our type-checker's opinion of it) to find something at that name.
+  const g = globalThis as unknown as Record<string, unknown>;
+  if (typeof g.DOMMatrix === "undefined" || typeof g.Path2D === "undefined" || typeof g.ImageData === "undefined") {
+    const canvas = await import("@napi-rs/canvas");
+    g.DOMMatrix ??= canvas.DOMMatrix;
+    g.Path2D ??= canvas.Path2D;
+    g.ImageData ??= canvas.ImageData;
+  }
+
+  // Dynamic import: pdfjs-dist's legacy Node build isn't Edge-compatible,
+  // and importing it lazily keeps it out of any client bundle. It must
+  // come after the globals above are set, since pdf.js reads them at
+  // module-evaluation time.
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
   const pages: PageTextItem[][] = [];
