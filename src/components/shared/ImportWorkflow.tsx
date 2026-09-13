@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 
 interface ParsedRow {
   id?: string;
@@ -40,6 +41,7 @@ const STATUS_META: Record<ParsedRow["status"], { label: string; variant: "succes
 
 export function ImportWorkflow() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [phase, setPhase] = React.useState<"idle" | "uploading" | "preview" | "committing" | "done" | "error">("idle");
   const [result, setResult] = React.useState<ParseResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -90,6 +92,14 @@ export function ImportWorkflow() {
         return;
       }
       setPhase("done");
+      const agentsUpdated = typeof data.agentsUpdated === "number" ? data.agentsUpdated : null;
+      const periodLabel = data.period?.label as string | undefined;
+      showToast(
+        `Import successful${periodLabel ? ` — ${periodLabel}` : ""}${
+          agentsUpdated !== null ? ` (${agentsUpdated} agent${agentsUpdated === 1 ? "" : "s"} updated)` : ""
+        }. Dashboard, rankings, and scorecards now reflect this data.`,
+        "success"
+      );
       router.refresh();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Unexpected error.");

@@ -6,6 +6,7 @@ import { CheckCircle2, XCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 
 interface AgentOption {
   id: string;
@@ -37,6 +38,7 @@ type CellValues = Record<string, Record<string, string>>; // agentId -> metricKe
 
 export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [phase, setPhase] = React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [periodLabel, setPeriodLabel] = React.useState("");
@@ -94,8 +96,13 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
         setPhase("error");
         return;
       }
-      setSavedCount(data.agentsUpdated ?? 0);
+      const agentsUpdated = data.agentsUpdated ?? 0;
+      setSavedCount(agentsUpdated);
       setPhase("done");
+      showToast(
+        `Manual entry saved — ${agentsUpdated} agent${agentsUpdated === 1 ? "" : "s"} updated. Dashboard, rankings, and scorecards now reflect this data.`,
+        "success"
+      );
       router.refresh();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Unexpected error.");

@@ -27,9 +27,9 @@ function escapeHtml(s: string): string {
  *  direction-aware so "notably ahead" vs "notably behind" is meaningful for
  *  both lower-is-better and higher-is-better metrics. Skips metrics with
  *  fewer than 4 data points or zero variance (not meaningful there). */
-function findOutliers(results: AgentPeriodResult[]): OutlierFlag[] {
+function findOutliers(results: AgentPeriodResult[], metricDefs: typeof INDIVIDUAL_METRICS): OutlierFlag[] {
   const flags: OutlierFlag[] = [];
-  for (const def of INDIVIDUAL_METRICS) {
+  for (const def of metricDefs) {
     const points = results
       .map((r) => ({ agent: r.agent.name, m: r.individual.metrics.find((m) => m.key === def.key) }))
       .filter((p): p is { agent: string; m: NonNullable<typeof p.m> } => !!p.m && p.m.actual !== null)
@@ -90,7 +90,7 @@ function buildNarrative(dataset: PeriodDataset, outliers: OutlierFlag[]): string
   return sentences.join(" ");
 }
 
-export function generatePeriodReportHtml(dataset: PeriodDataset): string {
+export function generatePeriodReportHtml(dataset: PeriodDataset, options?: { restrictQaAudit?: boolean }): string {
   const { period, results, ranked } = dataset;
   const generatedAt = new Date().toISOString();
 
@@ -100,7 +100,15 @@ export function generatePeriodReportHtml(dataset: PeriodDataset): string {
       <p>No performance data has been imported yet.</p></body></html>`;
   }
 
-  const outliers = findOutliers(results);
+  // QA Audit is per-agent-sensitive detail — this report covers every
+  // agent at once, so there's no way to redact it "except for yourself"
+  // the way the scorecard page can. When the requester isn't a Lead/Manager,
+  // the QA Audit column and any QA-related outlier flags are dropped from
+  // the whole export rather than shown for everyone.
+  const restrictQaAudit = options?.restrictQaAudit ?? false;
+  const metricDefs = restrictQaAudit ? INDIVIDUAL_METRICS.filter((d) => d.key !== "qaAudit") : INDIVIDUAL_METRICS;
+
+  const outliers = findOutliers(results, metricDefs);
   const narrative = buildNarrative(dataset, outliers);
   const gate = results[0]?.gate ?? null;
 
@@ -113,7 +121,7 @@ export function generatePeriodReportHtml(dataset: PeriodDataset): string {
             `<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;background:${f.good ? "#e7f6ee" : "#fdecec"};color:${f.good ? "#1c7a4d" : "#b3261e"}">${escapeHtml(f.metricName.split(" ").slice(0, 2).join(" "))}</span>`
         )
         .join("");
-      const metricCells = INDIVIDUAL_METRICS.map((def) => {
+      const metricCells = metricDefs.map((def) => {
         const m = r.individual.metrics.find((x) => x.key === def.key);
         return `<td style="padding:8px 10px;color:#555;white-space:nowrap">${escapeHtml(m?.actualDisplay ?? "—")}</td>`;
       }).join("");
@@ -160,9 +168,13 @@ export function generatePeriodReportHtml(dataset: PeriodDataset): string {
           </tbody>
         </table>`;
 
-  const metricHeaderCells = INDIVIDUAL_METRICS.map(
+  const metricHeaderCells = metricDefs.map(
     (def) => `<th style="padding:6px 10px;white-space:nowrap">${escapeHtml(def.name.split(" ").slice(0, 3).join(" "))}</th>`
   ).join("");
+
+  const qaRestrictedNote = restrictQaAudit
+    ? `<p style="margin:6px 0 0;font-size:11px;color:#9aa0ab;">QA Audit results are omitted from this export — visible only to Leads/Managers.</p>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -188,6 +200,7 @@ export function generatePeriodReportHtml(dataset: PeriodDataset): string {
       <div style="padding:16px 20px 4px;">
         <p style="margin:0;font-size:14px;font-weight:700;">Individual Scorecard standing — this period</p>
         <p style="margin:2px 0 0;font-size:12px;color:#6b7280;">Ranked by final score. This is a single-period snapshot, not a trend — trend lines will appear here automatically once a second period is imported.</p>
+        ${qaRestrictedNote}
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">

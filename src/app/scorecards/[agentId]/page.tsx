@@ -14,14 +14,25 @@ import { CalculationDetails } from "@/components/scorecard/CalculationDetails";
 import { loadAgentPeriodResult } from "@/lib/data/query";
 import { buildIndividualScaleTable } from "@/lib/scoring/display";
 import { initials } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 export default async function AgentScorecardPage({ params }: { params: { agentId: string } }) {
-  const { result, rank, dataset } = await loadAgentPeriodResult(params.agentId);
+  const [{ result, rank, dataset }, user] = await Promise.all([
+    loadAgentPeriodResult(params.agentId),
+    getCurrentUser(),
+  ]);
 
   if (!result || !dataset.period) notFound();
 
   const { agent, individual } = result;
   const { columns, rows } = buildIndividualScaleTable();
+
+  // QA Audit results are restricted: an agent only sees this section on
+  // their OWN scorecard; Leads/Managers see it on every scorecard. (Every
+  // other metric here is visible to everyone regardless of role.)
+  const canSeeQaAudit = !user || user.role === "lead" || user.agentId === params.agentId;
+  const visibleMetrics = canSeeQaAudit ? individual.metrics : individual.metrics.filter((m) => m.key !== "qaAudit");
+  const visibleResult = canSeeQaAudit ? result : { ...result, individual: { ...individual, metrics: visibleMetrics } };
 
   return (
     <>
@@ -76,7 +87,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {individual.metrics.map((m) => (
+              {visibleMetrics.map((m) => (
                 <MetricBlockCard
                   key={m.key}
                   label={m.name}
@@ -90,6 +101,11 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
                 />
               ))}
             </div>
+            {!canSeeQaAudit && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                QA Audit results for this agent are only visible to {agent.name} and to Leads/Managers.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -100,7 +116,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
               <CardDescription>Every metric that feeds the individual scorecard (Layer 2), per the Proposed Individual Grading Scales.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScoreBreakdown metrics={individual.metrics} />
+              <ScoreBreakdown metrics={visibleMetrics} />
               {individual.hasIncompleteData && (
                 <p className="mt-3 text-xs text-muted-foreground">
                   * Metrics marked &quot;No Data&quot; are excluded from the total and the remaining weights are renormalized — see Settings → Data Notes.
@@ -137,7 +153,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
         </div>
 
         <div className="mt-4">
-          <CalculationDetails result={result} />
+          <CalculationDetails result={visibleResult} />
         </div>
       </PageShell>
     </>

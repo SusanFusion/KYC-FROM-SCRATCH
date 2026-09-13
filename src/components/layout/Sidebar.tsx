@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -14,9 +15,11 @@ import {
   UploadCloud,
   Settings,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 import { NAV_ITEMS, APP_NAME } from "@/lib/appConfig";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/auth/UserContext";
 
 const ICON_MAP = {
   LayoutDashboard,
@@ -33,6 +36,20 @@ const ICON_MAP = {
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useCurrentUser();
+  const [loggingOut, setLoggingOut] = React.useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      onNavigate?.();
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-card">
@@ -69,7 +86,26 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="border-t border-border p-4">
+      <div className="space-y-3 border-t border-border p-4">
+        {user && (
+          <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-foreground">{user.name}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {user.role === "lead" ? "Lead / Manager" : "KYC Officer"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              {loggingOut ? "…" : "Log out"}
+            </button>
+          </div>
+        )}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Scores derived from the KYC KPI Realignment Framework. See Settings → Data Notes for assumptions.
         </p>

@@ -68,6 +68,14 @@ Scores are **never** persisted — every page computes them fresh from raw data 
 3. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (see `.env.example`).
 4. Redeploy. The app detects the env vars and switches repositories automatically — no code changes.
 
+## Login & access control
+
+Every page and API route requires signing in (`src/middleware.ts`) — username is always the person's email address, and there are exactly two shared passwords: one for KYC Officers ("agents"), one for Leads/Managers. The roster mapping each email to a role (and, for agents, to their scoring record) lives in `src/lib/auth/roster.ts` — edit that file to add, remove, or re-map someone.
+
+- Set real values for `AGENT_SHARED_PASSWORD`, `LEAD_SHARED_PASSWORD`, and `AUTH_SECRET` in Vercel (see `.env.example`) — the built-in fallbacks only exist so login still works with zero configuration in local/demo mode.
+- Sessions are a signed cookie (not a database row), so they work identically regardless of whether the data layer is `LocalRepository` or `SupabaseRepository`, and they clear when the browser closes (sign in again next session).
+- Everyone sees the same dashboard, rankings, trends, and scorecards. The one exception: on an individual's Scorecard page, the **QA Audit** metric and its breakdown are visible only to that agent and to Leads/Managers — an agent viewing a teammate's scorecard sees every other metric but not that teammate's QA Audit detail. The same restriction applies to the downloadable Reports export (see below): a Lead/Manager gets the full file, an agent gets it with the QA Audit column and any QA-related outlier flags removed.
+
 ## PDF Data Import
 
 **Settings → Data Import** accepts the same "Daily/Monthly KYC Team Performance Report" PDF layout. It does **not** parse raw text linearly — `src/lib/data/pdfImportParser.ts` reconstructs table rows/columns from each text item's (x, y) position (via `pdfjs-dist`), which is far more robust against PDF text-extraction reordering than line-splitting. This was verified end-to-end against the actual PDF supplied for this project (`scripts/verify-pdf-import.ts`) — it reconstructs every value exactly, with zero failed/unmatched rows.
