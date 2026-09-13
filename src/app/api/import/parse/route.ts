@@ -4,8 +4,34 @@ import { getRepository } from "@/lib/data/repository";
 
 export const runtime = "nodejs";
 
+// pdfjs-dist (5.x) relies on `Promise.withResolvers`, a very recent JS
+// feature (reliably available only in Node 20.11+/22+). Vercel serverless
+// functions can run on an older Node version than that depending on the
+// project's configured Node.js version, which makes every single PDF —
+// regardless of its content — fail inside pdf.js with a low-level
+// "Promise.withResolvers is not a function" error. That gets caught below
+// and surfaces as the generic "Could not read this PDF" message, which is
+// misleading: the PDF itself is fine. This polyfill removes the dependency
+// on the runtime's Node version entirely, so it's safe to keep even after
+// the Vercel project's Node version is confirmed to be 20.11+/22+.
+if (typeof (Promise as unknown as { withResolvers?: unknown }).withResolvers !== "function") {
+  (Promise as unknown as { withResolvers: <T>() => { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } }).withResolvers = function withResolvers<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 interface PdfJsTextItem {
   str: string;
+  // pdf.js always returns a 6-element transform matrix [a, b, c, d, e, f];
+  // typed as a fixed-length tuple (not number[]) so indexing transform[4]/[5]
+  // is known to be `number`, not `number | undefined`, under
+  // noUncheckedIndexedAccess.
   transform: [number, number, number, number, number, number];
 }
 

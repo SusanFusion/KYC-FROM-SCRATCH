@@ -54,7 +54,8 @@ export function ImportWorkflow() {
       const res = await fetch("/api/import/parse", { method: "POST", body: formData });
       const data: ParseResponse = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Failed to parse PDF.");
+        const base = data.error ?? "Failed to parse PDF.";
+        setErrorMsg(data.detail ? `${base} (${data.detail})` : base);
         setPhase("error");
         return;
       }
