@@ -28,6 +28,7 @@ export default async function RankingsPage() {
     appAHT: r.individual.metrics.find((m) => m.key === "appAHT")?.actualDisplay ?? "—",
     emailAHT: r.individual.metrics.find((m) => m.key === "emailAHT")?.actualDisplay ?? "—",
     chatAvgResponse: r.individual.metrics.find((m) => m.key === "chatAvgResponse")?.actualDisplay ?? "—",
+    chatFRT: r.individual.metrics.find((m) => m.key === "chatFRT")?.actualDisplay ?? "—",
     csatDsat: r.individual.metrics.find((m) => m.key === "csatDsat")?.actualDisplay ?? "—",
   }));
 
