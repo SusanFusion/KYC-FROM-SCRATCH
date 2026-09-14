@@ -20,6 +20,15 @@ function metricValue(metrics: MetricScoreBreakdown[], key: IndividualMetricKey) 
   return metrics.find((m) => m.key === key)?.actualDisplay ?? "—";
 }
 
+// Same light-tint formula as Team Performance's "emphasized" metric tiles
+// (see MetricBlockCard's TONE_FILL) — a soft, whole-row wash rather than a
+// loud solid color, so a full table of these stays easy on the eyes.
+const ROW_TONE = {
+  pass: "bg-success/10",
+  fail: "bg-danger/10",
+  noData: "bg-muted/40",
+};
+
 export default async function ScorecardsPage() {
   const [{ period, ranked }, user] = await Promise.all([loadPeriodDataset(), getCurrentUser()]);
 
@@ -33,6 +42,10 @@ export default async function ScorecardsPage() {
       </>
     );
   }
+
+  // Alphabetical by name rather than by rank — this page is a roster to
+  // look someone up in, not a leaderboard (that's what Rankings is for).
+  const agentsAlphabetical = [...ranked].sort((a, b) => a.agent.name.localeCompare(b.agent.name));
 
   return (
     <>
@@ -59,7 +72,7 @@ export default async function ScorecardsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ranked.map((r) => {
+                {agentsAlphabetical.map((r) => {
                   // Same rule as the individual Scorecard page: an agent sees
                   // their own QA Audit result; Leads/Managers see everyone's.
                   const canSeeQaAudit = !user || user.role === "lead" || user.agentId === r.agent.id;
@@ -73,7 +86,7 @@ export default async function ScorecardsPage() {
                   const noDataYet = r.individual.effectiveWeight === 0;
 
                   return (
-                    <TableRow key={r.agent.id}>
+                    <TableRow key={r.agent.id} className={noDataYet ? ROW_TONE.noData : passing ? ROW_TONE.pass : ROW_TONE.fail}>
                       <TableCell>
                         <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
                           {r.agent.name}
@@ -104,16 +117,12 @@ export default async function ScorecardsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {noDataYet ? (
-                          <span className="inline-flex min-w-[3.5rem] justify-center rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                            No data yet
-                          </span>
+                          // Plain text here, not a pill — the row itself is
+                          // already tinted (ROW_TONE.noData), so a second
+                          // background on top of that would just look muddy.
+                          <span className="text-xs font-medium text-muted-foreground">No data yet</span>
                         ) : (
-                          <span
-                            className={cn(
-                              "inline-flex min-w-[3.5rem] justify-center rounded-md px-2.5 py-1 text-sm font-semibold",
-                              passing ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-                            )}
-                          >
+                          <span className={cn("text-sm font-semibold", passing ? "text-success" : "text-danger")}>
                             {r.individual.finalScore.toFixed(2)}
                           </span>
                         )}
