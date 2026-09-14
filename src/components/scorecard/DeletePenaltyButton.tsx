@@ -33,7 +33,11 @@ function ConfirmSubmitButton() {
  *  nothing else needs to be recalculated or backfilled. */
 export function DeletePenaltyButton({ id, agentId }: { id: string; agentId: string }) {
   return (
-    <form action={deletePenaltyAction}>
+    <form
+      action={async (formData: FormData) => {
+        await deletePenaltyAction(formData);
+      }}
+    >
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="agentId" value={agentId} />
       <ConfirmSubmitButton />
