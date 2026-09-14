@@ -34,8 +34,14 @@ export default async function TeamPerformancePage() {
     );
   }
 
-  const teamAverage = results.length
-    ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
+  // Rankings/Scorecards now list every agent on the roster, including
+  // anyone with no import for this period yet (a 0.00 placeholder score —
+  // see query.ts). Averaging that in here would understate the team's real
+  // performance for every agent who simply hasn't been imported yet, so
+  // this average is intentionally scoped to agents who actually have data.
+  const scoredResults = results.filter((r) => r.individual.effectiveWeight > 0);
+  const teamAverage = scoredResults.length
+    ? scoredResults.reduce((sum, r) => sum + r.individual.finalScore, 0) / scoredResults.length
     : 0;
   const { columns, rows } = buildGateScaleTable();
 
@@ -80,7 +86,10 @@ export default async function TeamPerformancePage() {
         <Card className="mt-4">
           <CardHeader>
             <CardTitle>Individual Scorecard Average (Layer 2)</CardTitle>
-            <CardDescription>Average final score across all {results.length} scored agents this period, before the gate multiplier.</CardDescription>
+            <CardDescription>
+              Average final score across {scoredResults.length} scored agent{scoredResults.length === 1 ? "" : "s"} this period
+              {scoredResults.length !== results.length ? ` (of ${results.length} on the roster)` : ""}, before the gate multiplier.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
