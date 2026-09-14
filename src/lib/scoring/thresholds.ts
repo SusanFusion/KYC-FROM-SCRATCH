@@ -171,17 +171,15 @@ export const INDIVIDUAL_METRICS: IndividualMetricDefinition[] = [
 
 export const INDIVIDUAL_MAX_SCORE = 3;
 
-/** Individual Bonus Bracket (Department: KYC). */
-export const BONUS_BRACKETS: BonusBracket[] = [
-  { scoreMin: 3, scoreMax: null, percentage: 0.05, phpAmount: 27001, label: "3.00" },
-  { scoreMin: 2.8, scoreMax: 3, percentage: 0.04, phpAmount: 21601, label: "2.80 – 2.99" },
-  { scoreMin: 2.6, scoreMax: 2.8, percentage: 0.03, phpAmount: 16201, label: "2.60 – 2.79" },
-  { scoreMin: 2.4, scoreMax: 2.6, percentage: 0.02, phpAmount: 10800, label: "2.40 – 2.59" },
-  { scoreMin: 2.2, scoreMax: 2.4, percentage: 0.01, phpAmount: 5400, label: "2.20 – 2.39" },
-  { scoreMin: -Infinity, scoreMax: 2.2, percentage: 0, phpAmount: 0, label: "2.19 and below" },
-];
-
-export const TOP_PERFORMER_BONUS_PHP = 1350;
+/**
+ * The single pass/fail line used wherever an agent's overall final score
+ * (0-3) is shown as green vs red — Individual Scorecards and Rankings both
+ * import this rather than each hardcoding their own number, precisely so
+ * the two pages can't drift out of sync on what counts as "passing"
+ * (deliberately independent of the per-metric grade bands above, which use
+ * their own 3/2/1/0 thresholds for a different purpose).
+ */
+export const SCORE_PASS_THRESHOLD = 2.5;
 
 export const BONUS_TENURE_RULE =
   "Only qualifies for a quarter bonus if the agent has passed 6 months tenure and completed the current quarter.";
