@@ -17,6 +17,10 @@ export interface RankingRow {
   department: string;
   finalScore: number;
   hasIncompleteData: boolean;
+  /** True only when NO metric has data yet this period (as opposed to
+   *  hasIncompleteData, which can also mean just one metric is missing).
+   *  Renders as a plain "No data" badge instead of a 0.00 score. */
+  hasNoData: boolean;
   appAHT: string;
   emailAHT: string;
   chatAvgResponse: string;
@@ -119,10 +123,14 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                 <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
                 <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
                 <TableCell>
-                  <GradeBadge
-                    grade={(r.finalScore >= 3 ? 3 : r.finalScore >= 2 ? 2 : r.finalScore >= 1 ? 1 : 0) as 0 | 1 | 2 | 3}
-                    label={r.finalScore.toFixed(2)}
-                  />
+                  {r.hasNoData ? (
+                    <Badge variant="outline">No data yet</Badge>
+                  ) : (
+                    <GradeBadge
+                      grade={(r.finalScore >= 3 ? 3 : r.finalScore >= 2 ? 2 : r.finalScore >= 1 ? 1 : 0) as 0 | 1 | 2 | 3}
+                      label={r.finalScore.toFixed(2)}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             );
