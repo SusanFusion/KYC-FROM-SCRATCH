@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PenaltyForm } from "@/components/scorecard/PenaltyForm";
+import { DeletePenaltyButton } from "@/components/scorecard/DeletePenaltyButton";
 import { DISCIPLINARY_PENALTIES, ATTENDANCE_PENALTIES, PENALTY_NOTE_DEDUCTION_TIMING } from "@/lib/scoring";
 import { loadPeriodDataset } from "@/lib/data/query";
 
@@ -83,15 +84,19 @@ export default async function PenaltiesPage() {
                     <TableHead>Infraction</TableHead>
                     <TableHead>Count</TableHead>
                     <TableHead className="text-right">Deduction</TableHead>
+                    <TableHead className="text-right">&nbsp;</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recorded.map((p, i) => (
-                    <TableRow key={i}>
+                  {recorded.map((p) => (
+                    <TableRow key={p.id}>
                       <TableCell className="font-medium text-foreground">{p.agent}</TableCell>
                       <TableCell>{p.label}</TableCell>
                       <TableCell>{p.count}</TableCell>
                       <TableCell className="text-right text-danger">-{p.deduction.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        <DeletePenaltyButton id={p.id} agentId={p.agentId} />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
