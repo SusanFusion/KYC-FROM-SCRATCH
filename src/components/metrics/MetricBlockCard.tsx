@@ -12,6 +12,19 @@ const TONE_BORDER: Record<Tone, string> = {
   muted: "border-t-border",
 };
 
+// A softer, whole-box tint for pages that want the tier/grade color to read
+// at a glance across the room rather than in a thin top line or the small
+// badge alone. Kept deliberately light (10% fill, ~20% border) so a grid of
+// these next to each other stays calm instead of turning into a wall of
+// solid color.
+const TONE_FILL: Record<Tone, string> = {
+  primary: "border-primary/20 bg-primary-50/70",
+  success: "border-success/20 bg-success/10",
+  warning: "border-warning/20 bg-warning/10",
+  danger: "border-danger/20 bg-danger/10",
+  muted: "border-border bg-muted/40",
+};
+
 /**
  * One "block" tile for a single metric: label, big value, status badge, and
  * an optional buffer/margin caption (e.g. "5.2s under" the Amber threshold).
@@ -29,6 +42,7 @@ export function MetricBlockCard({
   bufferGood,
   tooltip,
   className,
+  emphasized = false,
 }: {
   label: string;
   value: string;
@@ -39,12 +53,16 @@ export function MetricBlockCard({
   bufferGood?: boolean | null;
   tooltip?: string;
   className?: string;
+  /** true = tint the whole tile with the tone color (a calmer, wider signal
+   *  than the default thin top-border accent). Off by default so existing
+   *  pages (Individual Scorecard, dashboard) keep their current look. */
+  emphasized?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-t-4 border-border bg-card p-4 shadow-card transition-shadow hover:shadow-popover/40",
-        TONE_BORDER[tone],
+        "rounded-lg border p-4 shadow-card transition-shadow hover:shadow-popover/40",
+        emphasized ? TONE_FILL[tone] : cn("border-t-4 border-border bg-card", TONE_BORDER[tone]),
         className
       )}
     >
