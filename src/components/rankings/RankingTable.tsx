@@ -97,3 +97,49 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
             </TableHead>
           </TableRow>
         </TableHeader>
+        <TableBody>
+          {filtered.map((r, i) => {
+            const rank = i + 1;
+            // Only tint/medal the true top-3 when the list is showing its natural,
+            // unfiltered rank order — a search or re-sort shouldn't crown row #1.
+            const showMedal = isDefaultSort && rank <= 3;
+            return (
+              <TableRow key={r.agentId} className={showMedal ? ROW_TINT[rank] : undefined}>
+                <TableCell>{showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}</TableCell>
+                <TableCell>
+                  <Link href={`/scorecards/${r.agentId}`} className={cn("font-medium text-foreground hover:underline", showMedal && "font-semibold")}>
+                    {r.name}
+                  </Link>
+                  {r.hasIncompleteData && (
+                    <Badge variant="outline" className="ml-2">
+                      Incomplete
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{r.department}</TableCell>
+                <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
+                <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
+                <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
+                <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
+                <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
+                <TableCell>
+                  {r.hasNoData ? (
+                    <Badge variant="outline">No data yet</Badge>
+                  ) : r.finalScore >= SCORE_PASS_THRESHOLD ? (
+                    <Badge variant="success">
+                      <CheckCircle2 className="h-3 w-3" /> {r.finalScore.toFixed(2)}
+                    </Badge>
+                  ) : (
+                    <Badge variant="danger">
+                      <XCircle className="h-3 w-3" /> {r.finalScore.toFixed(2)}
+                    </Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
