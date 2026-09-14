@@ -35,20 +35,8 @@ export default async function TeamPerformancePage() {
       <PageShell>
         <Card>
           <CardHeader>
-            <CardTitle>Business Gate Scoring Scale</CardTitle>
-            <CardDescription>
-              Each metric is scored into a tier; the weighted average of the tier scores becomes this period&apos;s team-level multiplier.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScoringScaleTable columns={columns} rows={rows} title="Metric" />
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
             <CardTitle>{period.label}</CardTitle>
-            <CardDescription>This period&apos;s actuals against the scale above.</CardDescription>
+            <CardDescription>This period&apos;s actuals against the scoring scale below.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -67,6 +55,7 @@ export default async function TeamPerformancePage() {
                       : `Weight ${(m.weight * 100).toFixed(0)}%`
                   }
                   tooltip="Distance to the Amber threshold (the Green tier's boundary) — how much room is left before this metric needs attention."
+                  emphasized
                 />
               ))}
             </div>
@@ -88,6 +77,18 @@ export default async function TeamPerformancePage() {
               <span className="text-sm text-muted-foreground">/ 3.00</span>
               <Progress value={teamAverage} max={3} className="ml-4 flex-1" />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Business Gate Scoring Scale</CardTitle>
+            <CardDescription>
+              Reference only — each metric above is scored into a tier against these ranges; the weighted average of the tier scores becomes this period&apos;s team-level multiplier.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScoringScaleTable columns={columns} rows={rows} title="Metric" />
           </CardContent>
         </Card>
       </PageShell>
