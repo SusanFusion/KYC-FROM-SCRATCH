@@ -20,6 +20,7 @@ export interface RankingRow {
   appAHT: string;
   emailAHT: string;
   chatAvgResponse: string;
+  chatFRT: string;
   csatDsat: string;
 }
 
@@ -83,6 +84,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
             <TableHead>App AHT</TableHead>
             <TableHead>Email AHT</TableHead>
             <TableHead>Chat Response</TableHead>
+            <TableHead>First Response</TableHead>
             <TableHead>CSAT</TableHead>
             <TableHead>
               <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
@@ -114,6 +116,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                 <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
                 <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
                 <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
+                <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
                 <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
                 <TableCell>
                   <GradeBadge
