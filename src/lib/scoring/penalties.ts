@@ -2,6 +2,7 @@ import { ALL_PENALTIES } from "./thresholds";
 import type { PenaltyEntry } from "./types";
 
 export interface AppliedPenalty {
+  id: string;
   code: PenaltyEntry["code"];
   label: string;
   category: "disciplinary" | "attendance";
@@ -25,6 +26,7 @@ export function calculatePenalty(
     .map((p) => {
       const def = ALL_PENALTIES.find((d) => d.code === p.code);
       return {
+        id: p.id,
         code: p.code,
         label: def?.label ?? p.code,
         category: def?.category ?? "disciplinary",
