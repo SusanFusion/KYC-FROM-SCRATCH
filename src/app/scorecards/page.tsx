@@ -2,15 +2,26 @@ import Link from "next/link";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AgentSearch } from "@/components/scorecard/AgentSearch";
-import { RankMedal } from "@/components/rankings/RankMedal";
 import { loadPeriodDataset } from "@/lib/data/query";
-import { cn, initials } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import type { IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
 
+// Overall-score highlight threshold — deliberately independent of the
+// per-metric grade bands (3/2/1/0): this is a single pass/fail line across
+// the final 0–3 score, per explicit instruction.
+const SCORE_PASS_THRESHOLD = 2.5;
+
+function metricValue(metrics: MetricScoreBreakdown[], key: IndividualMetricKey) {
+  return metrics.find((m) => m.key === key)?.actualDisplay ?? "—";
+}
+
 export default async function ScorecardsPage() {
-  const { period, ranked } = await loadPeriodDataset();
+  const [{ period, ranked }, user] = await Promise.all([loadPeriodDataset(), getCurrentUser()]);
 
   if (!period) {
     return (
@@ -31,31 +42,76 @@ export default async function ScorecardsPage() {
         actions={<AgentSearch agents={ranked.map((r) => ({ id: r.agent.id, name: r.agent.name }))} />}
       />
       <PageShell>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {ranked.map((r, i) => (
-            <Link key={r.agent.id} href={`/scorecards/${r.agent.id}`}>
-              <Card className={cn("h-full cursor-pointer", i === 0 && "rank-row-gold", i === 1 && "rank-row-silver", i === 2 && "rank-row-bronze")}>
-                <CardContent className="flex items-start gap-3 p-5">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-50 text-sm font-semibold text-primary-700">
-                    {initials(r.agent.name)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-foreground">{r.agent.name}</p>
-                      <RankMedal rank={i + 1} size="sm" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">{r.agent.department}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-lg font-semibold text-foreground">{r.individual.finalScore.toFixed(2)}</span>
-                      <span className="text-xs text-muted-foreground">/ 3.00</span>
-                      {r.individual.hasIncompleteData && <Badge variant="outline">Incomplete</Badge>}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-5">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>App AHT</TableHead>
+                  <TableHead>Email AHT</TableHead>
+                  <TableHead>Chat Response</TableHead>
+                  <TableHead>First Response</TableHead>
+                  <TableHead>CSAT</TableHead>
+                  <TableHead>QA Audit</TableHead>
+                  <TableHead className="text-right">Penalty</TableHead>
+                  <TableHead className="text-right">Score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ranked.map((r) => {
+                  // Same rule as the individual Scorecard page: an agent sees
+                  // their own QA Audit result; Leads/Managers see everyone's.
+                  const canSeeQaAudit = !user || user.role === "lead" || user.agentId === r.agent.id;
+                  const passing = r.individual.finalScore >= SCORE_PASS_THRESHOLD;
+
+                  return (
+                    <TableRow key={r.agent.id}>
+                      <TableCell>
+                        <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
+                          {r.agent.name}
+                        </Link>
+                        {r.individual.hasIncompleteData && (
+                          <Badge variant="outline" className="ml-2">
+                            Incomplete
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "appAHT")}</TableCell>
+                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "emailAHT")}</TableCell>
+                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatAvgResponse")}</TableCell>
+                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatFRT")}</TableCell>
+                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "csatDsat")}</TableCell>
+                      <TableCell
+                        className="text-muted-foreground"
+                        title={canSeeQaAudit ? undefined : "Visible to this agent and Leads/Managers only"}
+                      >
+                        {canSeeQaAudit ? metricValue(r.individual.metrics, "qaAudit") : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.individual.penaltyTotal > 0 ? (
+                          <span className="font-medium text-danger">-{r.individual.penaltyTotal.toFixed(2)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span
+                          className={cn(
+                            "inline-flex min-w-[3.5rem] justify-center rounded-md px-2.5 py-1 text-sm font-semibold",
+                            passing ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
+                          )}
+                        >
+                          {r.individual.finalScore.toFixed(2)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </PageShell>
     </>
   );
