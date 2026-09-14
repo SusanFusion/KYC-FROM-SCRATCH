@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { commitImportRows } from "@/lib/data/commitImportRows";
 import type { ImportRow } from "@/types/domain";
 import type { RawGateMetrics } from "@/lib/scoring/types";
+import { describeError } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ period: result.period, agentsUpdated: result.agentsUpdated });
   } catch (err) {
     return NextResponse.json(
-      { error: "Unexpected error while committing the import.", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Unexpected error while committing the import.", detail: describeError(err) },
       { status: 500 }
     );
   }

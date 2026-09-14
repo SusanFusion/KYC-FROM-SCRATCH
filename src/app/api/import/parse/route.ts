@@ -14,6 +14,7 @@ import "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import { NextResponse } from "next/server";
 import { parseKycReportPages, type PageTextItem } from "@/lib/data/pdfImportParser";
 import { getRepository } from "@/lib/data/repository";
+import { describeError } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: "Unexpected error while parsing the PDF.", detail: err instanceof Error ? err.message : String(err) },
+      { error: "Unexpected error while parsing the PDF.", detail: describeError(err) },
       { status: 500 }
     );
   }

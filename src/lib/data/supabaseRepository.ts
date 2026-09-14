@@ -1,16 +1,29 @@
 import type { DataRepository } from "./repository";
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
 import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
-import { getSupabaseClient } from "./supabaseClient";
+import { getSupabaseClient, getSupabaseServiceClient } from "./supabaseClient";
 
 /**
  * Supabase-backed repository. Mirrors LocalRepository's contract exactly so
  * UI code never needs to know which one it's talking to. See
  * supabase/schema.sql for the table definitions this expects.
+ *
+ * Reads go through the anon-key client (schema.sql only grants public
+ * SELECT policies, which is exactly the read access every page needs).
+ * Writes go through the service-role client instead: schema.sql
+ * deliberately grants NO insert/update/delete policies to the anon role
+ * (writes are only ever meant to happen from validated server code), so a
+ * write attempted with the anon key is rejected by Postgres's row-level
+ * security — every commit would otherwise fail with a policy-violation
+ * error, regardless of how correct the surrounding logic is.
  */
 export class SupabaseRepository implements DataRepository {
   private get client() {
     return getSupabaseClient();
+  }
+
+  private get writeClient() {
+    return getSupabaseServiceClient();
   }
 
   async getTeams(): Promise<Team[]> {
@@ -87,7 +100,7 @@ export class SupabaseRepository implements DataRepository {
   }
 
   async addPenalty(entry: Omit<PenaltyEntry, "id">): Promise<PenaltyEntry> {
-    const { data, error } = await this.client
+    const { data, error } = await this.writeClient
       .from("penalties")
       .insert({
         agent_id: entry.agentId,
@@ -129,7 +142,7 @@ export class SupabaseRepository implements DataRepository {
     record: Omit<ImportRecord, "id">,
     rows: Omit<ImportRow, "id" | "importId">[]
   ): Promise<{ record: ImportRecord; rows: ImportRow[] }> {
-    const { data: importRow, error } = await this.client
+    const { data: importRow, error } = await this.writeClient
       .from("imports")
       .insert({
         file_name: record.fileName,
@@ -143,7 +156,7 @@ export class SupabaseRepository implements DataRepository {
     if (error) throw error;
 
     const importId = importRow.id as string;
-    const { data: rowData, error: rowError } = await this.client
+    const { data: rowData, error: rowError } = await this.writeClient
       .from("import_rows")
       .insert(
         rows.map((r) => ({
@@ -200,7 +213,7 @@ export class SupabaseRepository implements DataRepository {
   ): Promise<Period> {
     const periodId = period.id ?? crypto.randomUUID();
 
-    const { error: periodError } = await this.client.from("periods").upsert({
+    const { error: periodError } = await this.writeClient.from("periods").upsert({
       id: periodId,
       label: period.label,
       type: period.type,
@@ -210,7 +223,7 @@ export class SupabaseRepository implements DataRepository {
     });
     if (periodError) throw periodError;
 
-    const { error: metricsError } = await this.client.from("performance_entries").upsert(
+    const { error: metricsError } = await this.writeClient.from("performance_entries").upsert(
       metrics.map((m) => ({
         agent_id: m.agentId,
         period_id: periodId,
@@ -228,7 +241,7 @@ export class SupabaseRepository implements DataRepository {
     );
     if (metricsError) throw metricsError;
 
-    const { error: gateError } = await this.client.from("gate_metrics").upsert(
+    const { error: gateError } = await this.writeClient.from("gate_metrics").upsert(
       {
         period_id: periodId,
         client_avg_wait_time_min: gate.clientAvgWaitTimeMin,
@@ -240,7 +253,7 @@ export class SupabaseRepository implements DataRepository {
     );
     if (gateError) throw gateError;
 
-    await this.client
+    await this.writeClient
       .from("imports")
       .update({ status: "committed", committed_at: new Date().toISOString(), period_label: period.label })
       .eq("id", importId);
