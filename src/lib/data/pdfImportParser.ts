@@ -36,6 +36,15 @@ const TABLE_MATCHERS: { type: TableType; test: (pageText: string) => boolean }[]
 const HEADER_FIRST_CELLS = new Set(["agent", "assigned agent name"]);
 const IGNORE_ROW_PATTERNS = [/^date range/i, /^generated date/i, /^\+\s*\d+\s*additional/i, /^\s*$/];
 
+const TABLE_LABELS: Record<TableType, string> = {
+  chatMetrics: "Chat metrics (Total Chats / First Response / Avg Response)",
+  emailAHT: "Email AHT",
+  appAHT: "Application AHT",
+  csatDsat: "CSAT / DSAT",
+  qaAudit: "QA Audit",
+  unknown: "Unrecognized table",
+};
+
 const GATE_CARD_DEFS: { key: string; test: (t: string) => boolean }[] = [
   { key: "chatTeamAvgResponse", test: (t) => /chat.*team.*avg.*response.*time/i.test(t) },
   { key: "teamTicketAHT", test: (t) => /team ticket (resolution|aht)/i.test(t) },
@@ -153,22 +162,41 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
 
     if (tableType) {
       tablesDetected.add(tableType);
-      const dataRows = headerRowIdx >= 0 ? allRows.slice(headerRowIdx + 1) : allRows;
 
-      for (const row of dataRows) {
-        const cells = row.map((c) => c.str.trim()).filter(Boolean);
-        if (cells.length === 0) continue;
-        const firstCell = cells[0]!.toLowerCase();
-        if (HEADER_FIRST_CELLS.has(firstCell)) continue;
-        if (IGNORE_ROW_PATTERNS.some((p) => p.test(cells[0]!))) continue;
-        // Section-title rows contain a "%)" weight marker or "Target" — not agent data.
-        if (/%\)/.test(cells.join(" ")) || /\btarget\b/i.test(cells.join(" "))) continue;
+      if (headerRowIdx === -1) {
+        // No "Agent" / "Assigned Agent name" header row found at all — this
+        // isn't a normal table page with an unusual layout, it means the
+        // report rendered NO per-agent table for this metric this period
+        // (seen in the wild: a page with just the section title and a
+        // literal "No data!" placeholder instead of rows). Treating every
+        // other row on the page as agent data here would wrongly turn that
+        // placeholder text — and decorative glyphs that sit above every
+        // table's real header (e.g. a calendar icon next to "Date Range")
+        // — into bogus "failed" rows with a blank or garbled agent name.
+        // Skip the page's rows entirely and say clearly what happened.
+        if (/no data/i.test(pageText)) {
+          warnings.push(`${TABLE_LABELS[tableType]}: the PDF reports "No data" for this period — nothing to import for this metric.`);
+        } else {
+          warnings.push(`${TABLE_LABELS[tableType]}: couldn't find the table's header row on this page — skipped rather than risk importing garbage rows. Use Manual Entry to add this metric for this period if needed.`);
+        }
+      } else {
+        const dataRows = allRows.slice(headerRowIdx + 1);
 
-        const agentNameRaw = cells[0]!;
-        const agent = matchAgent(agentNameRaw, agents);
-        const values = cells.slice(1);
+        for (const row of dataRows) {
+          const cells = row.map((c) => c.str.trim()).filter(Boolean);
+          if (cells.length === 0) continue;
+          const firstCell = cells[0]!.toLowerCase();
+          if (HEADER_FIRST_CELLS.has(firstCell)) continue;
+          if (IGNORE_ROW_PATTERNS.some((p) => p.test(cells[0]!))) continue;
+          // Section-title rows contain a "%)" weight marker or "Target" — not agent data.
+          if (/%\)/.test(cells.join(" ")) || /\btarget\b/i.test(cells.join(" "))) continue;
 
-        pushRowsForTable(tableType, agentNameRaw, agent, values, rows, warnings);
+          const agentNameRaw = cells[0]!;
+          const agent = matchAgent(agentNameRaw, agents);
+          const values = cells.slice(1);
+
+          pushRowsForTable(tableType, agentNameRaw, agent, values, rows, warnings);
+        }
       }
     } else if (headerRowIdx === -1 && !/generated date|date range|additional/i.test(pageText)) {
       // A page with tabular-looking data we don't recognize — surface it
