@@ -18,6 +18,7 @@ export interface DataRepository {
   getAllGateMetrics(): Promise<RawGateMetrics[]>;
   getPenalties(periodId?: string): Promise<PenaltyEntry[]>;
   addPenalty(entry: Omit<PenaltyEntry, "id">): Promise<PenaltyEntry>;
+  deletePenalty(id: string): Promise<void>;
 
   getImports(): Promise<ImportRecord[]>;
   createImport(record: Omit<ImportRecord, "id">, rows: Omit<ImportRow, "id" | "importId">[]): Promise<{ record: ImportRecord; rows: ImportRow[] }>;
