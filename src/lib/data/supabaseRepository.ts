@@ -124,6 +124,11 @@ export class SupabaseRepository implements DataRepository {
     };
   }
 
+  async deletePenalty(id: string): Promise<void> {
+    const { error } = await this.writeClient.from("penalties").delete().eq("id", id);
+    if (error) throw error;
+  }
+
   async getImports(): Promise<ImportRecord[]> {
     const { data, error } = await this.client.from("imports").select("*").order("uploaded_at", { ascending: false });
     if (error) throw error;
