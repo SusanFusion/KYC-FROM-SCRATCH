@@ -70,11 +70,13 @@ Scores are **never** persisted — every page computes them fresh from raw data 
 
 ## Login & access control
 
-Every page and API route requires signing in (`src/middleware.ts`) — username is always the person's email address, and there are exactly two shared passwords: one for KYC Officers ("agents"), one for Leads/Managers. The roster mapping each email to a role (and, for agents, to their scoring record) lives in `src/lib/auth/roster.ts` — edit that file to add, remove, or re-map someone.
+General browsing needs no account at all — anyone with the link can open the Dashboard, Team Performance, Rankings, Scorecards, Trends, QA/Quality, Penalties (viewing), Reports (viewing), and Settings. Two narrower things still require a password, for two different reasons:
 
-- Set real values for `AGENT_SHARED_PASSWORD`, `LEAD_SHARED_PASSWORD`, and `AUTH_SECRET` in Vercel (see `.env.example`) — the built-in fallbacks only exist so login still works with zero configuration in local/demo mode.
-- Sessions are a signed cookie (not a database row), so they work identically regardless of whether the data layer is `LocalRepository` or `SupabaseRepository`, and they clear when the browser closes (sign in again next session).
-- Everyone sees the same dashboard, rankings, trends, and scorecards. The one exception: on an individual's Scorecard page, the **QA Audit** metric and its breakdown are visible only to that agent and to Leads/Managers — an agent viewing a teammate's scorecard sees every other metric but not that teammate's QA Audit detail. The same restriction applies to the downloadable Reports export (see below): a Lead/Manager gets the full file, an agent gets it with the QA Audit column and any QA-related outlier flags removed.
+**Leads/Managers sign in** (`/login`, username = email, one shared `LEAD_SHARED_PASSWORD`) to unlock actions that change or export data: Data Import (PDF upload + manual entry), recording a penalty, and downloading a Reports export. `src/middleware.ts` only gates these specific paths — everything else passes through with no session at all. The roster mapping each email to a role lives in `src/lib/auth/roster.ts`. The Lead session is a signed cookie (`src/lib/auth/session.ts`) that clears when the browser closes.
+
+**Viewing one agent's QA Audit result and their penalty entries** requires the shared `AGENT_SHARED_PASSWORD` — entered inline, right on that agent's Scorecard page (`src/lib/auth/recordUnlock.ts`), not a real sign-in. Entering it unlocks *that one agent's* record only, for the rest of the browser session — unlocking Abigael's QA Audit doesn't also reveal Yuri's, since the shared password only proves "someone on the team is asking," not who they are. Leads/Managers see every agent's QA Audit and penalties automatically, with no prompt. This same restriction is enforced on the Rankings recognition board (a locked agent's QA Audit cell shows "Locked" instead of a value) and on the Reports export (which requires a Lead session anyway).
+
+Set real values for `AGENT_SHARED_PASSWORD`, `LEAD_SHARED_PASSWORD`, and `AUTH_SECRET` in Vercel (see `.env.example`) — the built-in fallbacks only exist so the app still works with zero configuration in local/demo mode.
 
 ## PDF Data Import
 
