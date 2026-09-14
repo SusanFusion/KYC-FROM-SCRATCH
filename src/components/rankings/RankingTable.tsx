@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpDown, Search } from "lucide-react";
+import { ArrowUpDown, Search, CheckCircle2, XCircle } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { GradeBadge } from "@/components/dashboard/PerformanceBadge";
 import { RankMedal } from "@/components/rankings/RankMedal";
+import { SCORE_PASS_THRESHOLD } from "@/lib/scoring/thresholds";
 import { cn } from "@/lib/utils";
 
 export interface RankingRow {
@@ -97,46 +97,3 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {filtered.map((r, i) => {
-            const rank = i + 1;
-            // Only tint/medal the true top-3 when the list is showing its natural,
-            // unfiltered rank order — a search or re-sort shouldn't crown row #1.
-            const showMedal = isDefaultSort && rank <= 3;
-            return (
-              <TableRow key={r.agentId} className={showMedal ? ROW_TINT[rank] : undefined}>
-                <TableCell>{showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}</TableCell>
-                <TableCell>
-                  <Link href={`/scorecards/${r.agentId}`} className={cn("font-medium text-foreground hover:underline", showMedal && "font-semibold")}>
-                    {r.name}
-                  </Link>
-                  {r.hasIncompleteData && (
-                    <Badge variant="outline" className="ml-2">
-                      Incomplete
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{r.department}</TableCell>
-                <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
-                <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
-                <TableCell>
-                  {r.hasNoData ? (
-                    <Badge variant="outline">No data yet</Badge>
-                  ) : (
-                    <GradeBadge
-                      grade={(r.finalScore >= 3 ? 3 : r.finalScore >= 2 ? 2 : r.finalScore >= 1 ? 1 : 0) as 0 | 1 | 2 | 3}
-                      label={r.finalScore.toFixed(2)}
-                    />
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
