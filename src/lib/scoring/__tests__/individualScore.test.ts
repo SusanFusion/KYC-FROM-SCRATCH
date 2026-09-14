@@ -139,10 +139,11 @@ describe("calculateIndividualScore", () => {
 });
 
 describe("deriveCsatPercent", () => {
-  it("computes CSAT / (CSAT + DSAT)", () => {
-    expect(deriveCsatPercent(9, 1)).toBe(90);
+  it("computes 100 - (DSAT / Total Chats) * 100", () => {
+    expect(deriveCsatPercent(500, 20)).toBe(96);
+    expect(deriveCsatPercent(10, 1)).toBe(90);
   });
-  it("returns null when there is no survey data at all", () => {
+  it("returns null when there's no chat volume to divide by", () => {
     expect(deriveCsatPercent(0, 0)).toBeNull();
     expect(deriveCsatPercent(null, null)).toBeNull();
   });

@@ -110,8 +110,9 @@ assert.equal(at25.metrics.find((m) => m.key === "chatAvgResponse")!.grade, 2);
 const above25 = calculateIndividualScore(baseRaw({ avgResponseTimeSec: 25.1 }), []);
 assert.equal(above25.metrics.find((m) => m.key === "chatAvgResponse")!.grade, 1);
 
-// CSAT 92% → grade 2 (90-94%), matching the table, not the example's grade-3.
-const csat92 = calculateIndividualScore(baseRaw({ csatCount: 92, dsatCount: 8 }), []);
+// CSAT 92% (= 100 - (DSAT/Total Chats)*100 = 100 - 8/100*100) → grade 2 (90-94%),
+// matching the table, not the example's grade-3.
+const csat92 = calculateIndividualScore(baseRaw({ totalChats: 100, dsatCount: 8 }), []);
 assert.equal(csat92.metrics.find((m) => m.key === "csatDsat")!.grade, 2);
 
 // Missing QA metric → excluded + renormalized, not scored as 0.

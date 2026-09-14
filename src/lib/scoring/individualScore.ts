@@ -11,12 +11,17 @@ import type {
   RawAgentMetrics,
 } from "./types";
 
-/** Derives CSAT % from raw counts. See notes.ts ("csat-percentage-derivation"). */
-export function deriveCsatPercent(csatCount: number | null, dsatCount: number | null): number | null {
-  if (csatCount === null || dsatCount === null) return null;
-  const total = csatCount + dsatCount;
-  if (total === 0) return null;
-  return (csatCount / total) * 100;
+/**
+ * Derives CSAT % as the complement of the DSAT rate over ALL chats:
+ * CSAT % = 100 − (DSAT ÷ Total Chats) × 100. See notes.ts
+ * ("csat-percentage-derivation"). The CSAT Count field is still collected
+ * (kept on the raw record and shown in the import review) but is not part
+ * of this calculation.
+ */
+export function deriveCsatPercent(totalChats: number | null, dsatCount: number | null): number | null {
+  if (totalChats === null || dsatCount === null) return null;
+  if (totalChats === 0) return null;
+  return 100 - (dsatCount / totalChats) * 100;
 }
 
 function getMetricValue(raw: RawAgentMetrics, key: IndividualMetricKey): number | null {
@@ -30,7 +35,7 @@ function getMetricValue(raw: RawAgentMetrics, key: IndividualMetricKey): number 
     case "chatFRT":
       return raw.avgFirstResponseTimeSec;
     case "csatDsat":
-      return deriveCsatPercent(raw.csatCount, raw.dsatCount);
+      return deriveCsatPercent(raw.totalChats, raw.dsatCount);
     case "qaAudit":
       return raw.qaAuditPct;
   }

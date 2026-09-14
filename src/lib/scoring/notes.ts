@@ -28,10 +28,10 @@ export const DATA_NOTES: DataNote[] = [
   },
   {
     id: "csat-percentage-derivation",
-    title: "CSAT % is derived from raw counts, not given directly",
+    title: "CSAT % is derived from Total Chats and DSAT Count",
     severity: "assumption",
     detail:
-      'The Daily Performance Report only provides raw counts (Total Chats, CSAT, DSAT) per agent, while the framework grades a CSAT "percentage". This app computes CSAT % = CSAT ÷ (CSAT + DSAT) × 100 — i.e. share of *responded* satisfaction surveys that were positive — since the PDFs do not state the exact formula. Chats with no survey response are excluded from the denominator. If the intended formula is CSAT ÷ Total Chats instead, results will differ; this is called out on the Individual Scorecard page.',
+      "CSAT % = 100 − (DSAT Count ÷ Total Chats) × 100 — i.e. the share of all chats that were NOT flagged DSAT. The CSAT Count field is still collected and shown wherever raw metrics are reviewed, but it is not used in this calculation.",
   },
   {
     id: "missing-qa-audit-data",
