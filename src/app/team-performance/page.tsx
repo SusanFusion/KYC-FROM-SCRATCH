@@ -4,10 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
 import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
+import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { Progress } from "@/components/ui/progress";
 import { loadPeriodDataset } from "@/lib/data/query";
 import { buildGateScaleTable } from "@/lib/scoring/display";
+import { GATE_TIER_SCORES } from "@/lib/scoring/thresholds";
+import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
+
+const GATE_TIER_DESCRIPTION: Record<GateTier, string> = {
+  Exceptional: "smashing the target",
+  Green: "hitting target",
+  Amber: "below target",
+  Red: "significantly missing",
+};
 
 export default async function TeamPerformancePage() {
   const { period, results } = await loadPeriodDataset();
@@ -63,6 +73,7 @@ export default async function TeamPerformancePage() {
               <span className="text-sm font-medium text-primary-700">Gate Multiplier</span>
               <span className="text-lg font-semibold text-primary-700">{gate.gateMultiplier.toFixed(4)}×</span>
             </div>
+            <GateCalculationDetails gate={gate} />
           </CardContent>
         </Card>
 
@@ -89,6 +100,16 @@ export default async function TeamPerformancePage() {
           </CardHeader>
           <CardContent>
             <ScoringScaleTable columns={columns} rows={rows} title="Metric" />
+            <ul className="mt-4 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground marker:text-border">
+              {GATE_TIER_SCORES.map((t) => (
+                <li key={t.tier}>
+                  <span className="font-semibold text-foreground">
+                    {t.tier} = {t.score.toFixed(2)}
+                  </span>{" "}
+                  ({GATE_TIER_DESCRIPTION[t.tier]})
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       </PageShell>
