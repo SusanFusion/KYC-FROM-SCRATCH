@@ -1,7 +1,29 @@
 import { getRepository } from "./repository";
 import { calculateFullAgentResult, type FullAgentPeriodResult } from "@/lib/scoring";
 import type { Agent, Period, Team } from "@/types/domain";
-import type { RawGateMetrics } from "@/lib/scoring/types";
+import type { RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+
+/** A stand-in for an agent with no imported row for this period at all —
+ *  every field "No data" rather than the agent being silently left off
+ *  Rankings/Scorecards. The scoring engine already treats an all-null raw
+ *  record safely: every metric excludes itself, hasIncompleteData is set,
+ *  and the final score renormalizes to 0 rather than crashing or dividing
+ *  by zero (see individualScore.ts). */
+function emptyRawMetrics(agentId: string, periodId: string): RawAgentMetrics {
+  return {
+    agentId,
+    periodId,
+    totalChatConversations: null,
+    avgFirstResponseTimeSec: null,
+    avgResponseTimeSec: null,
+    emailAHTSec: null,
+    appAHTSec: null,
+    totalChats: null,
+    csatCount: null,
+    dsatCount: null,
+    qaAuditPct: null,
+  };
+}
 
 export interface AgentPeriodResult extends FullAgentPeriodResult {
   agent: Agent;
@@ -49,11 +71,17 @@ export async function loadPeriodDataset(periodId?: string): Promise<PeriodDatase
       teamTicketAHTMin: null,
     };
 
-  // First pass to rank agents by final score (pre-gate), to identify Top 1.
-  const prelim = rawMetrics.map((raw) => {
-    const agent = agents.find((a) => a.id === raw.agentId);
+  // Every agent on the roster gets a row — even one with no import for this
+  // period at all. Previously this started from the imported rows and
+  // looked up the agent, so an agent nobody had gotten around to importing
+  // yet simply never appeared anywhere (Rankings, Scorecards) with no
+  // indication they existed. Starting from the full roster instead means
+  // they still show up, just with every metric reading "No data" (and the
+  // existing "Incomplete" badge, same as any other partial-data agent).
+  const prelim = agents.map((agent) => {
+    const raw = rawMetrics.find((r) => r.agentId === agent.id) ?? emptyRawMetrics(agent.id, period.id);
     return { raw, agent };
-  }).filter((x): x is { raw: typeof rawMetrics[number]; agent: Agent } => !!x.agent);
+  });
 
   const scored = prelim.map(({ raw, agent }) => ({
     agent,
