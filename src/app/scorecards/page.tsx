@@ -64,6 +64,13 @@ export default async function ScorecardsPage() {
                   // their own QA Audit result; Leads/Managers see everyone's.
                   const canSeeQaAudit = !user || user.role === "lead" || user.agentId === r.agent.id;
                   const passing = r.individual.finalScore >= SCORE_PASS_THRESHOLD;
+                  // True only when NOT ONE metric has data yet this period —
+                  // distinct from hasIncompleteData, which can also mean
+                  // just one metric (e.g. QA Audit) is still missing. Shown
+                  // as a plain "No data yet" pill instead of a 0.00 score,
+                  // which would otherwise misrepresent an unimported agent
+                  // as having failed.
+                  const noDataYet = r.individual.effectiveWeight === 0;
 
                   return (
                     <TableRow key={r.agent.id}>
@@ -96,14 +103,20 @@ export default async function ScorecardsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span
-                          className={cn(
-                            "inline-flex min-w-[3.5rem] justify-center rounded-md px-2.5 py-1 text-sm font-semibold",
-                            passing ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-                          )}
-                        >
-                          {r.individual.finalScore.toFixed(2)}
-                        </span>
+                        {noDataYet ? (
+                          <span className="inline-flex min-w-[3.5rem] justify-center rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                            No data yet
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              "inline-flex min-w-[3.5rem] justify-center rounded-md px-2.5 py-1 text-sm font-semibold",
+                              passing ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
+                            )}
+                          >
+                            {r.individual.finalScore.toFixed(2)}
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
