@@ -22,3 +22,23 @@ export async function addPenaltyAction(formData: FormData) {
   revalidatePath(`/scorecards/${agentId}`);
   return { ok: true };
 }
+
+export async function deletePenaltyAction(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const agentId = String(formData.get("agentId") ?? "");
+
+  if (!id) return { ok: false, error: "Missing penalty id." };
+
+  const repo = await getRepository();
+  await repo.deletePenalty(id);
+
+  // Scores/rankings are always derived fresh from raw data (see
+  // src/lib/data/query.ts), so deleting the underlying penalty record here
+  // is all that's needed for it to stop affecting that agent's individual
+  // score, their Scorecard breakdown, and the Rankings board — nothing to
+  // recalculate or backfill separately.
+  revalidatePath("/penalties");
+  revalidatePath("/rankings");
+  if (agentId) revalidatePath(`/scorecards/${agentId}`);
+  return { ok: true };
+}
