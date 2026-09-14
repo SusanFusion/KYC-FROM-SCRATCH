@@ -1,7 +1,7 @@
 // Single source of truth for the product name. Change NEXT_PUBLIC_APP_NAME
 // in your environment (see .env.example) to rebrand the app everywhere —
 // no other file needs to change.
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "KYC From Scratch";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "KYC Team Performance";
 
 export const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard" as const },

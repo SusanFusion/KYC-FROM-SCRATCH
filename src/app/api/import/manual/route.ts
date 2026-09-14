@@ -14,10 +14,14 @@ interface ManualEntryPayload {
 
 interface ManualImportBody {
   periodLabel?: string | null;
-  /** YYYY-MM-DD, from a plain <input type="date"> — no PDF-date-format guessing needed here. */
-  generatedDate: string;
+  /** YYYY-MM-DD, from a plain <input type="date"> — required only when
+   *  targetPeriodId isn't set (an existing period already has its own
+   *  dates; this is only for minting a brand new one). */
+  generatedDate?: string | null;
   gate?: Partial<RawGateMetrics>;
   entries: ManualEntryPayload[];
+  /** Merge into this existing period instead of creating a new one — see commitImportRows.ts. */
+  targetPeriodId?: string | null;
 }
 
 // Must match RawAgentMetrics' own fields exactly (see lib/scoring/types.ts) —
@@ -38,10 +42,13 @@ const VALID_METRIC_KEYS = new Set([
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ManualImportBody;
-    if (!body.generatedDate || !Array.isArray(body.entries)) {
-      return NextResponse.json({ error: "Missing a date for this period, or no values were entered." }, { status: 400 });
+    if (!Array.isArray(body.entries)) {
+      return NextResponse.json({ error: "No values were entered." }, { status: 400 });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.generatedDate)) {
+    if (!body.targetPeriodId && !body.generatedDate) {
+      return NextResponse.json({ error: "Pick a date for this period." }, { status: 400 });
+    }
+    if (body.generatedDate && !/^\d{4}-\d{2}-\d{2}$/.test(body.generatedDate)) {
       return NextResponse.json({ error: "Date must be in YYYY-MM-DD format." }, { status: 400 });
     }
 
@@ -90,8 +97,12 @@ export async function POST(request: Request) {
       importId: record.id,
       rows,
       periodLabel: body.periodLabel ?? null,
-      endDateIso: body.generatedDate,
+      // Only used when minting a brand new period (targetPeriodId unset) —
+      // an existing period keeps its own dates, so the fallback here never
+      // actually gets used in that case.
+      endDateIso: body.generatedDate ?? new Date().toISOString().slice(0, 10),
       gate: body.gate,
+      targetPeriodId: body.targetPeriodId,
     });
 
     if (!result.ok) {

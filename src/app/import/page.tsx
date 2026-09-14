@@ -10,7 +10,8 @@ import { formatDate } from "@/lib/utils";
 
 export default async function ImportPage() {
   const repo = await getRepository();
-  const [imports, agents] = await Promise.all([repo.getImports(), repo.getAgents()]);
+  const [imports, agents, periods] = await Promise.all([repo.getImports(), repo.getAgents(), repo.getPeriods()]);
+  const periodOptions = periods.map((p) => ({ id: p.id, label: p.label, endDate: p.endDate }));
 
   return (
     <>
@@ -25,10 +26,10 @@ export default async function ImportPage() {
             <TabsTrigger value="manual">Manual Entry</TabsTrigger>
           </TabsList>
           <TabsContent value="upload" className="mt-4">
-            <ImportWorkflow />
+            <ImportWorkflow periods={periodOptions} />
           </TabsContent>
           <TabsContent value="manual" className="mt-4">
-            <ManualEntryForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} />
+            <ManualEntryForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} periods={periodOptions} />
           </TabsContent>
         </Tabs>
 

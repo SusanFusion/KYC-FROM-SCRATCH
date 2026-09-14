@@ -1,4 +1,4 @@
-# KYC From Scratch
+# KYC Team Performance
 
 A KYC team performance & scorecard dashboard: team-level Business Gate multiplier, individual agent scorecards with full calculation transparency, rankings, trends, penalties, and PDF-based data import. Built with Next.js 14 (App Router), TypeScript, Tailwind CSS, and a Supabase-ready data layer.
 

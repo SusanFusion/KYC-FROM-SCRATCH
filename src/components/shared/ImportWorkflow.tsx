@@ -7,7 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+
+interface PeriodOption {
+  id: string;
+  label: string;
+  endDate: string;
+}
+
+const NEW_PERIOD_VALUE = "__new__";
 
 interface ParsedRow {
   id?: string;
@@ -39,12 +48,16 @@ const STATUS_META: Record<ParsedRow["status"], { label: string; variant: "succes
   failed: { label: "Failed", variant: "danger", Icon: XCircle },
 };
 
-export function ImportWorkflow() {
+export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [phase, setPhase] = React.useState<"idle" | "uploading" | "preview" | "committing" | "done" | "error">("idle");
   const [result, setResult] = React.useState<ParseResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  // Defaults to the current period so this PDF's numbers land on the same
+  // period any earlier import/manual entry already established, instead of
+  // silently starting a second period the dashboard never shows.
+  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(periods[0]?.id ?? NEW_PERIOD_VALUE);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   async function handleFiles(files: File[]) {
@@ -83,6 +96,7 @@ export function ImportWorkflow() {
           periodLabel: result.periodLabelGuess,
           generatedDateGuess: result.generatedDateGuess,
           gate: result.gate,
+          targetPeriodId: targetPeriodId === NEW_PERIOD_VALUE ? null : targetPeriodId,
         }),
       });
       const data = await res.json();
@@ -213,6 +227,22 @@ export function ImportWorkflow() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
+            <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                  {p.id === periods[0]?.id ? " (current)" : ""}
+                </option>
+              ))}
+              <option value={NEW_PERIOD_VALUE}>+ Start a new period{result.periodLabelGuess ? ` (${result.periodLabelGuess})` : ""}</option>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Merging into an existing period only adds/updates what this PDF actually contains — everything else
+              already recorded for it stays as it was.
+            </p>
+          </div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Badge variant="success">{counts.extracted} extracted</Badge>
             <Badge variant="warning">{counts.needs_review} needs review</Badge>

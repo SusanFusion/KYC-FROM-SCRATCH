@@ -6,12 +6,21 @@ import { CheckCircle2, XCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 
 interface AgentOption {
   id: string;
   name: string;
 }
+
+interface PeriodOption {
+  id: string;
+  label: string;
+  endDate: string;
+}
+
+const NEW_PERIOD_VALUE = "__new__";
 
 /** Matches RawAgentMetrics fields exactly (see lib/scoring/types.ts) — this
  *  form fills the same raw inputs a parsed PDF row would. */
@@ -36,16 +45,23 @@ const GATE_FIELDS: { key: string; label: string; hint: string }[] = [
 
 type CellValues = Record<string, Record<string, string>>; // agentId -> metricKey -> raw string
 
-export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
+export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; periods: PeriodOption[] }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [phase, setPhase] = React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  // Default to the current period (periods[0] — same "most recent" ordering
+  // the rest of the app treats as "current") so adding, say, the two
+  // Business Gate fields the PDF never reports actually lands on the same
+  // period the dashboard is already showing, instead of quietly creating a
+  // second period that never appears anywhere.
+  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(periods[0]?.id ?? NEW_PERIOD_VALUE);
   const [periodLabel, setPeriodLabel] = React.useState("");
   const [generatedDate, setGeneratedDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
   const [cells, setCells] = React.useState<CellValues>({});
   const [savedCount, setSavedCount] = React.useState(0);
+  const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
 
   function setCell(agentId: string, metricKey: string, raw: string) {
     setCells((prev) => ({ ...prev, [agentId]: { ...(prev[agentId] ?? {}), [metricKey]: raw } }));
@@ -77,7 +93,7 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
       setPhase("error");
       return;
     }
-    if (!generatedDate) {
+    if (isNewPeriod && !generatedDate) {
       setErrorMsg("Pick a date for this period.");
       setPhase("error");
       return;
@@ -88,7 +104,13 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
       const res = await fetch("/api/import/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ periodLabel: periodLabel || null, generatedDate, gate, entries }),
+        body: JSON.stringify({
+          periodLabel: isNewPeriod ? periodLabel || null : null,
+          generatedDate: isNewPeriod ? generatedDate : null,
+          targetPeriodId: isNewPeriod ? null : targetPeriodId,
+          gate,
+          entries,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -113,6 +135,7 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
   function resetForm() {
     setCells({});
     setGateValues({});
+    setTargetPeriodId(periods[0]?.id ?? NEW_PERIOD_VALUE);
     setPhase("idle");
     setErrorMsg(null);
   }
@@ -148,18 +171,38 @@ export function ManualEntryForm({ agents }: { agents: AgentOption[] }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Period details</CardTitle>
-          <CardDescription>Values you leave blank are treated as not measured — not scored as zero.</CardDescription>
+          <CardTitle>Which period is this for?</CardTitle>
+          <CardDescription>
+            Values you leave blank are treated as not measured — not scored as zero. Adding to an existing period only
+            fills in what you enter here; everything else already recorded for it (from a PDF import or an earlier
+            manual entry) stays exactly as it was.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CardContent className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Period label (optional)</label>
-            <Input placeholder="e.g. This Month" value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} />
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
+            <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
+              {periods.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                  {p.id === periods[0]?.id ? " (current)" : ""}
+                </option>
+              ))}
+              <option value={NEW_PERIOD_VALUE}>+ Start a new period</option>
+            </Select>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Date for this period</label>
-            <Input type="date" value={generatedDate} onChange={(e) => setGeneratedDate(e.target.value)} />
-          </div>
+          {isNewPeriod && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Period label (optional)</label>
+                <Input placeholder="e.g. This Month" value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Date for this period</label>
+                <Input type="date" value={generatedDate} onChange={(e) => setGeneratedDate(e.target.value)} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

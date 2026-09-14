@@ -11,6 +11,8 @@ interface CommitBody {
   periodLabel?: string | null;
   generatedDateGuess?: string | null;
   gate?: Partial<RawGateMetrics>;
+  /** Merge into this existing period instead of creating a new one — see commitImportRows.ts. */
+  targetPeriodId?: string | null;
 }
 
 function parseDdMmYyyy(input: string | null | undefined): string | null {
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
       periodLabel: body.periodLabel,
       endDateIso,
       gate: body.gate,
+      targetPeriodId: body.targetPeriodId,
     });
 
     if (!result.ok) {
