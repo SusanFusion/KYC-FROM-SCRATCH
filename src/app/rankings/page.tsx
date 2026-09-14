@@ -7,6 +7,13 @@ import { EncouragementBand } from "@/components/rankings/EncouragementBand";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { loadPeriodDataset } from "@/lib/data/query";
 
+// Scores are derived fresh from live data on every request — this page must
+// never be served from a cached/stale build snapshot (Vercel/Next can
+// otherwise reuse a pre-rendered page across deployments if it can't tell
+// the underlying data is dynamic), which is exactly what caused already-
+// fixed bugs to keep reappearing on the live site after a real fix shipped.
+export const dynamic = "force-dynamic";
+
 export default async function RankingsPage() {
   const { period, ranked, teams } = await loadPeriodDataset();
 
