@@ -80,6 +80,10 @@ export class LocalRepository implements DataRepository {
     return full;
   }
 
+  async deletePenalty(id: string) {
+    store.penalties = store.penalties.filter((p) => p.id !== id);
+  }
+
   async getImports() {
     return [...store.imports].sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
   }
