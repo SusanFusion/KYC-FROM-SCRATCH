@@ -6,11 +6,16 @@ import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { Progress } from "@/components/ui/progress";
-import { loadPeriodDataset } from "@/lib/data/query";
+import { RangePicker } from "@/components/shared/RangePicker";
+import { loadRangeDataset, listAvailableWeeks } from "@/lib/data/query";
 import { buildGateScaleTable } from "@/lib/scoring/display";
 import { GATE_TIER_SCORES } from "@/lib/scoring/thresholds";
 import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
+
+// Scores are derived fresh from live data on every request — see rankings/page.tsx
+// for why this must never be served from a cached/stale build snapshot.
+export const dynamic = "force-dynamic";
 
 const GATE_TIER_DESCRIPTION: Record<GateTier, string> = {
   Exceptional: "smashing the target",
@@ -19,16 +24,43 @@ const GATE_TIER_DESCRIPTION: Record<GateTier, string> = {
   Red: "significantly missing",
 };
 
-export default async function TeamPerformancePage() {
-  const { period, results } = await loadPeriodDataset();
-  const gate = results[0]?.gate;
+export default async function TeamPerformancePage({ searchParams }: { searchParams: { week?: string } }) {
+  const weeks = await listAvailableWeeks();
 
-  if (!period || !gate) {
+  if (weeks.length === 0) {
     return (
       <>
         <TopHeader title="Team Performance" description="The Business Gate — Layer 1 of the KPI framework" />
         <PageShell>
-          <EmptyState title="No team-level data yet" description="Import a report to see Business Gate metrics." actionLabel="Go to Data Import" actionHref="/import" />
+          <EmptyState title="No team-level data yet" description="Import a daily report to see Business Gate metrics." actionLabel="Go to Data Import" actionHref="/import" />
+        </PageShell>
+      </>
+    );
+  }
+
+  // Defaults to the most recently imported week — Sunday through Saturday,
+  // per the team's own week convention — with older weeks reachable via the
+  // picker in the header.
+  const selectedWeek = weeks.find((w) => w.start === searchParams.week) ?? weeks[0]!;
+  const { period, results } = await loadRangeDataset({
+    start: selectedWeek.start,
+    end: selectedWeek.end,
+    label: `Week of ${selectedWeek.label}`,
+    id: `week-${selectedWeek.start}`,
+    type: "weekly",
+  });
+  const gate = results[0]?.gate;
+
+  const weekPicker = (
+    <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
+  );
+
+  if (!period || !gate) {
+    return (
+      <>
+        <TopHeader title="Team Performance" description="The Business Gate — Layer 1 of the KPI framework" actions={weekPicker} />
+        <PageShell>
+          <EmptyState title="No team-level data yet" description="Import a daily report to see Business Gate metrics." actionLabel="Go to Data Import" actionHref="/import" />
         </PageShell>
       </>
     );
@@ -47,12 +79,12 @@ export default async function TeamPerformancePage() {
 
   return (
     <>
-      <TopHeader title="Team Performance" description={`Business Gate (Layer 1) for ${period.label}`} />
+      <TopHeader title="Team Performance" description={`Business Gate (Layer 1) for ${period.label}`} actions={weekPicker} />
       <PageShell>
         <Card>
           <CardHeader>
             <CardTitle>{period.label}</CardTitle>
-            <CardDescription>This period&apos;s actuals against the scoring scale below.</CardDescription>
+            <CardDescription>Averaged across every day imported this week, against the scoring scale below.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -63,7 +95,7 @@ export default async function TeamPerformancePage() {
                   value={m.actualDisplay}
                   tone={tierTone(m.tier)}
                   badge={<TierBadge tier={m.tier} />}
-                  bufferLabel={m.tierScore === null ? "Not available this period — excluded, not scored as 0" : m.bufferLabel}
+                  bufferLabel={m.tierScore === null ? "Not available this week — excluded, not scored as 0" : m.bufferLabel}
                   bufferGood={m.bufferGood}
                   weightLabel={
                     m.tierScore !== null
@@ -87,7 +119,7 @@ export default async function TeamPerformancePage() {
           <CardHeader>
             <CardTitle>Individual Scorecard Average (Layer 2)</CardTitle>
             <CardDescription>
-              Average final score across {scoredResults.length} scored agent{scoredResults.length === 1 ? "" : "s"} this period
+              Average final score across {scoredResults.length} scored agent{scoredResults.length === 1 ? "" : "s"} this week
               {scoredResults.length !== results.length ? ` (of ${results.length} on the roster)` : ""}, before the gate multiplier.
             </CardDescription>
           </CardHeader>
@@ -104,7 +136,7 @@ export default async function TeamPerformancePage() {
           <CardHeader>
             <CardTitle>Business Gate Scoring Scale</CardTitle>
             <CardDescription>
-              Reference only — each metric above is scored into a tier against these ranges; the weighted average of the tier scores becomes this period&apos;s team-level multiplier.
+              Reference only — each metric above is scored into a tier against these ranges; the weighted average of the tier scores becomes this week&apos;s team-level multiplier.
             </CardDescription>
           </CardHeader>
           <CardContent>
