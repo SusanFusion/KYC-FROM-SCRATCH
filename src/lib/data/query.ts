@@ -1,8 +1,8 @@
 import { getRepository } from "./repository";
-import { calculateFullAgentResult, type FullAgentPeriodResult } from "@/lib/scoring";
-import { startOfWeek, weekRange, monthRange, monthKey, formatWeekLabel, formatMonthLabel } from "./dateRanges";
+import { calculateFullAgentResult, calculateIndividualScore, INDIVIDUAL_METRICS, type FullAgentPeriodResult } from "@/lib/scoring";
+import { startOfWeek, weekRange, monthRange, monthKey, formatWeekLabel, formatMonthLabel, formatDayLabel } from "./dateRanges";
 import type { Agent, Period, PeriodType, Team } from "@/types/domain";
-import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { IndividualMetricKey, PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
 
 /** A stand-in for an agent with no imported row for this period at all —
  *  every field "No data" rather than the agent being silently left off
@@ -210,7 +210,7 @@ function aggregateGate(dayGates: (RawGateMetrics | null)[], periodId: string): R
 }
 
 /** Every imported period whose start and end date are the same day. */
-function getDailyPeriods(allPeriods: Period[]): Period[] {
+export function getDailyPeriods(allPeriods: Period[]): Period[] {
   return allPeriods.filter((p) => p.startDate === p.endDate).sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
 }
 
@@ -306,4 +306,73 @@ export async function listAvailableMonths(): Promise<MonthOption[]> {
   return [...latestByMonth.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
     .map(([key, latestDay]) => ({ key, start: monthRange(latestDay).start, end: latestDay, label: formatMonthLabel(latestDay) }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Per-officer daily KPI trends (Trends page "Individual KPI Trends")
+//
+// Unlike the weekly views above, this deliberately does NOT aggregate: the
+// whole point is to see day-to-day movement, so each daily period's raw
+// value is graded on its own via the same calculateIndividualScore() every
+// other page uses (no separate formula) and plotted as one point. A day
+// where this agent has no row at all is a genuine gap (null), never
+// treated as zero or silently dropped — the chart just skips drawing a
+// line segment across it, matching the app's "don't fabricate missing
+// data" stance used everywhere else.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface DailyMetricPoint {
+  date: string; // YYYY-MM-DD
+  label: string; // e.g. "Sep 14"
+  actual: number | null;
+  actualDisplay: string;
+}
+
+export interface DailyIndividualMetricSeries {
+  key: IndividualMetricKey;
+  name: string;
+  unit: "minutes" | "seconds" | "percent";
+  points: DailyMetricPoint[];
+}
+
+/**
+ * One line series per individual KPI (appAHT, emailAHT, chatAvgResponse,
+ * chatFRT, csatDsat, qaAudit) for a single agent, across their most recent
+ * `days` daily periods (oldest → newest) — or every daily period on record
+ * when `days` is null ("all time").
+ */
+export async function loadAgentDailyTrend(agentId: string, days: number | null): Promise<DailyIndividualMetricSeries[]> {
+  const repo = await getRepository();
+  const allDays = getDailyPeriods(await repo.getPeriods()); // already ascending by startDate
+  const dayPeriods = days !== null ? allDays.slice(-days) : allDays;
+
+  const rawByDay = await Promise.all(dayPeriods.map((p) => repo.getRawMetrics(p.id)));
+
+  const series: DailyIndividualMetricSeries[] = INDIVIDUAL_METRICS.map((def) => ({
+    key: def.key,
+    name: def.name,
+    unit: def.unit,
+    points: [],
+  }));
+
+  dayPeriods.forEach((period, i) => {
+    const raw = rawByDay[i]!.find((r) => r.agentId === agentId) ?? null;
+    // Penalties never affect a metric's own "actual" value (only the final
+    // score), so an empty penalty list here is safe — this is purely about
+    // reading each day's raw number through the same grading/formatting
+    // logic every other page uses, not recomputing a score.
+    const scored = raw ? calculateIndividualScore(raw, []) : null;
+    const label = formatDayLabel(period.startDate);
+    for (const s of series) {
+      const m = scored?.metrics.find((mm) => mm.key === s.key);
+      s.points.push({
+        date: period.startDate,
+        label,
+        actual: m?.actual ?? null,
+        actualDisplay: m?.actualDisplay ?? "No data",
+      });
+    }
+  });
+
+  return series;
 }
