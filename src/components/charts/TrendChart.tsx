@@ -80,10 +80,17 @@ export function TrendChart({
         <YAxis domain={domain} ticks={ticks} tick={TICK_STYLE} axisLine={false} tickLine={false} width={32} />
         <Tooltip
           cursor={{ stroke: "hsl(220 14% 80%)", strokeWidth: 1 }}
-          formatter={(value: number | null) => [
-            value == null ? "No data" : `${value.toFixed(precision)}${suffix}`,
-            tooltipLabel,
-          ]}
+          // recharts' own Formatter type doesn't include null in its value
+          // parameter, so a callback declared to accept `number | null`
+          // fails both of its call-signature overloads at build time (this
+          // is exactly what broke the last deploy). Sidestepping the raw
+          // `value` argument and reading the point's own score off the
+          // `payload` argument instead avoids that mismatch entirely — the
+          // same pattern MetricTrendChart already uses successfully.
+          formatter={(_value: number, _name: string, item: { payload?: TrendPoint }) => {
+            const s = item.payload?.score;
+            return [s == null ? "No data" : `${s.toFixed(precision)}${suffix}`, tooltipLabel];
+          }}
           contentStyle={{
             borderRadius: 8,
             border: "1px solid hsl(220 14% 90%)",
