@@ -1,12 +1,40 @@
-import { Info } from "lucide-react";
+import { Info, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { MetricBarChart, type MetricBarDatum } from "@/components/charts/MetricBarChart";
+import { Badge } from "@/components/ui/badge";
 import { TrendChart, type TrendPoint } from "@/components/charts/TrendChart";
-import { loadPeriodDataset } from "@/lib/data/query";
+import { MetricDeltaGrid, deltaBadgeVariant, type MetricDeltaDatum } from "@/components/charts/MetricDeltaGrid";
+import { loadPeriodDataset, type AgentPeriodResult } from "@/lib/data/query";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
+import { formatActual } from "@/lib/scoring/individualScore";
+import { formatMagnitude } from "@/lib/scoring/display";
+import type { IndividualMetricKey } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
+
+export const dynamic = "force-dynamic";
+
+// An agent with no import yet still gets a row (see query.ts) so Rankings
+// and Scorecards can list them — but their 0.00 placeholder score has no
+// business dragging a team average down. Every average on this page is
+// scoped to agents who actually have data this period, same fix already
+// applied on Team Performance.
+function scoredOnly(results: AgentPeriodResult[]) {
+  return results.filter((r) => r.individual.effectiveWeight > 0);
+}
+
+function teamAverage(results: AgentPeriodResult[]): number | null {
+  const scored = scoredOnly(results);
+  return scored.length ? scored.reduce((sum, r) => sum + r.individual.finalScore, 0) / scored.length : null;
+}
+
+function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetricKey): number | null {
+  const values = scoredOnly(results)
+    .map((r) => r.individual.metrics.find((m) => m.key === key))
+    .filter((m): m is NonNullable<typeof m> => !!m && !m.excluded && m.actual !== null);
+  if (!values.length) return null;
+  return values.reduce((sum, m) => sum + (m.actual as number), 0) / values.length;
+}
 
 export default async function TrendsPage() {
   const { period, periods, results } = await loadPeriodDataset();
@@ -23,73 +51,133 @@ export default async function TrendsPage() {
   }
 
   const hasHistory = periods.length > 1;
-
-  // With more than one period imported (via PDF or manual entry), build a
-  // real point-per-period series instead of the single current-period dot —
-  // each additional commit to a new period shows up here automatically,
-  // nothing is backfilled or fabricated for periods that don't exist.
   const chronological = [...periods].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+
+  // The period immediately before the one currently shown — whichever two
+  // periods are newest at the time of viewing. Nothing here is hardcoded to
+  // a specific week: import a new period and this automatically becomes the
+  // new "current", pushing today's current into the "previous" slot.
+  const previousPeriod = hasHistory ? chronological[chronological.length - 2] ?? null : null;
+  const previousResults = previousPeriod
+    ? previousPeriod.id === period.id
+      ? results
+      : (await loadPeriodDataset(previousPeriod.id)).results
+    : null;
+
   const trendData: TrendPoint[] = hasHistory
     ? await Promise.all(
         chronological.map(async (p) => {
-          const ds = p.id === period.id ? { results } : await loadPeriodDataset(p.id);
-          const avg = ds.results.length
-            ? ds.results.reduce((s, r) => s + r.individual.finalScore, 0) / ds.results.length
-            : 0;
-          return { period: p.label.split(" ")[0] ?? p.id, score: Number(avg.toFixed(2)) };
+          const rs = p.id === period.id ? results : p.id === previousPeriod?.id ? previousResults! : (await loadPeriodDataset(p.id)).results;
+          const avg = teamAverage(rs);
+          return { period: p.label.split(" ")[0] ?? p.id, score: Number((avg ?? 0).toFixed(2)) };
         })
       )
-    : [{ period: period.label.split(" ")[0] ?? period.id, score: Number((results.length ? results.reduce((s, r) => s + r.individual.finalScore, 0) / results.length : 0).toFixed(2)) }];
+    : [{ period: period.label.split(" ")[0] ?? period.id, score: Number((teamAverage(results) ?? 0).toFixed(2)) }];
 
-  const metricAverages: MetricBarDatum[] = INDIVIDUAL_METRICS.map((def) => {
-    const values = results
-      .map((r) => r.individual.metrics.find((m) => m.key === def.key))
-      .filter((m): m is NonNullable<typeof m> => !!m && m.grade !== null);
-    const avgGrade = values.length ? values.reduce((s, m) => s + (m.grade ?? 0), 0) / values.length : 0;
+  const currentAvg = teamAverage(results);
+  const previousAvg = previousResults ? teamAverage(previousResults) : null;
+  const hasComparison = currentAvg !== null && previousAvg !== null;
+  const scoreDelta = hasComparison ? Number((currentAvg! - previousAvg!).toFixed(2)) : null;
+  const scoreFlat = scoreDelta !== null && Math.abs(scoreDelta) < 0.005;
+  const scoreImproved = scoreDelta === null || scoreFlat ? null : scoreDelta > 0;
+
+  const metricDeltas: MetricDeltaDatum[] = INDIVIDUAL_METRICS.map((def) => {
+    const currentValue = metricAverageActual(results, def.key);
+    const previousValue = previousResults ? metricAverageActual(previousResults, def.key) : null;
+
+    const currentDisplay = currentValue !== null ? formatActual(def.key, currentValue) : "No data";
+    const previousDisplay = previousResults ? (previousValue !== null ? formatActual(def.key, previousValue) : "No data") : null;
+
+    let deltaLabel: string | null = null;
+    let improved: boolean | null = null;
+    if (currentValue !== null && previousValue !== null) {
+      // Round to the same precision the display uses before comparing, so a
+      // sub-second/sub-point wobble doesn't get reported as a "change".
+      const roundedCurrent = Math.round(currentValue * 10) / 10;
+      const roundedPrevious = Math.round(previousValue * 10) / 10;
+      const delta = roundedCurrent - roundedPrevious;
+      if (Math.abs(delta) < 0.05) {
+        deltaLabel = "No change";
+      } else {
+        deltaLabel = `${delta > 0 ? "+" : "−"}${formatMagnitude(def.unit, Math.abs(delta))}`;
+        improved = def.direction === "lower-is-better" ? delta < 0 : delta > 0;
+      }
+    }
+
     return {
-      name: def.name.length > 22 ? def.name.slice(0, 20) + "…" : def.name,
-      value: Number(avgGrade.toFixed(2)),
-      color:
-        avgGrade >= 2.5 ? "hsl(226 64% 52%)" : avgGrade >= 1.5 ? "hsl(152 58% 36%)" : avgGrade >= 0.75 ? "hsl(32 92% 48%)" : "hsl(358 70% 50%)",
+      key: def.key,
+      name: def.name,
+      currentDisplay,
+      previousDisplay,
+      deltaLabel,
+      improved,
     };
   });
 
   return (
     <>
-      <TopHeader title="Trends" description="Performance over time, by metric and period" />
+      <TopHeader title="Trends" description="This period vs. the last one, by team average and by metric" />
       <PageShell>
         {!hasHistory && (
           <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-700">
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p>
-              Only one reporting period (<strong>{period.label}</strong>) has been imported so far, so month-over-month trend
-              lines aren&apos;t meaningful yet. Import additional periods via Data Import (PDF or manual entry) and this page
-              will automatically chart the team average over time — nothing here is fabricated to fill the gap.
+              Only one reporting period (<strong>{period.label}</strong>) has been imported so far, so a period-over-period
+              comparison isn&apos;t possible yet. Import the next period via Data Import (PDF or manual entry) and this page
+              will automatically compare it against {period.label} — nothing here is fabricated to fill the gap.
             </p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Average Score</CardTitle>
-              <CardDescription>{hasHistory ? `Across all ${chronological.length} imported periods.` : "Current period only — more points will appear as periods are added."}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TrendChart data={trendData} />
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>Team Average Score</CardTitle>
+                <CardDescription>
+                  {hasComparison
+                    ? `${period.label} vs. ${previousPeriod!.label}`
+                    : hasHistory
+                      ? `Across all ${chronological.length} imported periods.`
+                      : "Current period only — a comparison appears once a second period is imported."}
+                </CardDescription>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl font-semibold text-foreground">{(currentAvg ?? 0).toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">/ 3.00</span>
+                {hasComparison && (
+                  <Badge variant={deltaBadgeVariant(scoreImproved)}>
+                    {scoreFlat ? (
+                      <Minus className="h-3 w-3" />
+                    ) : scoreImproved ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3" />
+                    )}
+                    {scoreFlat ? "No change" : `${scoreDelta! > 0 ? "+" : ""}${scoreDelta!.toFixed(2)} vs last period`}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TrendChart data={trendData} />
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Average Grade by Metric</CardTitle>
-              <CardDescription>0-3 scale, current period ({period.label}). Lower-is-better metrics are already converted to grade before averaging.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MetricBarChart data={metricAverages} />
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>By Metric</CardTitle>
+            <CardDescription>
+              {previousPeriod
+                ? `Team average per metric, ${period.label} vs. ${previousPeriod.label}.`
+                : `Team average per metric, ${period.label}.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MetricDeltaGrid data={metricDeltas} />
+          </CardContent>
+        </Card>
       </PageShell>
     </>
   );
