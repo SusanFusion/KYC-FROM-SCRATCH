@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
-import { formatDate } from "@/lib/utils";
 
 interface AgentOption {
   id: string;
@@ -187,36 +186,57 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
-            <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                  {p.id === periods[0]?.id ? " (current)" : ""}
-                </option>
-              ))}
-              <option value={NEW_PERIOD_VALUE}>+ Start a new period</option>
-            </Select>
-            {!isNewPeriod && (
+          {/* Same always-visible 2-column layout as the PDF Upload tab
+             (ImportWorkflow.tsx): the date field sits in the DOM from the
+             very first render, right next to the period selector, and just
+             switches between editable/disabled — it never mounts or
+             unmounts. Previously this date field only existed inside a
+             separate block that was conditionally rendered on isNewPeriod,
+             which meant picking "+ Start a new period" from the select had
+             to also mount a whole new chunk of the page lower down; if that
+             didn't visually register as a change, there was nothing next to
+             the selector itself hinting a date field existed at all. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
+              <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
+                {periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                    {p.id === periods[0]?.id ? " (current)" : ""}
+                  </option>
+                ))}
+                <option value={NEW_PERIOD_VALUE}>+ Start a new period</option>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Date this data is for</label>
+              {isNewPeriod ? (
+                <Input type="date" value={generatedDate} onChange={(e) => setGeneratedDate(e.target.value)} className="w-full sm:w-auto" />
+              ) : (
+                <Input
+                  type="date"
+                  value={periods.find((p) => p.id === targetPeriodId)?.endDate ?? ""}
+                  disabled
+                  className="w-full opacity-70 sm:w-auto"
+                />
+              )}
               <p className="mt-1 text-xs text-muted-foreground">
-                Date on record for this period:{" "}
-                <span className="font-medium text-foreground">
-                  {formatDate(periods.find((p) => p.id === targetPeriodId)?.endDate ?? "")}
-                </span>
+                {isNewPeriod
+                  ? "Pick the date this data is for."
+                  : "Fixed to the date already on record for the period selected above."}
               </p>
-            )}
+            </div>
           </div>
           {isNewPeriod && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Period label (optional)</label>
-                <Input placeholder="e.g. This Month" value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Date for this period</label>
-                <Input type="date" value={generatedDate} onChange={(e) => setGeneratedDate(e.target.value)} />
-              </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Period label (optional)</label>
+              <Input
+                placeholder="e.g. This Month"
+                value={periodLabel}
+                onChange={(e) => setPeriodLabel(e.target.value)}
+                className="w-full sm:w-auto"
+              />
             </div>
           )}
         </CardContent>
