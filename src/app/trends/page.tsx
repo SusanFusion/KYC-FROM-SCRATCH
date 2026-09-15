@@ -16,7 +16,7 @@ import {
   gateMultiplierOrNull,
   type AgentPeriodResult,
 } from "@/lib/data/query";
-import { shiftWeek, formatWeekLabel, formatWeekShortLabel } from "@/lib/data/dateRanges";
+import { shiftWeek, formatWeekLabel } from "@/lib/data/dateRanges";
 import { INDIVIDUAL_METRICS, GATE_METRICS, GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX } from "@/lib/scoring";
 import { formatActual } from "@/lib/scoring/individualScore";
 import { formatMagnitude, roundToDisplayPrecision } from "@/lib/scoring/display";
@@ -177,7 +177,12 @@ export default async function TrendsPage({
       points: chartDatasets.map(({ week, gate }): MetricTrendPoint => {
         const m = gate?.metrics.find((mm) => mm.key === def.key);
         return {
-          label: formatWeekShortLabel(week),
+          // Full "Aug 30 – Sep 5, 2026" range, same as the multiplier
+          // chart's own weekly x-axis above — the short single-day label
+          // read as "just Aug 30's number" even though the point is
+          // really the whole week's average (see the comment above this
+          // block).
+          label: formatWeekLabel(week),
           value: m?.actual ?? null,
           display: m?.actualDisplay ?? "No data",
         };
