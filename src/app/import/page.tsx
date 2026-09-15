@@ -1,12 +1,11 @@
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ImportWorkflow } from "@/components/shared/ImportWorkflow";
 import { ManualEntryForm } from "@/components/shared/ManualEntryForm";
+import { ImportHistoryList } from "@/components/shared/ImportHistoryList";
 import { getRepository } from "@/lib/data/repository";
-import { formatDate } from "@/lib/utils";
 
 export default async function ImportPage() {
   const repo = await getRepository();
@@ -36,29 +35,23 @@ export default async function ImportPage() {
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Import history</CardTitle>
-            <CardDescription>Every upload, whether committed or not.</CardDescription>
+            <CardDescription>
+              Every upload, whether committed or not. Deleting a committed import removes the day&apos;s data everywhere
+              it&apos;s read — Team Performance, Trends, Overall MTD, Dashboard, Rankings, Scorecards, Reports, and Penalties.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {imports.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No imports yet.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {imports.map((imp) => (
-                  <li key={imp.id} className="flex items-center justify-between py-3 text-sm">
-                    <div>
-                      <p className="font-medium text-foreground">{imp.fileName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Uploaded {formatDate(imp.uploadedAt)} · {imp.rowCount} rows
-                        {imp.periodLabel ? ` · ${imp.periodLabel}` : ""}
-                      </p>
-                    </div>
-                    <Badge variant={imp.status === "committed" ? "success" : imp.status === "failed" ? "danger" : "outline"}>
-                      {imp.status.replace("_", " ")}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ImportHistoryList
+              imports={imports.map((imp) => ({
+                id: imp.id,
+                fileName: imp.fileName,
+                uploadedAt: imp.uploadedAt,
+                periodLabel: imp.periodLabel,
+                status: imp.status,
+                rowCount: imp.rowCount,
+                periodId: imp.periodId ?? null,
+              }))}
+            />
           </CardContent>
         </Card>
       </PageShell>
