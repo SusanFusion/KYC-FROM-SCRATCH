@@ -46,4 +46,12 @@ export interface ImportRecord {
   status: "pending_review" | "committed" | "failed";
   rowCount: number;
   committedAt?: string;
+  /** The period this import created or merged into, set once it's
+   *  committed (undefined/null before then, and for older imports
+   *  committed before this field existed — see the Data Import "delete"
+   *  feature in repository.ts, which uses this to know what a deleted
+   *  import actually affects). Optional so every existing call that builds
+   *  an ImportRecord without it — pre-commit, "pending_review" — still
+   *  compiles unchanged. */
+  periodId?: string | null;
 }
