@@ -140,6 +140,7 @@ export class SupabaseRepository implements DataRepository {
       status: row.status as ImportRecord["status"],
       rowCount: row.row_count as number,
       committedAt: (row.committed_at as string) ?? undefined,
+      periodId: (row.period_id as string) ?? null,
     }));
   }
 
@@ -260,10 +261,46 @@ export class SupabaseRepository implements DataRepository {
 
     await this.writeClient
       .from("imports")
-      .update({ status: "committed", committed_at: new Date().toISOString(), period_label: period.label })
+      .update({
+        status: "committed",
+        committed_at: new Date().toISOString(),
+        period_label: period.label,
+        period_id: periodId,
+      })
       .eq("id", importId);
 
     return { ...period, id: periodId };
+  }
+
+  async deleteImport(importId: string): Promise<void> {
+    // import_rows references imports(id) on delete cascade (see schema.sql),
+    // so this alone takes the parsed rows with it. Never touches a period
+    // or its data — see deletePeriod for that.
+    const { error } = await this.writeClient.from("imports").delete().eq("id", importId);
+    if (error) throw error;
+  }
+
+  async deletePeriod(periodId: string): Promise<void> {
+    // Children before the parent — periods' referencing tables have no
+    // ON DELETE CASCADE (see schema.sql), so the period row itself would
+    // otherwise fail on a foreign-key violation.
+    const { error: metricsError } = await this.writeClient.from("performance_entries").delete().eq("period_id", periodId);
+    if (metricsError) throw metricsError;
+
+    const { error: gateError } = await this.writeClient.from("gate_metrics").delete().eq("period_id", periodId);
+    if (gateError) throw gateError;
+
+    const { error: penaltiesError } = await this.writeClient.from("penalties").delete().eq("period_id", periodId);
+    if (penaltiesError) throw penaltiesError;
+
+    // Any import that points to this period no longer refers to anything
+    // real once the period is gone — remove it (its rows cascade) rather
+    // than leave a dangling audit-trail entry.
+    const { error: importsError } = await this.writeClient.from("imports").delete().eq("period_id", periodId);
+    if (importsError) throw importsError;
+
+    const { error: periodError } = await this.writeClient.from("periods").delete().eq("id", periodId);
+    if (periodError) throw periodError;
   }
 }
 
