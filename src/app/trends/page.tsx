@@ -7,7 +7,13 @@ import { RangePicker } from "@/components/shared/RangePicker";
 import { TrendChart, type TrendPoint } from "@/components/charts/TrendChart";
 import { MetricTrendChart, type MetricTrendPoint } from "@/components/charts/MetricTrendChart";
 import { MetricDeltaGrid, deltaBadgeVariant, type MetricDeltaDatum } from "@/components/charts/MetricDeltaGrid";
-import { loadRangeDataset, listAvailableWeeks, loadAgentDailyTrend, type AgentPeriodResult } from "@/lib/data/query";
+import {
+  loadRangeDataset,
+  listAvailableWeeks,
+  loadAgentDailyTrend,
+  loadTeamDailyTrend,
+  type AgentPeriodResult,
+} from "@/lib/data/query";
 import { shiftWeek, formatWeekLabel, formatWeekShortLabel } from "@/lib/data/dateRanges";
 import { INDIVIDUAL_METRICS, GATE_METRICS } from "@/lib/scoring";
 import { formatActual } from "@/lib/scoring/individualScore";
@@ -43,6 +49,12 @@ function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetric
 // more weekly history piles up rather than growing unbounded.
 const MAX_CHART_WEEKS = 12;
 
+// How many days the new daily Team Average Score line looks back — same
+// idea as MAX_CHART_WEEKS, just day-granular. No picker of its own (unlike
+// Individual KPI Trends below); this is meant to sit quietly alongside the
+// weekly number rather than add another control to learn.
+const TEAM_DAILY_TREND_DAYS = 30;
+
 const DAY_RANGE_OPTIONS = [
   { value: "30", label: "Last 30 days" },
   { value: "60", label: "Last 60 days" },
@@ -76,7 +88,7 @@ export default async function TrendsPage({
     <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
   );
 
-  const [{ results }, { results: previousResults }] = await Promise.all([
+  const [{ results }, { results: previousResults }, teamDailyTrend] = await Promise.all([
     loadRangeDataset({
       start: selectedWeek.start,
       end: selectedWeek.end,
@@ -91,7 +103,17 @@ export default async function TrendsPage({
       id: `week-${previousRange.start}`,
       type: "weekly",
     }),
+    loadTeamDailyTrend(TEAM_DAILY_TREND_DAYS),
   ]);
+
+  // Same actual/actualDisplay → value/display reshape MetricTrendChart
+  // expects everywhere else on this page (gateWeeklySeries, agentDailySeries
+  // below) — a day with no scored agents yet reads as a gap, not a 0.
+  const teamDailyPoints: MetricTrendPoint[] = teamDailyTrend.map((p) => ({
+    label: p.label,
+    value: p.score,
+    display: p.score !== null ? p.score.toFixed(2) : "No data",
+  }));
 
   // Whether there's more than just the currently-selected week's own data to
   // draw on at all — drives the "not enough history yet" banner below.
@@ -119,7 +141,11 @@ export default async function TrendsPage({
   );
 
   const trendData: TrendPoint[] = chartDatasets.map(({ week, results: rs }) => ({
-    period: formatWeekShortLabel(week),
+    // week.label is already the full "Sep 7 – 13, 2026" range (built by
+    // formatWeekLabel inside listAvailableWeeks) — using it here instead of
+    // the short single-day label makes it clear this point covers a whole
+    // week, not just the day it happens to be plotted under.
+    period: week.label,
     score: Number((teamAverage(rs) ?? 0).toFixed(2)),
   }));
 
@@ -259,6 +285,16 @@ export default async function TrendsPage({
           </CardHeader>
           <CardContent>
             <TrendChart data={trendData} />
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="mb-1 text-xs font-medium text-foreground">
+                Daily <span className="text-muted-foreground/70">(team average, last {TEAM_DAILY_TREND_DAYS} days)</span>
+              </p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                The chart above compares whole weeks. This line ticks day by day instead, so you can see movement between
+                weekly snapshots.
+              </p>
+              <MetricTrendChart data={teamDailyPoints} />
+            </div>
           </CardContent>
         </Card>
 
