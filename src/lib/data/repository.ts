@@ -29,6 +29,25 @@ export interface DataRepository {
     metrics: RawAgentMetrics[],
     gate: RawGateMetrics
   ): Promise<Period>;
+
+  /** Removes just this import's own audit-trail record (and its parsed
+   *  rows) — never touches a period or its data. Use this when the import's
+   *  periodId is shared with another import (deleting the period would
+   *  also erase what that other import contributed), or when it has no
+   *  periodId at all (never committed, or committed before that link
+   *  existed). See deletePeriod for the "wipe this whole day" case. */
+  deleteImport(importId: string): Promise<void>;
+
+  /** Removes a period and everything stored against it — its raw
+   *  individual metrics, its Business Gate metrics, any penalties logged
+   *  against it, and any import records that point to it (with their
+   *  rows) — so it's immediately gone from every page that reads periods
+   *  (Team Performance, Trends, Overall MTD, Dashboard, Rankings,
+   *  Scorecards, Reports, Penalties). This is what "delete an imported
+   *  file so it's no longer read anywhere" actually means for a period
+   *  that only one import ever touched — the normal case now that every
+   *  import mints its own daily period. */
+  deletePeriod(periodId: string): Promise<void>;
 }
 
 let cachedRepo: DataRepository | null = null;
