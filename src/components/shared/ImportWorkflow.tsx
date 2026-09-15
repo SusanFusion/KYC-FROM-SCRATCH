@@ -69,10 +69,20 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
   const [phase, setPhase] = React.useState<"idle" | "uploading" | "preview" | "committing" | "done" | "error">("idle");
   const [result, setResult] = React.useState<ParseResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
-  // Defaults to the current period so this PDF's numbers land on the same
-  // period any earlier import/manual entry already established, instead of
-  // silently starting a second period the dashboard never shows.
-  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(periods[0]?.id ?? NEW_PERIOD_VALUE);
+  // Defaults to TODAY's period if one already exists (so a second PDF/manual
+  // entry for the same day lands on the same period instead of silently
+  // starting a duplicate one) — but otherwise defaults to starting a brand
+  // new period, never to whatever the most recent period happens to be.
+  // Every day is its own period now (see the daily-import redesign), so
+  // defaulting to "the current/most recent period" regardless of its date —
+  // the old behavior, left over from when a single ongoing period was the
+  // only period shape that existed — meant a new day's import could
+  // silently merge into an earlier day's period if the person didn't think
+  // to switch this dropdown to "+ Start a new period" every time.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(
+    periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE
+  );
   // The date this data is actually for — pre-filled from whatever the PDF's
   // own "Generated Date:" text says (once parsed), but always visible and
   // editable before committing, so a misread or backlogged-day import never
