@@ -20,6 +20,25 @@ export function formatMagnitude(unit: MetricUnit, value: number): string {
   return `${rounded} pt${rounded === 1 ? "" : "s"}`;
 }
 
+/**
+ * Snaps a raw value to the same granularity its own formatted display
+ * string uses, so a delta computed from two of these (e.g. for a
+ * period-over-period comparison) can never disagree with simple mental math
+ * done on the displayed "was X → now Y" strings (see notes.ts
+ * "trends-delta-precision"). Minutes-unit metrics are stored as fractional
+ * minutes but *displayed* down to the whole second (formatMinutes rounds
+ * there) — snapping to 1 decimal minute first would be a 6-second bucket,
+ * far coarser than the display, so this rounds to the nearest whole second
+ * instead and converts back to minutes. Seconds-unit values follow
+ * formatSeconds' own precision (0.1s under a minute, whole seconds at or
+ * above); percent already matches its own 1-decimal display.
+ */
+export function roundToDisplayPrecision(unit: MetricUnit, value: number): number {
+  if (unit === "minutes") return Math.round(value * 60) / 60;
+  if (unit === "seconds") return Math.abs(value) < 60 ? Math.round(value * 10) / 10 : Math.round(value);
+  return Math.round(value * 10) / 10;
+}
+
 /** Formats one band's range for the scoring-scale table, e.g. "≤ 19 sec",
  *  "20 – 30 sec", "> 45 sec", "≥ 95%". */
 export function formatBandRange(
