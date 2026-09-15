@@ -8,7 +8,7 @@ import { MetricDeltaGrid, deltaBadgeVariant, type MetricDeltaDatum } from "@/com
 import { loadPeriodDataset, type AgentPeriodResult } from "@/lib/data/query";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
 import { formatActual } from "@/lib/scoring/individualScore";
-import { formatMagnitude } from "@/lib/scoring/display";
+import { formatMagnitude, roundToDisplayPrecision } from "@/lib/scoring/display";
 import type { IndividualMetricKey } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 
@@ -90,17 +90,23 @@ export default async function TrendsPage() {
 
     let deltaLabel: string | null = null;
     let improved: boolean | null = null;
+    let deltaDirection: "up" | "down" | "flat" | null = null;
     if (currentValue !== null && previousValue !== null) {
-      // Round to the same precision the display uses before comparing, so a
-      // sub-second/sub-point wobble doesn't get reported as a "change".
-      const roundedCurrent = Math.round(currentValue * 10) / 10;
-      const roundedPrevious = Math.round(previousValue * 10) / 10;
+      // Snap both sides to the SAME granularity their own display string
+      // uses (see roundToDisplayPrecision) before comparing — rounding to a
+      // coarser grid (e.g. 0.1 minute = 6-second buckets) than the "was X →
+      // now Y" strings above (whole seconds) made the delta visibly
+      // disagree with simple mental math on those two strings.
+      const roundedCurrent = roundToDisplayPrecision(def.unit, currentValue);
+      const roundedPrevious = roundToDisplayPrecision(def.unit, previousValue);
       const delta = roundedCurrent - roundedPrevious;
-      if (Math.abs(delta) < 0.05) {
+      if (Math.abs(delta) < 1e-9) {
         deltaLabel = "No change";
+        deltaDirection = "flat";
       } else {
         deltaLabel = `${delta > 0 ? "+" : "−"}${formatMagnitude(def.unit, Math.abs(delta))}`;
         improved = def.direction === "lower-is-better" ? delta < 0 : delta > 0;
+        deltaDirection = delta > 0 ? "up" : "down";
       }
     }
 
@@ -111,6 +117,7 @@ export default async function TrendsPage() {
       previousDisplay,
       deltaLabel,
       improved,
+      deltaDirection,
     };
   });
 
