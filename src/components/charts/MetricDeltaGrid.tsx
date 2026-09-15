@@ -13,8 +13,14 @@ export interface MetricDeltaDatum {
   deltaLabel: string | null;
   /** true = this metric moved in the direction that counts as better for it
    *  (already direction-aware — a drop in AHT and a rise in CSAT both read
-   *  as true); false = moved the wrong way; null = flat / not comparable. */
+   *  as true); false = moved the wrong way; null = flat / not comparable.
+   *  Drives the badge's COLOR only — see deltaDirection for the icon. */
   improved: boolean | null;
+  /** The actual numeric direction the value moved, independent of whether
+   *  that's good or bad for this metric — drives the badge's ICON, so a
+   *  "lower-is-better" metric that got worse (number went up) still shows an
+   *  up arrow, just in the danger color. null = flat / not comparable. */
+  deltaDirection: "up" | "down" | "flat" | null;
 }
 
 /**
@@ -41,12 +47,12 @@ export function MetricDeltaGrid({ data }: { data: MetricDeltaDatum[] }) {
             </span>
             {m.deltaLabel && (
               <Badge variant={m.improved === true ? "success" : m.improved === false ? "danger" : "outline"}>
-                {m.improved === null ? (
-                  <Minus className="h-3 w-3" />
-                ) : m.improved ? (
+                {m.deltaDirection === "up" ? (
                   <TrendingUp className="h-3 w-3" />
-                ) : (
+                ) : m.deltaDirection === "down" ? (
                   <TrendingDown className="h-3 w-3" />
+                ) : (
+                  <Minus className="h-3 w-3" />
                 )}
                 {m.deltaLabel}
               </Badge>
