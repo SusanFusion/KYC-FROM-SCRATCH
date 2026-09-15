@@ -70,7 +70,14 @@ export async function commitImportRows(params: CommitImportRowsParams): Promise<
   } else {
     const isMonth = /month/i.test(periodLabel ?? "");
     const startDate = isMonth ? `${endDateIso.slice(0, 7)}-01` : endDateIso;
-    const periodType: PeriodType = isMonth ? "month-to-date" : "custom";
+    // A same-day import (startDate === endDateIso, i.e. not a "month"
+    // label) is a daily period — tagging it "daily" rather than the old
+    // catch-all "custom" is what lets the Team Performance/Trends weekly
+    // filter and the Overall MTD tab find and aggregate these periods (see
+    // query.ts's getDailyPeriods, which matches on startDate === endDate
+    // regardless of this type label, but the explicit type keeps intent
+    // clear rather than implicit).
+    const periodType: PeriodType = isMonth ? "month-to-date" : "daily";
     periodId = `import-${endDateIso}-${importId.slice(-6)}`;
     period = {
       id: periodId,
