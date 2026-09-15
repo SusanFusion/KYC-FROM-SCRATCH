@@ -125,8 +125,27 @@ export class LocalRepository implements DataRepository {
       imp.status = "committed";
       imp.committedAt = new Date().toISOString();
       imp.periodLabel = fullPeriod.label;
+      imp.periodId = periodId;
     }
 
     return fullPeriod;
+  }
+
+  async deleteImport(importId: string) {
+    store.imports = store.imports.filter((i) => i.id !== importId);
+    store.importRows.delete(importId);
+  }
+
+  async deletePeriod(periodId: string) {
+    store.periods = store.periods.filter((p) => p.id !== periodId);
+    store.rawMetricsByPeriod.delete(periodId);
+    store.gateByPeriod.delete(periodId);
+    store.penalties = store.penalties.filter((p) => p.periodId !== periodId);
+    // Any import record that points to this period no longer refers to
+    // anything real — drop it (and its rows) along with the period itself,
+    // same as the Supabase implementation.
+    const orphanedImportIds = store.imports.filter((i) => i.periodId === periodId).map((i) => i.id);
+    store.imports = store.imports.filter((i) => i.periodId !== periodId);
+    for (const id of orphanedImportIds) store.importRows.delete(id);
   }
 }
