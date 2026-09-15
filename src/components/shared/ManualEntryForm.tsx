@@ -1,3 +1,4 @@
+// src/components/shared/ManualEntryForm.tsx
 "use client";
 
 import * as React from "react";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { getLocalTodayIso } from "@/lib/utils";
 
 interface AgentOption {
   id: string;
@@ -59,12 +61,12 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   // regardless of its date meant a new day's entry could silently merge
   // into an earlier day's period if this dropdown wasn't switched to
   // "+ Start a new period" every time.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = getLocalTodayIso();
   const [targetPeriodId, setTargetPeriodId] = React.useState<string>(
     periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE
   );
   const [periodLabel, setPeriodLabel] = React.useState("");
-  const [generatedDate, setGeneratedDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [generatedDate, setGeneratedDate] = React.useState(() => getLocalTodayIso());
   const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
   const [cells, setCells] = React.useState<CellValues>({});
   const [savedCount, setSavedCount] = React.useState(0);
