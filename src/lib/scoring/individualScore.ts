@@ -41,7 +41,7 @@ function getMetricValue(raw: RawAgentMetrics, key: IndividualMetricKey): number 
   }
 }
 
-function formatActual(key: IndividualMetricKey, value: number | null): string {
+export function formatActual(key: IndividualMetricKey, value: number | null): string {
   if (value === null) return "No data";
   switch (key) {
     case "appAHT":
