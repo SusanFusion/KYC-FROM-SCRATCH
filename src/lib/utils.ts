@@ -1,3 +1,4 @@
+// src/lib/utils.ts
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -38,6 +39,31 @@ export function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d);
+}
+
+/**
+ * Today's date as "YYYY-MM-DD" in the BROWSER'S OWN local timezone — for
+ * client components deciding "is the most recent period today's period"
+ * (the Data Import / Manual Entry period-selector default).
+ *
+ * Deliberately NOT `new Date().toISOString().slice(0, 10)`: toISOString()
+ * is always UTC, and the team is in Manila (UTC+8), so for roughly the
+ * first 8 hours of every local day (midnight–8am Manila) that UTC-based
+ * "today" is still yesterday's date. That mismatch made the period
+ * selector fail to recognize a brand-new day as new — it compared the
+ * most recent existing period's date against the wrong "today" and
+ * defaulted to merging into that (now previous-day) period instead of
+ * offering "+ Start a new period", silently folding a new day's numbers
+ * into the prior day's period. getDate()/getMonth()/getFullYear() read
+ * the browser's local clock, so this always matches the calendar day the
+ * person doing the import is actually looking at.
+ */
+export function getLocalTodayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /**
