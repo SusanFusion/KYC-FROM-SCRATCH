@@ -13,7 +13,6 @@ export interface MetricTrendPoint {
 const LINE_COLOR = "hsl(226 64% 52%)";
 const TICK_STYLE = { fontSize: 11, fill: "hsl(220 10% 46%)" };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function renderValueDot(props: any) {
   const { cx, cy, payload, index } = props;
   if (cx == null || cy == null || payload?.value == null) return <g key={index} />;
