@@ -376,3 +376,72 @@ export async function loadAgentDailyTrend(agentId: string, days: number | null):
 
   return series;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Team-wide daily average score (Trends page "Team Average Score" card —
+// the daily companion line)
+//
+// The card's headline number and its existing chart are both WEEKLY (one
+// point per calendar week, aggregating every daily period inside it — see
+// loadRangeDataset above). This is the genuinely-daily version: one point
+// per calendar day, no aggregation, so the day-to-day direction is visible
+// between weekly snapshots. Mirrors loadAgentDailyTrend's shape and
+// gap-handling immediately above, but averages every scored agent's final
+// score for the day instead of one agent's per-metric actuals.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Same "only average agents who actually have data this period" rule the
+ *  Trends page applies to every score average it renders (see scoredOnly/
+ *  teamAverage in trends/page.tsx) — kept here too so the daily team trend
+ *  can never silently drift from that rule. */
+function teamAverageScore(results: AgentPeriodResult[]): number | null {
+  const scored = results.filter((r) => r.individual.effectiveWeight > 0);
+  return scored.length ? scored.reduce((sum, r) => sum + r.individual.finalScore, 0) / scored.length : null;
+}
+
+export interface DailyTeamScorePoint {
+  date: string; // YYYY-MM-DD
+  label: string; // e.g. "Sep 14"
+  /** Null = no scored agents that day (nothing imported yet, or every
+   *  roster agent still reads "No data") — a genuine gap, never a
+   *  fabricated 0. */
+  score: number | null;
+}
+
+/**
+ * One point per calendar day (oldest → newest) across the most recent
+ * `days` daily periods on record — or every daily period when `days` is
+ * null ("all time") — each the team-wide average final score for that day
+ * alone, computed through the exact same computeResults() pass every other
+ * view on this page uses (so this can never disagree with the weekly chart
+ * about how a given day's numbers grade out).
+ */
+export async function loadTeamDailyTrend(days: number | null): Promise<DailyTeamScorePoint[]> {
+  const repo = await getRepository();
+  const [allPeriods, agents] = await Promise.all([repo.getPeriods(), repo.getAgents()]);
+  const allDays = getDailyPeriods(allPeriods); // already ascending by startDate
+  const dayPeriods = days !== null ? allDays.slice(-days) : allDays;
+
+  const [rawByDay, gateByDay, penaltiesByDay] = await Promise.all([
+    Promise.all(dayPeriods.map((p) => repo.getRawMetrics(p.id))),
+    Promise.all(dayPeriods.map((p) => repo.getGateMetrics(p.id))),
+    Promise.all(dayPeriods.map((p) => repo.getPenalties(p.id))),
+  ]);
+
+  return dayPeriods.map((period, i) => {
+    const gateInput: RawGateMetrics =
+      gateByDay[i] ?? {
+        periodId: period.id,
+        clientAvgWaitTimeMin: null,
+        teamProcessingTimeMin: null,
+        chatTeamAvgResponseSec: null,
+        teamTicketAHTMin: null,
+      };
+    const { results } = computeResults(agents, rawByDay[i]!, gateInput, penaltiesByDay[i]!);
+    return {
+      date: period.startDate,
+      label: formatDayLabel(period.startDate),
+      score: teamAverageScore(results),
+    };
+  });
+}
