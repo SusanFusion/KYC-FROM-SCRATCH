@@ -85,3 +85,8 @@ export function formatWeekShortLabel(range: DateRange): string {
 export function formatMonthLabel(iso: string): string {
   return MONTH_YEAR.format(toUtcDate(iso));
 }
+
+/** Short single-point label for one day, for chart x-axis ticks, e.g. "Sep 14". */
+export function formatDayLabel(iso: string): string {
+  return MONTH_DAY.format(toUtcDate(iso));
+}
