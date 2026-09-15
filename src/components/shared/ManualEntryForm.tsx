@@ -51,12 +51,19 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   const { showToast } = useToast();
   const [phase, setPhase] = React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
-  // Default to the current period (periods[0] — same "most recent" ordering
-  // the rest of the app treats as "current") so adding, say, the two
-  // Business Gate fields the PDF never reports actually lands on the same
-  // period the dashboard is already showing, instead of quietly creating a
-  // second period that never appears anywhere.
-  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(periods[0]?.id ?? NEW_PERIOD_VALUE);
+  // Default to TODAY's period if one already exists (so, say, adding the two
+  // Business Gate fields the PDF never reports lands on the same period as
+  // today's earlier import instead of quietly creating a duplicate) — but
+  // otherwise default to starting a brand new period, never to whichever
+  // period is merely most recent. Every day is its own period now (see the
+  // daily-import redesign); defaulting to "the current/most recent period"
+  // regardless of its date meant a new day's entry could silently merge
+  // into an earlier day's period if this dropdown wasn't switched to
+  // "+ Start a new period" every time.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [targetPeriodId, setTargetPeriodId] = React.useState<string>(
+    periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE
+  );
   const [periodLabel, setPeriodLabel] = React.useState("");
   const [generatedDate, setGeneratedDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
@@ -136,7 +143,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   function resetForm() {
     setCells({});
     setGateValues({});
-    setTargetPeriodId(periods[0]?.id ?? NEW_PERIOD_VALUE);
+    setTargetPeriodId(periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE);
     setPhase("idle");
     setErrorMsg(null);
   }
