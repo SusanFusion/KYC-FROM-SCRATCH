@@ -4,6 +4,7 @@ import {
   calculateIndividualScore,
   calculateBusinessGate,
   INDIVIDUAL_METRICS,
+  GATE_METRICS,
   type FullAgentPeriodResult,
 } from "@/lib/scoring";
 import { startOfWeek, weekRange, monthRange, monthKey, formatWeekLabel, formatMonthLabel, formatDayLabel } from "./dateRanges";
@@ -436,4 +437,65 @@ export async function loadGateDailyTrend(days: number | null): Promise<DailyGate
       multiplier,
     };
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Business Gate metric trends (Trends page "Business Gate Trends" card) —
+// the daily companion to gateWeeklySeries, same relationship
+// loadGateDailyTrend has to the weekly multiplier chart above it.
+//
+// gateWeeklySeries aggregates every daily import inside each week into ONE
+// point (so several days imported in the same Sun–Sat week collapse to a
+// single point on that chart, by design — see loadRangeDataset/
+// aggregateGate). This is the un-aggregated view: one point per calendar
+// day, so newly-imported days show up as new points immediately rather
+// than only moving the existing week's average. A day with no report for a
+// given metric is a real gap (null), never a fabricated value — same rule
+// as every other trend line on this page.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface DailyGateMetricPoint {
+  date: string; // YYYY-MM-DD
+  label: string; // e.g. "Sep 14"
+  actual: number | null;
+  actualDisplay: string;
+}
+
+export interface DailyGateMetricSeries {
+  key: string;
+  name: string;
+  unit: "minutes" | "seconds";
+  points: DailyGateMetricPoint[];
+}
+
+/**
+ * One line series per Business Gate metric (clientAvgWaitTime,
+ * teamProcessingTime, chatTeamAvgResponse, teamTicketAHT), across the most
+ * recent `days` daily periods on record — or every daily period when `days`
+ * is null ("all time") — each day's value read through the exact same
+ * calculateBusinessGate() pass every other Business Gate number in the app
+ * uses (no separate formula).
+ */
+export async function loadGateMetricsDailyTrend(days: number | null): Promise<DailyGateMetricSeries[]> {
+  const repo = await getRepository();
+  const allDays = getDailyPeriods(await repo.getPeriods()); // already ascending by startDate
+  const dayPeriods = days !== null ? allDays.slice(-days) : allDays;
+
+  const gateByDay = await Promise.all(dayPeriods.map((p) => repo.getGateMetrics(p.id)));
+  const gateResultByDay = gateByDay.map((raw) => (raw ? calculateBusinessGate(raw) : null));
+
+  return GATE_METRICS.map((def) => ({
+    key: def.key,
+    name: def.name,
+    unit: def.unit,
+    points: dayPeriods.map((period, i): DailyGateMetricPoint => {
+      const m = gateResultByDay[i]?.metrics.find((mm) => mm.key === def.key);
+      return {
+        date: period.startDate,
+        label: formatDayLabel(period.startDate),
+        actual: m?.actual ?? null,
+        actualDisplay: m?.actualDisplay ?? "No data",
+      };
+    }),
+  }));
 }
