@@ -11,11 +11,12 @@ import {
   loadRangeDataset,
   listAvailableWeeks,
   loadAgentDailyTrend,
-  loadTeamDailyTrend,
+  loadGateDailyTrend,
+  gateMultiplierOrNull,
   type AgentPeriodResult,
 } from "@/lib/data/query";
 import { shiftWeek, formatWeekLabel, formatWeekShortLabel } from "@/lib/data/dateRanges";
-import { INDIVIDUAL_METRICS, GATE_METRICS } from "@/lib/scoring";
+import { INDIVIDUAL_METRICS, GATE_METRICS, GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX } from "@/lib/scoring";
 import { formatActual } from "@/lib/scoring/individualScore";
 import { formatMagnitude, roundToDisplayPrecision } from "@/lib/scoring/display";
 import type { IndividualMetricKey } from "@/lib/scoring/types";
@@ -32,9 +33,13 @@ function scoredOnly(results: AgentPeriodResult[]) {
   return results.filter((r) => r.individual.effectiveWeight > 0);
 }
 
-function teamAverage(results: AgentPeriodResult[]): number | null {
-  const scored = scoredOnly(results);
-  return scored.length ? scored.reduce((sum, r) => sum + r.individual.finalScore, 0) / scored.length : null;
+// The Business Gate multiplier is team-wide, not per-agent — every agent in
+// a period's results carries the exact same `.gate`, computed once from
+// that period's Business Gate metrics — so reading it off results[0] (with
+// gateMultiplierOrNull's "no metrics at all" → null guard) is exact, not an
+// approximation the way averaging individual scores across agents is.
+function teamGateMultiplier(results: AgentPeriodResult[]): number | null {
+  return results[0]?.gate ? gateMultiplierOrNull(results[0].gate) : null;
 }
 
 function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetricKey): number | null {
@@ -49,11 +54,11 @@ function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetric
 // more weekly history piles up rather than growing unbounded.
 const MAX_CHART_WEEKS = 12;
 
-// How many days the new daily Team Average Score line looks back — same
+// How many days the daily Business Gate Multiplier line looks back — same
 // idea as MAX_CHART_WEEKS, just day-granular. No picker of its own (unlike
 // Individual KPI Trends below); this is meant to sit quietly alongside the
 // weekly number rather than add another control to learn.
-const TEAM_DAILY_TREND_DAYS = 30;
+const GATE_DAILY_TREND_DAYS = 30;
 
 const DAY_RANGE_OPTIONS = [
   { value: "30", label: "Last 30 days" },
@@ -88,7 +93,7 @@ export default async function TrendsPage({
     <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
   );
 
-  const [{ results }, { results: previousResults }, teamDailyTrend] = await Promise.all([
+  const [{ results }, { results: previousResults }, gateDailyTrend] = await Promise.all([
     loadRangeDataset({
       start: selectedWeek.start,
       end: selectedWeek.end,
@@ -103,16 +108,17 @@ export default async function TrendsPage({
       id: `week-${previousRange.start}`,
       type: "weekly",
     }),
-    loadTeamDailyTrend(TEAM_DAILY_TREND_DAYS),
+    loadGateDailyTrend(GATE_DAILY_TREND_DAYS),
   ]);
 
   // Same actual/actualDisplay → value/display reshape MetricTrendChart
   // expects everywhere else on this page (gateWeeklySeries, agentDailySeries
-  // below) — a day with no scored agents yet reads as a gap, not a 0.
-  const teamDailyPoints: MetricTrendPoint[] = teamDailyTrend.map((p) => ({
+  // below) — a day with no Business Gate report yet reads as a gap, not a
+  // fabricated 1.0000×.
+  const gateDailyPoints: MetricTrendPoint[] = gateDailyTrend.map((p) => ({
     label: p.label,
-    value: p.score,
-    display: p.score !== null ? p.score.toFixed(2) : "No data",
+    value: p.multiplier,
+    display: p.multiplier !== null ? `${p.multiplier.toFixed(4)}×` : "No data",
   }));
 
   // Whether there's more than just the currently-selected week's own data to
@@ -140,13 +146,13 @@ export default async function TrendsPage({
     })
   );
 
-  const trendData: TrendPoint[] = chartDatasets.map(({ week, results: rs }) => ({
+  const trendData: TrendPoint[] = chartDatasets.map(({ week, gate }) => ({
     // week.label is already the full "Sep 7 – 13, 2026" range (built by
     // formatWeekLabel inside listAvailableWeeks) — using it here instead of
     // the short single-day label makes it clear this point covers a whole
     // week, not just the day it happens to be plotted under.
     period: week.label,
-    score: Number((teamAverage(rs) ?? 0).toFixed(2)),
+    score: gate ? gateMultiplierOrNull(gate) : null,
   }));
 
   // One line series per Business Gate metric, built from the exact same
@@ -166,12 +172,12 @@ export default async function TrendsPage({
     }),
   }));
 
-  const currentAvg = teamAverage(results);
-  const previousAvg = teamAverage(previousResults);
-  const hasComparison = currentAvg !== null && previousAvg !== null;
-  const scoreDelta = hasComparison ? Number((currentAvg! - previousAvg!).toFixed(2)) : null;
-  const scoreFlat = scoreDelta !== null && Math.abs(scoreDelta) < 0.005;
-  const scoreImproved = scoreDelta === null || scoreFlat ? null : scoreDelta > 0;
+  const currentMultiplier = teamGateMultiplier(results);
+  const previousMultiplier = teamGateMultiplier(previousResults);
+  const hasComparison = currentMultiplier !== null && previousMultiplier !== null;
+  const multiplierDelta = hasComparison ? Number((currentMultiplier! - previousMultiplier!).toFixed(4)) : null;
+  const multiplierFlat = multiplierDelta !== null && Math.abs(multiplierDelta) < 0.00005;
+  const multiplierImproved = multiplierDelta === null || multiplierFlat ? null : multiplierDelta > 0;
 
   const metricDeltas: MetricDeltaDatum[] = INDIVIDUAL_METRICS.map((def) => {
     const currentValue = metricAverageActual(results, def.key);
@@ -239,7 +245,7 @@ export default async function TrendsPage({
 
   return (
     <>
-      <TopHeader title="Trends" description="This week vs. last week, by team average and by metric" actions={weekPicker} />
+      <TopHeader title="Trends" description="This week vs. last week, by Business Gate multiplier and by metric" actions={weekPicker} />
       <PageShell>
         {!hasHistory && (
           <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-700">
@@ -256,7 +262,7 @@ export default async function TrendsPage({
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle>Team Average Score</CardTitle>
+                <CardTitle>Business Gate Multiplier</CardTitle>
                 <CardDescription>
                   {hasComparison
                     ? `${selectedWeek.label} vs. ${previousLabel}`
@@ -266,34 +272,47 @@ export default async function TrendsPage({
                 </CardDescription>
               </div>
               <div className="flex items-baseline gap-3">
-                <span className="text-3xl font-semibold text-foreground">{(currentAvg ?? 0).toFixed(2)}</span>
-                <span className="text-sm text-muted-foreground">/ 3.00</span>
+                <span className="text-3xl font-semibold text-foreground">
+                  {currentMultiplier !== null ? `${currentMultiplier.toFixed(4)}×` : "—"}
+                </span>
+                {currentMultiplier === null && (
+                  <span className="text-sm text-muted-foreground">No Business Gate data this week yet</span>
+                )}
                 {hasComparison && (
-                  <Badge variant={deltaBadgeVariant(scoreImproved)}>
-                    {scoreFlat ? (
+                  <Badge variant={deltaBadgeVariant(multiplierImproved)}>
+                    {multiplierFlat ? (
                       <Minus className="h-3 w-3" />
-                    ) : scoreImproved ? (
+                    ) : multiplierImproved ? (
                       <TrendingUp className="h-3 w-3" />
                     ) : (
                       <TrendingDown className="h-3 w-3" />
                     )}
-                    {scoreFlat ? "No change" : `${scoreDelta! > 0 ? "+" : ""}${scoreDelta!.toFixed(2)} vs last week`}
+                    {multiplierFlat
+                      ? "No change"
+                      : `${multiplierDelta! > 0 ? "+" : ""}${multiplierDelta!.toFixed(4)} vs last week`}
                   </Badge>
                 )}
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <TrendChart data={trendData} />
+            <TrendChart
+              data={trendData}
+              domain={[GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX]}
+              ticks={[GATE_MULTIPLIER_MIN, 0.7, 1.0, GATE_MULTIPLIER_MAX]}
+              precision={4}
+              suffix="×"
+              tooltipLabel="Business Gate multiplier"
+            />
             <div className="mt-5 border-t border-border pt-4">
               <p className="mb-1 text-xs font-medium text-foreground">
-                Daily <span className="text-muted-foreground/70">(team average, last {TEAM_DAILY_TREND_DAYS} days)</span>
+                Daily <span className="text-muted-foreground/70">(Business Gate multiplier, last {GATE_DAILY_TREND_DAYS} days)</span>
               </p>
               <p className="mb-2 text-xs text-muted-foreground">
                 The chart above compares whole weeks. This line ticks day by day instead, so you can see movement between
                 weekly snapshots.
               </p>
-              <MetricTrendChart data={teamDailyPoints} />
+              <MetricTrendChart data={gateDailyPoints} />
             </div>
           </CardContent>
         </Card>
