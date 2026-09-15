@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { formatDate } from "@/lib/utils";
 
 interface AgentOption {
   id: string;
@@ -190,6 +191,14 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
               ))}
               <option value={NEW_PERIOD_VALUE}>+ Start a new period</option>
             </Select>
+            {!isNewPeriod && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Date on record for this period:{" "}
+                <span className="font-medium text-foreground">
+                  {formatDate(periods.find((p) => p.id === targetPeriodId)?.endDate ?? "")}
+                </span>
+              </p>
+            )}
           </div>
           {isNewPeriod && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
