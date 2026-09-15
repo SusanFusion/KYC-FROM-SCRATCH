@@ -6,7 +6,7 @@
 // which every page reads fresh through loadPeriodDataset (see query.ts).
 import { getRepository } from "./repository";
 import type { RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
-import type { ImportRow, Period, PeriodType } from "@/types/domain";
+import type { ImportRow, Period } from "@/types/domain";
 
 const GATE_FIELD_KEYS = ["clientAvgWaitTimeMin", "teamProcessingTimeMin", "chatTeamAvgResponseSec", "teamTicketAHTMin"] as const;
 
@@ -68,22 +68,31 @@ export async function commitImportRows(params: CommitImportRowsParams): Promise<
     periodId = existingPeriod.id;
     period = existingPeriod;
   } else {
-    const isMonth = /month/i.test(periodLabel ?? "");
-    const startDate = isMonth ? `${endDateIso.slice(0, 7)}-01` : endDateIso;
-    // A same-day import (startDate === endDateIso, i.e. not a "month"
-    // label) is a daily period — tagging it "daily" rather than the old
-    // catch-all "custom" is what lets the Team Performance/Trends weekly
-    // filter and the Overall MTD tab find and aggregate these periods (see
-    // query.ts's getDailyPeriods, which matches on startDate === endDate
-    // regardless of this type label, but the explicit type keeps intent
-    // clear rather than implicit).
-    const periodType: PeriodType = isMonth ? "month-to-date" : "daily";
+    // Every import — PDF or manual — is now a single day's snapshot (see the
+    // daily-import redesign): the date confirmed on the Data Import page IS
+    // the whole period, so start and end are always that same day.
+    //
+    // This used to branch on whether the imported PDF's own auto-extracted
+    // "Date Range" text happened to contain the word "month" (tagging the
+    // period "month-to-date" with startDate forced back to the 1st of the
+    // month) — a leftover from before daily imports existed, when a single
+    // ongoing monthly period was the only shape a period could take. An
+    // MTD-status PDF's own header text very often DOES contain the word
+    // "month" (e.g. "Date Range: Month to Date"), which has nothing to do
+    // with what day this particular import actually covers — so that guess
+    // was silently minting periods whose startDate !== endDate. Those never
+    // match getDailyPeriods()'s `startDate === endDate` test, which means
+    // they were invisible to the weekly filter, Trends, and the Overall MTD
+    // tab: exactly the bug where an imported day's data never showed up
+    // anywhere that aggregates by day. Overall MTD is now computed on the
+    // fly by aggregating daily periods (see loadRangeDataset), so there's no
+    // remaining reason to ever store an import as anything but a daily one.
     periodId = `import-${endDateIso}-${importId.slice(-6)}`;
     period = {
       id: periodId,
       label: periodLabel ? `${periodLabel} (imported ${endDateIso})` : `Imported period (${endDateIso})`,
-      type: periodType,
-      startDate,
+      type: "daily",
+      startDate: endDateIso,
       endDate: endDateIso,
       generatedAt: endDateIso,
     };
