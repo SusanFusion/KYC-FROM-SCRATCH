@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 
 interface PeriodOption {
@@ -17,6 +18,20 @@ interface PeriodOption {
 }
 
 const NEW_PERIOD_VALUE = "__new__";
+
+/** The PDF's own "Generated Date:" text is read verbatim as DD-MM-YYYY —
+ *  converts it to the YYYY-MM-DD a plain <input type="date"> needs, so the
+ *  date field can start pre-filled with the app's best guess instead of
+ *  blank. Returns null (rather than guessing) for anything that doesn't
+ *  match that exact shape, so a garbled or missing date never silently
+ *  becomes a wrong one — the caller falls back to today instead. */
+function guessToIso(guess: string | null): string | null {
+  if (!guess) return null;
+  const m = guess.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 interface ParsedRow {
   id?: string;
@@ -58,7 +73,15 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
   // period any earlier import/manual entry already established, instead of
   // silently starting a second period the dashboard never shows.
   const [targetPeriodId, setTargetPeriodId] = React.useState<string>(periods[0]?.id ?? NEW_PERIOD_VALUE);
+  // The date this data is actually for — pre-filled from whatever the PDF's
+  // own "Generated Date:" text says (once parsed), but always visible and
+  // editable before committing, so a misread or backlogged-day import never
+  // silently lands on the wrong date (see the Data Import date-confusion
+  // fix in notes.ts).
+  const [reportDate, setReportDate] = React.useState<string>("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
+  const selectedExistingPeriod = periods.find((p) => p.id === targetPeriodId);
 
   async function handleFiles(files: File[]) {
     if (files.length === 0) return;
@@ -76,6 +99,7 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
         return;
       }
       setResult(data);
+      setReportDate(guessToIso(data.generatedDateGuess) ?? new Date().toISOString().slice(0, 10));
       setPhase("preview");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Unexpected error.");
@@ -85,6 +109,11 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
 
   async function handleCommit() {
     if (!result) return;
+    if (isNewPeriod && !reportDate) {
+      setErrorMsg("Pick the date this data is for before importing.");
+      setPhase("error");
+      return;
+    }
     setPhase("committing");
     try {
       const res = await fetch("/api/import/commit", {
@@ -95,6 +124,7 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
           rows: result.rows,
           periodLabel: result.periodLabelGuess,
           generatedDateGuess: result.generatedDateGuess,
+          endDateIso: reportDate,
           gate: result.gate,
           targetPeriodId: targetPeriodId === NEW_PERIOD_VALUE ? null : targetPeriodId,
         }),
@@ -227,21 +257,38 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
-            <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                  {p.id === periods[0]?.id ? " (current)" : ""}
-                </option>
-              ))}
-              <option value={NEW_PERIOD_VALUE}>+ Start a new period{result.periodLabelGuess ? ` (${result.periodLabelGuess})` : ""}</option>
-            </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Merging into an existing period only adds/updates what this PDF actually contains — everything else
-              already recorded for it stays as it was.
-            </p>
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
+              <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
+                {periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                    {p.id === periods[0]?.id ? " (current)" : ""}
+                  </option>
+                ))}
+                <option value={NEW_PERIOD_VALUE}>+ Start a new period{result.periodLabelGuess ? ` (${result.periodLabelGuess})` : ""}</option>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Merging into an existing period only adds/updates what this PDF actually contains — everything else
+                already recorded for it stays as it was.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Date this data is for</label>
+              {isNewPeriod ? (
+                <Input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="w-full sm:w-auto" />
+              ) : (
+                <Input type="date" value={selectedExistingPeriod?.endDate ?? reportDate} disabled className="w-full opacity-70 sm:w-auto" />
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isNewPeriod
+                  ? result.generatedDateGuess
+                    ? `Detected "Generated Date: ${result.generatedDateGuess}" in the PDF — confirm or correct it here.`
+                    : "No date was detected in the PDF — pick the date this report actually covers."
+                  : "Fixed to the date already on record for the period selected above."}
+              </p>
+            </div>
           </div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Badge variant="success">{counts.extracted} extracted</Badge>
