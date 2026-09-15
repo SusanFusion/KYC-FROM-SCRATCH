@@ -3,9 +3,11 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RangePicker } from "@/components/shared/RangePicker";
 import { TrendChart, type TrendPoint } from "@/components/charts/TrendChart";
 import { MetricDeltaGrid, deltaBadgeVariant, type MetricDeltaDatum } from "@/components/charts/MetricDeltaGrid";
-import { loadPeriodDataset, type AgentPeriodResult } from "@/lib/data/query";
+import { loadRangeDataset, listAvailableWeeks, type AgentPeriodResult } from "@/lib/data/query";
+import { shiftWeek, formatWeekLabel, formatWeekShortLabel } from "@/lib/data/dateRanges";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
 import { formatActual } from "@/lib/scoring/individualScore";
 import { formatMagnitude, roundToDisplayPrecision } from "@/lib/scoring/display";
@@ -36,10 +38,14 @@ function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetric
   return values.reduce((sum, m) => sum + (m.actual as number), 0) / values.length;
 }
 
-export default async function TrendsPage() {
-  const { period, periods, results } = await loadPeriodDataset();
+// How many weeks the trend line looks back — keeps the chart readable as
+// more weekly history piles up rather than growing unbounded.
+const MAX_CHART_WEEKS = 12;
 
-  if (!period) {
+export default async function TrendsPage({ searchParams }: { searchParams: { week?: string } }) {
+  const weeks = await listAvailableWeeks(); // most recent first
+
+  if (weeks.length === 0) {
     return (
       <>
         <TopHeader title="Trends" description="Performance over time" />
@@ -50,32 +56,61 @@ export default async function TrendsPage() {
     );
   }
 
-  const hasHistory = periods.length > 1;
-  const chronological = [...periods].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+  const selectedWeek = weeks.find((w) => w.start === searchParams.week) ?? weeks[0]!;
+  const previousRange = shiftWeek(selectedWeek.start, -1);
+  const previousLabel = formatWeekLabel(previousRange);
 
-  // The period immediately before the one currently shown — whichever two
-  // periods are newest at the time of viewing. Nothing here is hardcoded to
-  // a specific week: import a new period and this automatically becomes the
-  // new "current", pushing today's current into the "previous" slot.
-  const previousPeriod = hasHistory ? chronological[chronological.length - 2] ?? null : null;
-  const previousResults = previousPeriod
-    ? previousPeriod.id === period.id
-      ? results
-      : (await loadPeriodDataset(previousPeriod.id)).results
-    : null;
+  const weekPicker = (
+    <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
+  );
 
-  const trendData: TrendPoint[] = hasHistory
-    ? await Promise.all(
-        chronological.map(async (p) => {
-          const rs = p.id === period.id ? results : p.id === previousPeriod?.id ? previousResults! : (await loadPeriodDataset(p.id)).results;
-          const avg = teamAverage(rs);
-          return { period: p.label.split(" ")[0] ?? p.id, score: Number((avg ?? 0).toFixed(2)) };
-        })
-      )
-    : [{ period: period.label.split(" ")[0] ?? period.id, score: Number((teamAverage(results) ?? 0).toFixed(2)) }];
+  const [{ results }, { results: previousResults }] = await Promise.all([
+    loadRangeDataset({
+      start: selectedWeek.start,
+      end: selectedWeek.end,
+      label: `Week of ${selectedWeek.label}`,
+      id: `week-${selectedWeek.start}`,
+      type: "weekly",
+    }),
+    loadRangeDataset({
+      start: previousRange.start,
+      end: previousRange.end,
+      label: `Week of ${previousLabel}`,
+      id: `week-${previousRange.start}`,
+      type: "weekly",
+    }),
+  ]);
+
+  // Whether there's more than just the currently-selected week's own data to
+  // draw on at all — drives the "not enough history yet" banner below.
+  const hasHistory = weeks.length > 1;
+
+  // The chart looks back over the most recent weeks (oldest → newest), reusing
+  // the two datasets already loaded above instead of re-fetching them.
+  const chartWeeks = [...weeks].slice(0, MAX_CHART_WEEKS).reverse();
+  const trendData: TrendPoint[] = await Promise.all(
+    chartWeeks.map(async (w) => {
+      const rs =
+        w.start === selectedWeek.start
+          ? results
+          : w.start === previousRange.start
+            ? previousResults
+            : (
+                await loadRangeDataset({
+                  start: w.start,
+                  end: w.end,
+                  label: `Week of ${w.label}`,
+                  id: `week-${w.start}`,
+                  type: "weekly",
+                })
+              ).results;
+      const avg = teamAverage(rs);
+      return { period: formatWeekShortLabel(w), score: Number((avg ?? 0).toFixed(2)) };
+    })
+  );
 
   const currentAvg = teamAverage(results);
-  const previousAvg = previousResults ? teamAverage(previousResults) : null;
+  const previousAvg = teamAverage(previousResults);
   const hasComparison = currentAvg !== null && previousAvg !== null;
   const scoreDelta = hasComparison ? Number((currentAvg! - previousAvg!).toFixed(2)) : null;
   const scoreFlat = scoreDelta !== null && Math.abs(scoreDelta) < 0.005;
@@ -83,10 +118,10 @@ export default async function TrendsPage() {
 
   const metricDeltas: MetricDeltaDatum[] = INDIVIDUAL_METRICS.map((def) => {
     const currentValue = metricAverageActual(results, def.key);
-    const previousValue = previousResults ? metricAverageActual(previousResults, def.key) : null;
+    const previousValue = metricAverageActual(previousResults, def.key);
 
     const currentDisplay = currentValue !== null ? formatActual(def.key, currentValue) : "No data";
-    const previousDisplay = previousResults ? (previousValue !== null ? formatActual(def.key, previousValue) : "No data") : null;
+    const previousDisplay = previousValue !== null ? formatActual(def.key, previousValue) : "No data";
 
     let deltaLabel: string | null = null;
     let improved: boolean | null = null;
@@ -123,15 +158,15 @@ export default async function TrendsPage() {
 
   return (
     <>
-      <TopHeader title="Trends" description="This period vs. the last one, by team average and by metric" />
+      <TopHeader title="Trends" description="This week vs. last week, by team average and by metric" actions={weekPicker} />
       <PageShell>
         {!hasHistory && (
           <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-700">
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p>
-              Only one reporting period (<strong>{period.label}</strong>) has been imported so far, so a period-over-period
-              comparison isn&apos;t possible yet. Import the next period via Data Import (PDF or manual entry) and this page
-              will automatically compare it against {period.label} — nothing here is fabricated to fill the gap.
+              Only one week (<strong>{selectedWeek.label}</strong>) has been imported so far, so a week-over-week comparison
+              isn&apos;t possible yet. Import daily reports for the next week and this page will automatically compare it
+              against {selectedWeek.label} — nothing here is fabricated to fill the gap.
             </p>
           </div>
         )}
@@ -143,10 +178,10 @@ export default async function TrendsPage() {
                 <CardTitle>Team Average Score</CardTitle>
                 <CardDescription>
                   {hasComparison
-                    ? `${period.label} vs. ${previousPeriod!.label}`
+                    ? `${selectedWeek.label} vs. ${previousLabel}`
                     : hasHistory
-                      ? `Across all ${chronological.length} imported periods.`
-                      : "Current period only — a comparison appears once a second period is imported."}
+                      ? `Across the last ${chartWeeks.length} week${chartWeeks.length === 1 ? "" : "s"} imported.`
+                      : "Current week only — a comparison appears once the prior week has data."}
                 </CardDescription>
               </div>
               <div className="flex items-baseline gap-3">
@@ -161,7 +196,7 @@ export default async function TrendsPage() {
                     ) : (
                       <TrendingDown className="h-3 w-3" />
                     )}
-                    {scoreFlat ? "No change" : `${scoreDelta! > 0 ? "+" : ""}${scoreDelta!.toFixed(2)} vs last period`}
+                    {scoreFlat ? "No change" : `${scoreDelta! > 0 ? "+" : ""}${scoreDelta!.toFixed(2)} vs last week`}
                   </Badge>
                 )}
               </div>
@@ -175,11 +210,7 @@ export default async function TrendsPage() {
         <Card className="mt-4">
           <CardHeader>
             <CardTitle>By Metric</CardTitle>
-            <CardDescription>
-              {previousPeriod
-                ? `Team average per metric, ${period.label} vs. ${previousPeriod.label}.`
-                : `Team average per metric, ${period.label}.`}
-            </CardDescription>
+            <CardDescription>Team average per metric, {selectedWeek.label} vs. {previousLabel}.</CardDescription>
           </CardHeader>
           <CardContent>
             <MetricDeltaGrid data={metricDeltas} />
