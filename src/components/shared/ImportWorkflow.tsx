@@ -1,15 +1,20 @@
+// src/components/shared/ManualEntryForm.tsx
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, FileCheck2, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { getLocalTodayIso } from "@/lib/utils";
+
+interface AgentOption {
+  id: string;
+  name: string;
+}
 
 interface PeriodOption {
   id: string;
@@ -19,139 +24,114 @@ interface PeriodOption {
 
 const NEW_PERIOD_VALUE = "__new__";
 
-/** The PDF's own "Generated Date:" text is read verbatim as DD-MM-YYYY —
- *  converts it to the YYYY-MM-DD a plain <input type="date"> needs, so the
- *  date field can start pre-filled with the app's best guess instead of
- *  blank. Returns null (rather than guessing) for anything that doesn't
- *  match that exact shape, so a garbled or missing date never silently
- *  becomes a wrong one — the caller falls back to today instead. */
-function guessToIso(guess: string | null): string | null {
-  if (!guess) return null;
-  const m = guess.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  return `${yyyy}-${mm}-${dd}`;
-}
+/** Matches RawAgentMetrics fields exactly (see lib/scoring/types.ts) — this
+ *  form fills the same raw inputs a parsed PDF row would. */
+const INDIVIDUAL_FIELDS: { key: string; label: string; hint: string }[] = [
+  { key: "totalChatConversations", label: "Total Chat Conversations", hint: "count" },
+  { key: "avgFirstResponseTimeSec", label: "Chat First Response Time", hint: "seconds" },
+  { key: "avgResponseTimeSec", label: "Chat Avg Response Time", hint: "seconds" },
+  { key: "emailAHTSec", label: "Email AHT (incl. KYB)", hint: "seconds" },
+  { key: "appAHTSec", label: "Application AHT – FD", hint: "seconds" },
+  { key: "totalChats", label: "Total Chats (CSAT denominator)", hint: "count" },
+  { key: "csatCount", label: "CSAT Count", hint: "count" },
+  { key: "dsatCount", label: "DSAT Count", hint: "count" },
+  { key: "qaAuditPct", label: "QA Audit", hint: "%" },
+];
 
-interface ParsedRow {
-  id?: string;
-  agentNameRaw: string;
-  matchedAgentId: string | null;
-  metricKey: string;
-  rawValue: string;
-  parsedValue: number | null;
-  status: "extracted" | "needs_review" | "failed";
-  note?: string;
-}
+const GATE_FIELDS: { key: string; label: string; hint: string }[] = [
+  { key: "clientAvgWaitTimeMin", label: "Client Avg Wait Time", hint: "minutes" },
+  { key: "teamProcessingTimeMin", label: "Avg Team Processing Time", hint: "minutes" },
+  { key: "chatTeamAvgResponseSec", label: "Chat Team Avg Response Time", hint: "seconds" },
+  { key: "teamTicketAHTMin", label: "Team Ticket AHT", hint: "minutes" },
+];
 
-interface ParseResponse {
-  importId: string;
-  rows: ParsedRow[];
-  gate: Record<string, number | null>;
-  gateFieldsFound: string[];
-  tablesDetected: string[];
-  periodLabelGuess: string | null;
-  generatedDateGuess: string | null;
-  warnings: string[];
-  error?: string;
-  detail?: string;
-}
+type CellValues = Record<string, Record<string, string>>; // agentId -> metricKey -> raw string
 
-const STATUS_META: Record<ParsedRow["status"], { label: string; variant: "success" | "warning" | "danger"; Icon: typeof CheckCircle2 }> = {
-  extracted: { label: "Extracted", variant: "success", Icon: CheckCircle2 },
-  needs_review: { label: "Needs review", variant: "warning", Icon: AlertTriangle },
-  failed: { label: "Failed", variant: "danger", Icon: XCircle },
-};
-
-export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
+export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; periods: PeriodOption[] }) {
   const router = useRouter();
   const { showToast } = useToast();
-  const [phase, setPhase] = React.useState<"idle" | "uploading" | "preview" | "committing" | "done" | "error">("idle");
-  const [result, setResult] = React.useState<ParseResponse | null>(null);
+  const [phase, setPhase] = React.useState<"idle" | "saving" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
-  // Defaults to TODAY's period if one already exists (so a second PDF/manual
-  // entry for the same day lands on the same period instead of silently
-  // starting a duplicate one) — but otherwise defaults to starting a brand
-  // new period, never to whatever the most recent period happens to be.
-  // Every day is its own period now (see the daily-import redesign), so
-  // defaulting to "the current/most recent period" regardless of its date —
-  // the old behavior, left over from when a single ongoing period was the
-  // only period shape that existed — meant a new day's import could
-  // silently merge into an earlier day's period if the person didn't think
-  // to switch this dropdown to "+ Start a new period" every time.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // Default to TODAY's period if one already exists (so, say, adding the two
+  // Business Gate fields the PDF never reports lands on the same period as
+  // today's earlier import instead of quietly creating a duplicate) — but
+  // otherwise default to starting a brand new period, never to whichever
+  // period is merely most recent. Every day is its own period now (see the
+  // daily-import redesign); defaulting to "the current/most recent period"
+  // regardless of its date meant a new day's entry could silently merge
+  // into an earlier day's period if this dropdown wasn't switched to
+  // "+ Start a new period" every time.
+  const todayIso = getLocalTodayIso();
   const [targetPeriodId, setTargetPeriodId] = React.useState<string>(
     periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE
   );
-  // The date this data is actually for — pre-filled from whatever the PDF's
-  // own "Generated Date:" text says (once parsed), but always visible and
-  // editable before committing, so a misread or backlogged-day import never
-  // silently lands on the wrong date (see the Data Import date-confusion
-  // fix in notes.ts).
-  const [reportDate, setReportDate] = React.useState<string>("");
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [periodLabel, setPeriodLabel] = React.useState("");
+  const [generatedDate, setGeneratedDate] = React.useState(() => getLocalTodayIso());
+  const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
+  const [cells, setCells] = React.useState<CellValues>({});
+  const [savedCount, setSavedCount] = React.useState(0);
   const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
-  const selectedExistingPeriod = periods.find((p) => p.id === targetPeriodId);
 
-  async function handleFiles(files: File[]) {
-    if (files.length === 0) return;
-    setPhase("uploading");
-    setErrorMsg(null);
-    try {
-      const formData = new FormData();
-      for (const file of files) formData.append("file", file);
-      const res = await fetch("/api/import/parse", { method: "POST", body: formData });
-      const data: ParseResponse = await res.json();
-      if (!res.ok) {
-        const base = data.error ?? "Failed to parse PDF.";
-        setErrorMsg(data.detail ? `${base} (${data.detail})` : base);
-        setPhase("error");
-        return;
-      }
-      setResult(data);
-      setReportDate(guessToIso(data.generatedDateGuess) ?? new Date().toISOString().slice(0, 10));
-      setPhase("preview");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Unexpected error.");
-      setPhase("error");
-    }
+  function setCell(agentId: string, metricKey: string, raw: string) {
+    setCells((prev) => ({ ...prev, [agentId]: { ...(prev[agentId] ?? {}), [metricKey]: raw } }));
   }
 
-  async function handleCommit() {
-    if (!result) return;
-    if (isNewPeriod && !reportDate) {
-      setErrorMsg("Pick the date this data is for before importing.");
+  async function handleSave() {
+    setErrorMsg(null);
+
+    const entries: { agentId: string; metricKey: string; value: number }[] = [];
+    for (const [agentId, byMetric] of Object.entries(cells)) {
+      for (const [metricKey, raw] of Object.entries(byMetric)) {
+        const trimmed = raw.trim();
+        if (trimmed === "") continue;
+        const value = Number(trimmed);
+        if (Number.isFinite(value)) entries.push({ agentId, metricKey, value });
+      }
+    }
+
+    const gate: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(gateValues)) {
+      const trimmed = raw.trim();
+      if (trimmed === "") continue;
+      const value = Number(trimmed);
+      if (Number.isFinite(value)) gate[key] = value;
+    }
+
+    if (entries.length === 0 && Object.keys(gate).length === 0) {
+      setErrorMsg("Enter at least one value before saving.");
       setPhase("error");
       return;
     }
-    setPhase("committing");
+    if (isNewPeriod && !generatedDate) {
+      setErrorMsg("Pick a date for this period.");
+      setPhase("error");
+      return;
+    }
+
+    setPhase("saving");
     try {
-      const res = await fetch("/api/import/commit", {
+      const res = await fetch("/api/import/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          importId: result.importId,
-          rows: result.rows,
-          periodLabel: result.periodLabelGuess,
-          generatedDateGuess: result.generatedDateGuess,
-          endDateIso: reportDate,
-          gate: result.gate,
-          targetPeriodId: targetPeriodId === NEW_PERIOD_VALUE ? null : targetPeriodId,
+          periodLabel: isNewPeriod ? periodLabel || null : null,
+          generatedDate: isNewPeriod ? generatedDate : null,
+          targetPeriodId: isNewPeriod ? null : targetPeriodId,
+          gate,
+          entries,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Failed to commit import.");
+        setErrorMsg(data.detail ? `${data.error} (${data.detail})` : data.error ?? "Failed to save.");
         setPhase("error");
         return;
       }
+      const agentsUpdated = data.agentsUpdated ?? 0;
+      setSavedCount(agentsUpdated);
       setPhase("done");
-      const agentsUpdated = typeof data.agentsUpdated === "number" ? data.agentsUpdated : null;
-      const periodLabel = data.period?.label as string | undefined;
       showToast(
-        `Import successful${periodLabel ? ` — ${periodLabel}` : ""}${
-          agentsUpdated !== null ? ` (${agentsUpdated} agent${agentsUpdated === 1 ? "" : "s"} updated)` : ""
-        }. Dashboard, rankings, and scorecards now reflect this data.`,
+        `Manual entry saved — ${agentsUpdated} agent${agentsUpdated === 1 ? "" : "s"} updated. Dashboard, rankings, and scorecards now reflect this data.`,
         "success"
       );
       router.refresh();
@@ -161,93 +141,27 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
     }
   }
 
-  const counts = React.useMemo(() => {
-    if (!result) return { extracted: 0, needs_review: 0, failed: 0 };
-    return result.rows.reduce(
-      (acc, r) => {
-        acc[r.status]++;
-        return acc;
-      },
-      { extracted: 0, needs_review: 0, failed: 0 }
-    );
-  }, [result]);
-
-  if (phase === "idle" || phase === "uploading") {
-    return (
-      <Card>
-        <CardContent className="p-10">
-          <div
-            className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border py-14 text-center transition-colors hover:border-primary-500 hover:bg-primary-50/40"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              handleFiles(Array.from(e.dataTransfer.files ?? []));
-            }}
-          >
-            {phase === "uploading" ? (
-              <>
-                <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" />
-                <p className="text-sm font-medium text-foreground">Reading PDF(s)…</p>
-              </>
-            ) : (
-              <>
-                <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Drag one or more KYC Team Performance Report PDFs here</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  or click to browse — text-based PDFs only. Upload several at once if they cover different
-                  metrics for the same period; they&apos;ll be merged into one import.
-                </p>
-                <Button className="mt-4" onClick={() => fileInputRef.current?.click()}>
-                  Choose file(s)
-                </Button>
-              </>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                handleFiles(Array.from(e.target.files ?? []));
-                e.target.value = "";
-              }}
-            />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (phase === "error") {
-    return (
-      <Card className="border-danger/30">
-        <CardContent className="flex items-start gap-3 p-6">
-          <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger" />
-          <div>
-            <p className="text-sm font-medium text-foreground">Import failed</p>
-            <p className="mt-1 text-sm text-muted-foreground">{errorMsg}</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => setPhase("idle")}>
-              Try again
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  function resetForm() {
+    setCells({});
+    setGateValues({});
+    setTargetPeriodId(periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE);
+    setPhase("idle");
+    setErrorMsg(null);
   }
 
   if (phase === "done") {
     return (
       <Card className="border-success/30">
         <CardContent className="flex items-start gap-3 p-6">
-          <FileCheck2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" />
+          <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" />
           <div>
-            <p className="text-sm font-medium text-foreground">Import committed</p>
+            <p className="text-sm font-medium text-foreground">Saved</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              The dashboard, rankings, and scorecards now reflect this period&apos;s data.
+              {savedCount} agent{savedCount === 1 ? "" : "s"} updated — the dashboard, rankings, and scorecards
+              now reflect this data.
             </p>
-            <Button size="sm" className="mt-3" onClick={() => setPhase("idle")}>
-              Import another report
+            <Button size="sm" className="mt-3" onClick={resetForm}>
+              Enter another period
             </Button>
           </div>
         </CardContent>
@@ -255,19 +169,36 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
     );
   }
 
-  // preview / committing
-  if (!result) return null;
   return (
     <div className="space-y-4">
+      {phase === "error" && errorMsg && (
+        <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 p-4">
+          <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger" />
+          <p className="text-sm text-muted-foreground">{errorMsg}</p>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Review before import</CardTitle>
+          <CardTitle>Which period is this for?</CardTitle>
           <CardDescription>
-            Nothing has been saved yet. Confirm below to commit — rows marked &quot;Failed&quot; are excluded automatically.
+            Values you leave blank are treated as not measured — not scored as zero. Adding to an existing period only
+            fills in what you enter here; everything else already recorded for it (from a PDF import or an earlier
+            manual entry) stays exactly as it was.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CardContent className="space-y-4">
+          {/* Same always-visible 2-column layout as the PDF Upload tab
+             (ImportWorkflow.tsx): the date field sits in the DOM from the
+             very first render, right next to the period selector, and just
+             switches between editable/disabled — it never mounts or
+             unmounts. Previously this date field only existed inside a
+             separate block that was conditionally rendered on isNewPeriod,
+             which meant picking "+ Start a new period" from the select had
+             to also mount a whole new chunk of the page lower down; if that
+             didn't visually register as a change, there was nothing next to
+             the selector itself hinting a date field existed at all. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Add this data to</label>
               <Select value={targetPeriodId} onChange={(e) => setTargetPeriodId(e.target.value)} className="w-full sm:w-auto">
@@ -277,85 +208,122 @@ export function ImportWorkflow({ periods }: { periods: PeriodOption[] }) {
                     {p.id === periods[0]?.id ? " (current)" : ""}
                   </option>
                 ))}
-                <option value={NEW_PERIOD_VALUE}>+ Start a new period{result.periodLabelGuess ? ` (${result.periodLabelGuess})` : ""}</option>
+                <option value={NEW_PERIOD_VALUE}>+ Start a new period</option>
               </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Merging into an existing period only adds/updates what this PDF actually contains — everything else
-                already recorded for it stays as it was.
-              </p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Date this data is for</label>
               {isNewPeriod ? (
-                <Input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="w-full sm:w-auto" />
+                <Input type="date" value={generatedDate} onChange={(e) => setGeneratedDate(e.target.value)} className="w-full sm:w-auto" />
               ) : (
-                <Input type="date" value={selectedExistingPeriod?.endDate ?? reportDate} disabled className="w-full opacity-70 sm:w-auto" />
+                <Input
+                  type="date"
+                  value={periods.find((p) => p.id === targetPeriodId)?.endDate ?? ""}
+                  disabled
+                  className="w-full opacity-70 sm:w-auto"
+                />
               )}
               <p className="mt-1 text-xs text-muted-foreground">
                 {isNewPeriod
-                  ? result.generatedDateGuess
-                    ? `Detected "Generated Date: ${result.generatedDateGuess}" in the PDF — confirm or correct it here.`
-                    : "No date was detected in the PDF — pick the date this report actually covers."
+                  ? "Pick the date this data is for."
                   : "Fixed to the date already on record for the period selected above."}
               </p>
             </div>
           </div>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Badge variant="success">{counts.extracted} extracted</Badge>
-            <Badge variant="warning">{counts.needs_review} needs review</Badge>
-            <Badge variant="danger">{counts.failed} failed</Badge>
-            <Badge variant="outline">Tables detected: {result.tablesDetected.join(", ") || "none"}</Badge>
-            {result.periodLabelGuess && <Badge variant="outline">Period: {result.periodLabelGuess}</Badge>}
-          </div>
-          {result.warnings.length > 0 && (
-            <div className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
-              {result.warnings.map((w, i) => (
-                <p key={i}>{w}</p>
-              ))}
+          {isNewPeriod && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Period label (optional)</label>
+              <Input
+                placeholder="e.g. This Month"
+                value={periodLabel}
+                onChange={(e) => setPeriodLabel(e.target.value)}
+                className="w-full sm:w-auto"
+              />
             </div>
           )}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agent (as read)</TableHead>
-                <TableHead>Metric</TableHead>
-                <TableHead>Raw value</TableHead>
-                <TableHead>Parsed</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.rows.map((row, i) => {
-                const meta = STATUS_META[row.status];
-                return (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium text-foreground">
-                      {row.agentNameRaw}
-                      {!row.matchedAgentId && <span className="ml-1 text-xs text-warning">(unmatched)</span>}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{row.metricKey}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.rawValue || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.parsedValue ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={meta.variant}>
-                        <meta.Icon className="h-3 w-3" /> {meta.label}
-                      </Badge>
-                      {row.note && <p className="mt-1 text-xs text-muted-foreground">{row.note}</p>}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Business Gate (team-level)</CardTitle>
+          <CardDescription>
+            Layer 1 — one value per metric for the whole team this period. Fill in only what you have; you can save with
+            just one or two of these and nothing else on the page at all.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {GATE_FIELDS.map((f) => (
+            <div key={f.key}>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
+              </label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={gateValues[f.key] ?? ""}
+                onChange={(e) => setGateValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Individual metrics (per agent)</CardTitle>
+          <CardDescription>Layer 2 — fill in only the columns you have data for; the rest stay unmeasured.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="sticky left-0 z-10 min-w-[160px] bg-card p-2">Agent</th>
+                  {INDIVIDUAL_FIELDS.map((f) => (
+                    <th key={f.key} className="min-w-[110px] p-2 font-medium" title={f.label}>
+                      {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agents.map((agent) => (
+                  <tr key={agent.id} className="border-b border-border last:border-0">
+                    <td className="sticky left-0 z-10 bg-card p-2 font-medium text-foreground">{agent.name}</td>
+                    {INDIVIDUAL_FIELDS.map((f) => (
+                      <td key={f.key} className="p-1.5">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          className="h-8"
+                          value={cells[agent.id]?.[f.key] ?? ""}
+                          onChange={(e) => setCell(agent.id, f.key, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button onClick={handleCommit} disabled={phase === "committing"}>
-          {phase === "committing" ? "Committing…" : "Confirm & Import"}
+        <Button onClick={handleSave} disabled={phase === "saving"}>
+          {phase === "saving" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" /> Save & apply to dashboard
+            </>
+          )}
         </Button>
-        <Button variant="outline" onClick={() => setPhase("idle")}>
-          Cancel
+        <Button variant="outline" onClick={resetForm} disabled={phase === "saving"}>
+          Clear
         </Button>
       </div>
     </div>
