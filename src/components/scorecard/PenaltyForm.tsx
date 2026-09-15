@@ -1,3 +1,4 @@
+// src/components/scorecard/PenaltyForm.tsx
 "use client";
 
 import * as React from "react";
@@ -7,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ALL_PENALTIES } from "@/lib/scoring";
 import { addPenaltyAction } from "@/app/penalties/actions";
+import { getLocalTodayIso } from "@/lib/utils";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -62,7 +64,7 @@ export function PenaltyForm({
         ))}
       </Select>
       <Input name="count" type="number" min={1} defaultValue={1} placeholder="Count" />
-      <Input name="occurredOn" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+      <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
       <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
       <div className="flex items-center gap-2 lg:col-span-2">
         <SubmitButton />
