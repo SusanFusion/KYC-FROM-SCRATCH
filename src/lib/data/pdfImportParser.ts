@@ -185,11 +185,30 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
         for (const row of dataRows) {
           const cells = row.map((c) => c.str.trim()).filter(Boolean);
           if (cells.length === 0) continue;
+          const rowText = cells.join(" ");
+
+          // The page's interactive "Date Range" filter control is normally
+          // rendered above the table, in the same zone as the Business Gate
+          // cards, where the cardItems scan below already leaves it alone.
+          // But on some report layouts (seen in the wild on the AHT/CSAT
+          // sub-metric pages of a real report) it instead lands BELOW the
+          // table, with a small icon glyph occupying the row's first cell —
+          // which pushes "Date Range :" itself into a later cell, so the
+          // ^date range/i check a few lines down (anchored to cells[0])
+          // never catches it. Left unhandled, that icon becomes a bogus
+          // "agent" with every column reading "missing", and the filter's
+          // own (truncated) date value on the next line becomes a second
+          // bogus agent named "2026-09-01 12:0…". Once this widget is
+          // spotted anywhere in a row, everything below it on the page is
+          // this filter control's own chrome, not more agent data — so
+          // stop reading rows entirely rather than skip just the one row.
+          if (/date range\s*:/i.test(rowText)) break;
+
           const firstCell = cells[0]!.toLowerCase();
           if (HEADER_FIRST_CELLS.has(firstCell)) continue;
           if (IGNORE_ROW_PATTERNS.some((p) => p.test(cells[0]!))) continue;
           // Section-title rows contain a "%)" weight marker or "Target" — not agent data.
-          if (/%\)/.test(cells.join(" ")) || /\btarget\b/i.test(cells.join(" "))) continue;
+          if (/%\)/.test(rowText) || /\btarget\b/i.test(rowText)) continue;
 
           const agentNameRaw = cells[0]!;
           const agent = matchAgent(agentNameRaw, agents);
