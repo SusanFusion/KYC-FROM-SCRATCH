@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { parseKycReportPages, type PageTextItem } from "@/lib/data/pdfImportParser";
 import { getRepository } from "@/lib/data/repository";
 import { describeError } from "@/lib/utils";
+import { requireActionAccess } from "@/lib/auth/actionAccess";
 
 export const runtime = "nodejs";
 
@@ -91,6 +92,9 @@ async function extractPages(buffer: Uint8Array): Promise<PageTextItem[][]> {
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireActionAccess();
+    if (denied) return denied;
+
     const formData = await request.formData();
     // Multiple files can be uploaded in one go and are merged into a single
     // import/period — e.g. one report has response-time metrics and another
