@@ -100,8 +100,7 @@ export default async function QaQualityPage() {
             <CardTitle>Applications Quality Audit</CardTitle>
             <CardDescription>
               Submit and manage KYC Applications QA audits. Answers and remarks are confidential to Leads/Managers —
-              only the resulting percentage ever reaches an agent's scorecard, once published, blended into the same
-              QA Audit % shown above.
+only the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same              QA Audit % shown above.
             </CardDescription>
           </CardHeader>
           <CardContent>
