@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRepository } from "@/lib/data/repository";
 import { describeError } from "@/lib/utils";
+import { requireActionAccess } from "@/lib/auth/actionAccess";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,9 @@ interface DeleteImportBody {
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireActionAccess();
+    if (denied) return denied;
+
     const body = (await request.json()) as DeleteImportBody;
     if (!body.importId) {
       return NextResponse.json({ error: "Missing importId." }, { status: 400 });
