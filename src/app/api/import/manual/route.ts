@@ -4,6 +4,7 @@ import { commitImportRows } from "@/lib/data/commitImportRows";
 import type { ImportRow } from "@/types/domain";
 import type { RawGateMetrics } from "@/lib/scoring/types";
 import { describeError } from "@/lib/utils";
+import { requireActionAccess } from "@/lib/auth/actionAccess";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,9 @@ const VALID_METRIC_KEYS = new Set([
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireActionAccess();
+    if (denied) return denied;
+
     const body = (await request.json()) as ManualImportBody;
     if (!Array.isArray(body.entries)) {
       return NextResponse.json({ error: "No values were entered." }, { status: 400 });
