@@ -1,6 +1,7 @@
 import type { DataRepository } from "./repository";
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
 import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 import { SEED_AGENTS } from "./seed/agents";
 import { SEED_TEAMS } from "./seed/teams";
 import { SEED_PERIODS } from "./seed/periods";
@@ -23,6 +24,7 @@ class Store {
   penalties: PenaltyEntry[] = [];
   imports: ImportRecord[] = [];
   importRows = new Map<string, ImportRow[]>();
+  qaAudits: QaAuditRecord[] = [];
   private seq = 0;
 
   constructor() {
@@ -147,5 +149,44 @@ export class LocalRepository implements DataRepository {
     const orphanedImportIds = store.imports.filter((i) => i.periodId === periodId).map((i) => i.id);
     store.imports = store.imports.filter((i) => i.periodId !== periodId);
     for (const id of orphanedImportIds) store.importRows.delete(id);
+  }
+
+  async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }) {
+    let rows = [...store.qaAudits];
+    if (filter?.auditType) rows = rows.filter((a) => a.auditType === filter.auditType);
+    if (filter?.periodId) rows = rows.filter((a) => a.periodId === filter.periodId);
+    if (filter?.agentId) rows = rows.filter((a) => a.agentId === filter.agentId);
+    return rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  async getQaAuditById(id: string) {
+    return store.qaAudits.find((a) => a.id === id) ?? null;
+  }
+
+  async createQaAudit(
+    input: NewQaAuditInput & {
+      applicablePoints: number;
+      totalPoints: number;
+      percentage: number | null;
+      autoFail: boolean;
+      band: 0 | 1 | 2 | 3 | null;
+    }
+  ) {
+    const now = new Date().toISOString();
+    const record: QaAuditRecord = { ...input, id: store.nextId("qa"), status: "submitted", createdAt: now, updatedAt: now };
+    store.qaAudits.push(record);
+    return record;
+  }
+
+  async setQaAuditStatus(id: string, status: QaAuditStatus) {
+    const record = store.qaAudits.find((a) => a.id === id);
+    if (!record) throw new Error("Audit not found.");
+    record.status = status;
+    record.updatedAt = new Date().toISOString();
+    return record;
+  }
+
+  async deleteQaAudit(id: string) {
+    store.qaAudits = store.qaAudits.filter((a) => a.id !== id);
   }
 }
