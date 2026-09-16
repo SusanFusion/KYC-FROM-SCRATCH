@@ -8,6 +8,15 @@ import { bandLabel, getAuditDefinition, QA_AUDIT_TYPE_LABELS, type QaAuditRecord
 
 export const runtime = "nodejs";
 
+// Renders a submitted/published audit as a real, downloadable PDF -- meant to
+// be attached to an Outlook email, per the request. @react-pdf/renderer
+// builds the PDF directly in Node (no headless browser needed, so this
+// works fine on Vercel's serverless functions) from a small React-like
+// component tree of its own primitives (Document/Page/View/Text) -- this
+// route file is .tsx (not .ts) because that JSX needs a Next.js route
+// handler that supports it, same reason next/og's ImageResponse routes are
+// always .tsx.
+
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1f2937" },
   title: { fontSize: 16, fontWeight: 700, marginBottom: 2 },
@@ -15,12 +24,33 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", marginBottom: 3 },
   metaLabel: { width: 110, color: "#6b7280" },
   metaValue: { flex: 1, fontWeight: 700 },
-  scoreBox: { marginTop: 10, marginBottom: 14, padding: 10, borderRadius: 4, backgroundColor: "#f3f4f6", flexDirection: "row", justifyContent: "space-between" },
+  scoreBox: {
+    marginTop: 10,
+    marginBottom: 14,
+    padding: 10,
+    borderRadius: 4,
+    backgroundColor: "#f3f4f6",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   scoreBoxAutoFail: { backgroundColor: "#fee2e2" },
   scoreLabel: { fontSize: 9, color: "#6b7280" },
   scoreValue: { fontSize: 14, fontWeight: 700 },
-  sectionTitle: { fontSize: 11, fontWeight: 700, backgroundColor: "#1e3a8a", color: "#ffffff", padding: 5, marginTop: 10 },
-  questionRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingVertical: 4, alignItems: "flex-start" },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    backgroundColor: "#1e3a8a",
+    color: "#ffffff",
+    padding: 5,
+    marginTop: 10,
+  },
+  questionRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 4,
+    alignItems: "flex-start",
+  },
   questionLabel: { flex: 1, paddingRight: 8 },
   questionAnswer: { width: 60, textAlign: "center", fontWeight: 700 },
   remarksBox: { marginTop: 14, padding: 10, backgroundColor: "#f9fafb", borderRadius: 4 },
@@ -32,7 +62,7 @@ function answerLabel(value: string | undefined): string {
   if (value === "yes") return "Yes";
   if (value === "no") return "No";
   if (value === "na") return "N/A";
-  return "—";
+  return "-";
 }
 
 function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
@@ -72,7 +102,9 @@ function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
           <Text style={styles.metaValue}>{audit.status === "published" ? "Published" : "Submitted"}</Text>
         </View>
 
-        <View style={audit.autoFail ? [styles.scoreBox, styles.scoreBoxAutoFail] : styles.scoreBox}>            <Text style={styles.scoreLabel}>Score</Text>
+        <View style={audit.autoFail ? [styles.scoreBox, styles.scoreBoxAutoFail] : styles.scoreBox}>
+          <View>
+            <Text style={styles.scoreLabel}>Score</Text>
             <Text style={styles.scoreValue}>
               {audit.totalPoints}/{audit.applicablePoints} points
               {audit.percentage !== null ? ` (${audit.percentage.toFixed(1)}%)` : ""}
@@ -81,7 +113,7 @@ function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
           <View>
             <Text style={styles.scoreLabel}>Band</Text>
             <Text style={styles.scoreValue}>
-              {audit.band !== null ? `${audit.band} — ${bandLabel(audit.band)}` : "No data"}
+              {audit.band !== null ? `${audit.band} - ${bandLabel(audit.band)}` : "No data"}
             </Text>
           </View>
           {audit.autoFail && (
@@ -96,7 +128,7 @@ function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
           <View key={section.key} wrap={false}>
             <Text style={styles.sectionTitle}>
               {section.title}
-              {section.autoFail ? " (zero tolerance — any \u201cNo\u201d fails the whole audit)" : ""}
+              {section.autoFail ? " (zero tolerance -- any No answer fails the whole audit)" : ""}
             </Text>
             {section.questions.map((q) => (
               <View key={q.key} style={styles.questionRow}>
@@ -115,7 +147,7 @@ function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
         )}
 
         <Text style={styles.footer} fixed>
-          Confidential — KYC Team Performance QA Audit. Generated {formatDate(new Date().toISOString())}.
+          Confidential -- KYC Team Performance QA Audit. Generated {formatDate(new Date().toISOString())}.
         </Text>
       </Page>
     </Document>
