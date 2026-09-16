@@ -8,6 +8,7 @@
 // period without a data migration.
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
 import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 
 export interface DataRepository {
   getTeams(): Promise<Team[]>;
@@ -48,6 +49,20 @@ export interface DataRepository {
    *  that only one import ever touched — the normal case now that every
    *  import mints its own daily period. */
   deletePeriod(periodId: string): Promise<void>;
+
+  // QA Audits — see src/lib/qa/auditDefinitions.ts. Kept entirely separate
+  // from the raw-metrics tables above: an audit is its own confidential
+  // record, and "publish" (see /api/qa-audits/[id]/publish) writes its
+  // computed score into performance_entries.qa_audit_pct through the
+  // EXISTING commitImportRows() path, the same merge-safe write every PDF
+  // import and manual entry already goes through — so no new method was
+  // needed here for that half of the feature, only for the audits
+  // themselves.
+  getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }): Promise<QaAuditRecord[]>;
+  getQaAuditById(id: string): Promise<QaAuditRecord | null>;
+  createQaAudit(input: NewQaAuditInput & { applicablePoints: number; totalPoints: number; percentage: number | null; autoFail: boolean; band: 0 | 1 | 2 | 3 | null }): Promise<QaAuditRecord>;
+  setQaAuditStatus(id: string, status: QaAuditStatus): Promise<QaAuditRecord>;
+  deleteQaAudit(id: string): Promise<void>;
 }
 
 let cachedRepo: DataRepository | null = null;
