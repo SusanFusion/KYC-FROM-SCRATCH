@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { formatDate, getLocalTodayIso } from "@/lib/utils";
 import { ROSTER } from "@/lib/auth/roster";
 import {
+  buildDefaultAnswers,
   computeAuditScore,
   getAuditDefinition,
   bandLabel,
@@ -81,8 +82,7 @@ function SubmitAuditForm({
   const [auditorEmail, setAuditorEmail] = React.useState(AUDITORS[0]?.email ?? "");
   const [caseReference, setCaseReference] = React.useState("");
   const [auditDate, setAuditDate] = React.useState(() => getLocalTodayIso());
-  const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>({});
-  const [overallRemarks, setOverallRemarks] = React.useState("");
+const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => buildDefaultAnswers(definition));  const [overallRemarks, setOverallRemarks] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
