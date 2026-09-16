@@ -72,9 +72,7 @@ function AuditPdfDocument({ audit }: { audit: QaAuditRecord }) {
           <Text style={styles.metaValue}>{audit.status === "published" ? "Published" : "Submitted"}</Text>
         </View>
 
-        <View style={[styles.scoreBox, audit.autoFail ? styles.scoreBoxAutoFail : undefined]}>
-          <View>
-            <Text style={styles.scoreLabel}>Score</Text>
+        <View style={audit.autoFail ? [styles.scoreBox, styles.scoreBoxAutoFail] : styles.scoreBox}>            <Text style={styles.scoreLabel}>Score</Text>
             <Text style={styles.scoreValue}>
               {audit.totalPoints}/{audit.applicablePoints} points
               {audit.percentage !== null ? ` (${audit.percentage.toFixed(1)}%)` : ""}
