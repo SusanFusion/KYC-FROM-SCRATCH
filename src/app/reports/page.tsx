@@ -46,7 +46,7 @@ export default async function ReportsPage() {
                   is safe to share as an email attachment.
                 </p>
               </div>
-              
+              <a
                 href="/api/reports/export"
                 download
                 className="inline-flex flex-shrink-0 items-center gap-2 rounded-md bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
