@@ -166,7 +166,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     const buffer = await renderToBuffer(<AuditPdfDocument audit={audit} />);
     const slug = slugify(`${audit.auditType}-${audit.agentName}-${audit.auditDate}`);
 
-    return new NextResponse(buffer, {
+        return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
