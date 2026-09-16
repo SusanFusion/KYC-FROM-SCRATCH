@@ -3,7 +3,10 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PasswordGate } from "@/components/shared/PasswordGate";
+import { QaAuditPanel } from "@/components/qa/QaAuditPanel";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
+import { getRepository } from "@/lib/data/repository";
 
 const ROADMAP_ITEMS = [
   "Review a much larger percentage of interactions — ideally 80%+.",
@@ -11,8 +14,22 @@ const ROADMAP_ITEMS = [
   "Real-time visibility into quality trends, not just month-end snapshots.",
 ];
 
-export default function QaQualityPage() {
+export default async function QaQualityPage() {
   const qaMetric = INDIVIDUAL_METRICS.find((m) => m.key === "qaAudit");
+
+  // Agents/periods are ordinary public data (already visible via Import and
+  // every other page) — safe to fetch before the password gate below, same
+  // as Data Import does for its own dropdowns. The audit RECORDS themselves
+  // (answers/remarks) are never fetched here; QaAuditPanel only pulls those,
+  // from a requireActionAccess()-protected API route, after the password
+  // gate unlocks — see the CONFIDENTIALITY note on QaAuditRecord.
+  const repo = await getRepository();
+  const [agents, periods] = await Promise.all([repo.getAgents(), repo.getPeriods()]);
+  const agentOptions = agents
+    .filter((a) => a.status === "active")
+    .map((a) => ({ id: a.id, name: a.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const periodOptions = periods.map((p) => ({ id: p.id, label: p.label, endDate: p.endDate }));
 
   return (
     <>
@@ -77,6 +94,22 @@ export default function QaQualityPage() {
             </CardContent>
           </Card>
         )}
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Applications Quality Audit</CardTitle>
+            <CardDescription>
+              Submit and manage KYC Applications QA audits. Answers and remarks are confidential to Leads/Managers —
+              only the resulting percentage ever reaches an agent's scorecard, once published, blended into the same
+              QA Audit % shown above.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Applications audits.">
+              <QaAuditPanel auditType="applications" agents={agentOptions} periods={periodOptions} />
+            </PasswordGate>
+          </CardContent>
+        </Card>
       </PageShell>
     </>
   );
