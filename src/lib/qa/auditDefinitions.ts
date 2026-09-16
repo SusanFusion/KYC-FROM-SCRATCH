@@ -36,8 +36,13 @@ export interface AuditQuestionDef {
 export interface AuditSectionDef {
   key: string;
   title: string;
-  /** Zero-tolerance section — a single "No" anywhere in here forces the
-   *  whole audit's band to 0, regardless of its overall percentage. */
+  /** Zero-tolerance section. Its questions are phrased as violations (e.g.
+   *  "Incorrectly Approved/Declined") rather than as correct-practice checks,
+   *  so the Yes/No polarity is intentionally flipped here versus every other
+   *  section: "No" (the violation did not occur) is the normal, no-penalty
+   *  answer and earns the point same as "Yes" does elsewhere; "Yes" (the
+   *  violation did occur) earns no point AND forces the whole audit's band
+   *  to 0, regardless of its overall percentage. See computeAuditScore(). */
   autoFail?: boolean;
   questions: AuditQuestionDef[];
 }
@@ -150,6 +155,24 @@ export function allQuestionKeys(def: AuditDefinition): string[] {
   return def.sections.flatMap((s) => s.questions.map((q) => q.key));
 }
 
+/**
+ * Default answers a fresh submit form starts pre-filled with, so the
+ * auditor only has to click the exceptions rather than every question:
+ * "Yes" for ordinary correct-practice questions, and "No" for Auto-Fail
+ * section questions (i.e. the violation they describe did not occur — the
+ * normal, no-penalty case; see AuditSectionDef.autoFail). The auditor can
+ * still change any answer, including to N/A.
+ */
+export function buildDefaultAnswers(def: AuditDefinition): Record<string, QaAnswerValue> {
+  const defaults: Record<string, QaAnswerValue> = {};
+  for (const section of def.sections) {
+    for (const q of section.questions) {
+      defaults[q.key] = section.autoFail ? "no" : "yes";
+    }
+  }
+  return defaults;
+}
+
 export interface ComputedAuditScore {
   applicablePoints: number;
   totalPoints: number;
@@ -163,8 +186,10 @@ export interface ComputedAuditScore {
  * Pure scoring function — same math for every audit type, mirroring the
  * "TOTAL SCORE / Percentage / BAND QUALITY AUDITS" rules printed on all
  * three source forms: N/A answers are excluded from both the numerator and
- * denominator; a single "No" anywhere in an autoFail section forces band to
- * 0 regardless of the computed percentage (the percentage itself is still
+ * denominator. Auto-Fail sections have flipped Yes/No polarity (see the
+ * doc comment on AuditSectionDef.autoFail) — "No" earns the point same as
+ * "Yes" does everywhere else, and "Yes" earns no point and forces band to 0
+ * regardless of the computed percentage (the percentage itself is still
  * returned/displayed, per those forms' own notes).
  */
 export function computeAuditScore(answers: Record<string, QaAnswerValue | undefined>, def: AuditDefinition): ComputedAuditScore {
@@ -177,8 +202,12 @@ export function computeAuditScore(answers: Record<string, QaAnswerValue | undefi
       const value = answers[q.key];
       if (value === "yes" || value === "no") {
         applicablePoints += 1;
-        if (value === "yes") totalPoints += 1;
-        if (section.autoFail && value === "no") autoFail = true;
+        if (section.autoFail) {
+          if (value === "no") totalPoints += 1;
+          if (value === "yes") autoFail = true;
+        } else {
+          if (value === "yes") totalPoints += 1;
+        }
       }
       // "na" or unanswered — excluded from both numerator and denominator.
     }
