@@ -3,6 +3,7 @@ import { commitImportRows } from "@/lib/data/commitImportRows";
 import type { ImportRow } from "@/types/domain";
 import type { RawGateMetrics } from "@/lib/scoring/types";
 import { describeError } from "@/lib/utils";
+import { requireActionAccess } from "@/lib/auth/actionAccess";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,9 @@ function isValidIsoDate(input: string | null | undefined): input is string {
 
 export async function POST(request: Request) {
   try {
+    const denied = await requireActionAccess();
+    if (denied) return denied;
+
     const body = (await request.json()) as CommitBody;
     if (!body.importId || !Array.isArray(body.rows)) {
       return NextResponse.json({ error: "Missing importId or rows." }, { status: 400 });
