@@ -106,6 +106,44 @@ create table if not exists audit_logs (
   created_at timestamptz not null default now()
 );
 
+-- QA Audit forms (Applications / Emails / Chats) — see
+-- src/lib/qa/auditDefinitions.ts. Confidential: answers and overall_remarks
+-- must never be readable by the anon key, which is why there is NO "public
+-- read" policy for this table below (unlike every other table in this
+-- file) — every app route that reads it uses the service-role client,
+-- guarded by the same shared Lead/Manager password as Data Import
+-- (requireActionAccess). Publishing an audit does not write into this
+-- table at all — it blends this audit's percentage with any other
+-- published audits for the same agent+period and writes that number into
+-- performance_entries.qa_audit_pct via the existing commit path, so this
+-- table only ever needs to be read back for the QA Quality page's own
+-- history/detail view and PDF export.
+create table if not exists qa_audits (
+  id uuid primary key default gen_random_uuid(),
+  audit_type text not null check (audit_type in ('applications', 'emails', 'chats')),
+  agent_id text not null references agents(id),
+  agent_name text not null,
+  period_id text not null references periods(id),
+  period_label text not null,
+  auditor_email text not null,
+  auditor_name text not null,
+  case_reference text,
+  audit_date date not null,
+  answers jsonb not null default '[]'::jsonb,
+  overall_remarks text,
+  applicable_points integer not null default 0,
+  total_points integer not null default 0,
+  percentage numeric,
+  auto_fail boolean not null default false,
+  band integer,
+  status text not null default 'submitted' check (status in ('submitted', 'published')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_qa_audits_agent_period on qa_audits(agent_id, period_id);
+create index if not exists idx_qa_audits_type on qa_audits(audit_type);
+
 create index if not exists idx_performance_entries_period on performance_entries(period_id);
 create index if not exists idx_penalties_agent_period on penalties(agent_id, period_id);
 create index if not exists idx_import_rows_import on import_rows(import_id);
@@ -121,6 +159,7 @@ alter table penalties enable row level security;
 alter table imports enable row level security;
 alter table import_rows enable row level security;
 alter table audit_logs enable row level security;
+alter table qa_audits enable row level security;
 
 create policy "public read teams" on teams for select using (true);
 create policy "public read agents" on agents for select using (true);
@@ -132,3 +171,5 @@ create policy "public read imports" on imports for select using (true);
 create policy "public read import_rows" on import_rows for select using (true);
 -- audit_logs and all writes are intentionally left with no anon policy —
 -- only the service-role key (server-side only) can write.
+-- qa_audits also intentionally has NO anon read policy at all — see the
+-- confidentiality note above the table definition.
