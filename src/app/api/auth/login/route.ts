@@ -1,15 +1,9 @@
 import { NextResponse } from "next/server";
 import { findRosterEntry } from "@/lib/auth/roster";
 import { signSession, AUTH_COOKIE_NAME } from "@/lib/auth/session";
+import { AGENT_PASSWORD, LEAD_PASSWORD } from "@/lib/auth/sharedPasswords";
 
 export const runtime = "nodejs";
-
-// One shared password per role — set real values via these env vars in
-// Vercel for production; the fallbacks below only exist so the app still
-// logs in out of the box in local/demo mode (same zero-config philosophy
-// as the LocalRepository data fallback). See .env.example.
-const AGENT_PASSWORD = process.env.AGENT_SHARED_PASSWORD || "KYCAgent#2026";
-const LEAD_PASSWORD = process.env.LEAD_SHARED_PASSWORD || "KYCLead#2026";
 
 interface LoginBody {
   email?: string;
