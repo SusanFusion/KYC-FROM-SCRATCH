@@ -214,7 +214,6 @@ export function computeAuditScore(answers: Record<string, QaAnswerValue | undefi
   }
 
   const percentage = applicablePoints > 0 ? (totalPoints / applicablePoints) * 100 : null;
-
   let band: 0 | 1 | 2 | 3 | null = null;
   if (percentage !== null) {
     band = percentage >= 95 ? 3 : percentage >= 85 ? 2 : percentage >= 75 ? 1 : 0;
