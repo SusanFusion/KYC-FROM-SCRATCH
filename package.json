@@ -24,7 +24,8 @@
     "@supabase/supabase-js": "^2.45.4",
     "zod": "^3.23.8",
     "pdfjs-dist": "5.7.284",
-    "@napi-rs/canvas": "^1.0.9"
+    "@napi-rs/canvas": "^1.0.9",
+    "@react-pdf/renderer": "^3.4.4"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
