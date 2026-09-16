@@ -174,9 +174,12 @@ export function buildDefaultAnswers(def: AuditDefinition): Record<string, QaAnsw
 }
 
 export interface ComputedAuditScore {
+  /** Fixed at the form's total question count (e.g. 20 for Applications) —
+   *  every question counts toward this denominator, including ones
+   *  answered N/A, so it never shrinks. See computeAuditScore(). */
   applicablePoints: number;
   totalPoints: number;
-  /** null only when every question was answered N/A (nothing applicable to score). */
+  /** null only when the audit definition has zero questions. */
   percentage: number | null;
   autoFail: boolean;
   band: 0 | 1 | 2 | 3 | null;
@@ -185,31 +188,32 @@ export interface ComputedAuditScore {
 /**
  * Pure scoring function — same math for every audit type, mirroring the
  * "TOTAL SCORE / Percentage / BAND QUALITY AUDITS" rules printed on all
- * three source forms: N/A answers are excluded from both the numerator and
- * denominator. Auto-Fail sections have flipped Yes/No polarity (see the
- * doc comment on AuditSectionDef.autoFail) — "No" earns the point same as
- * "Yes" does everywhere else, and "Yes" earns no point and forces band to 0
- * regardless of the computed percentage (the percentage itself is still
- * returned/displayed, per those forms' own notes).
+ * three source forms, with one deliberate departure: N/A does NOT reduce
+ * the denominator here — the denominator is always the form's full
+ * question count, and an N/A answer earns its point the same way "Yes"
+ * would (so marking something N/A never counts against the score). Auto-
+ * Fail sections have flipped Yes/No polarity (see the doc comment on
+ * AuditSectionDef.autoFail) — "No" and "N/A" both earn the point, and
+ * "Yes" earns no point and forces band to 0 regardless of the computed
+ * percentage (the percentage itself is still returned/displayed, per
+ * those forms' own notes).
  */
 export function computeAuditScore(answers: Record<string, QaAnswerValue | undefined>, def: AuditDefinition): ComputedAuditScore {
-  let applicablePoints = 0;
+  const applicablePoints = allQuestionKeys(def).length;
   let totalPoints = 0;
   let autoFail = false;
 
   for (const section of def.sections) {
     for (const q of section.questions) {
       const value = answers[q.key];
-      if (value === "yes" || value === "no") {
-        applicablePoints += 1;
-        if (section.autoFail) {
-          if (value === "no") totalPoints += 1;
-          if (value === "yes") autoFail = true;
-        } else {
-          if (value === "yes") totalPoints += 1;
-        }
+      if (section.autoFail) {
+        if (value === "no" || value === "na") totalPoints += 1;
+        if (value === "yes") autoFail = true;
+      } else {
+        if (value === "yes" || value === "na") totalPoints += 1;
       }
-      // "na" or unanswered — excluded from both numerator and denominator.
+      // an unanswered question earns no point but still counts toward the
+      // fixed denominator above.
     }
   }
 
