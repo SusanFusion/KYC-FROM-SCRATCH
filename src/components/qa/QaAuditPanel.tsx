@@ -90,8 +90,8 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
     setAnswers((prev) => ({ ...prev, [key]: value }));
   }
 
-  function resetForm() {
-    setAnswers({});
+    function resetForm() {
+    setAnswers(buildDefaultAnswers(definition));
     setCaseReference("");
     setOverallRemarks("");
     setAuditDate(getLocalTodayIso());
@@ -209,8 +209,10 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
               )}
             </CardTitle>
             {section.autoFail && (
-              <CardDescription>A single &ldquo;No&rdquo; here fails the whole audit (Band 0), regardless of the overall percentage.</CardDescription>
-            )}
+              <CardDescription>
+                Defaults to &ldquo;No&rdquo; (violation did not occur) with no penalty. A single &ldquo;Yes&rdquo; here fails the whole audit
+                (Band 0), regardless of the overall percentage.
+              </CardDescription>            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {section.questions.map((q) => (
