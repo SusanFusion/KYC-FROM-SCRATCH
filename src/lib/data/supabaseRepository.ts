@@ -1,6 +1,7 @@
 import type { DataRepository } from "./repository";
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
 import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 import { getSupabaseClient, getSupabaseServiceClient } from "./supabaseClient";
 
 /**
@@ -302,6 +303,81 @@ export class SupabaseRepository implements DataRepository {
     const { error: periodError } = await this.writeClient.from("periods").delete().eq("id", periodId);
     if (periodError) throw periodError;
   }
+
+  async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }): Promise<QaAuditRecord[]> {
+    // Full audit content (answers/remarks) — every caller of this method is
+    // itself behind requireActionAccess() (see the API routes), so reads go
+    // through the SERVICE-role client, not the public anon client. There is
+    // deliberately no "public read qa_audits" RLS policy for the full table
+    // (see the migration SQL) — the anon key must not be able to read this
+    // table's confidential columns under any circumstance, including a bug
+    // in application code that forgets the password check.
+    let query = this.writeClient.from("qa_audits").select("*").order("created_at", { ascending: false });
+    if (filter?.auditType) query = query.eq("audit_type", filter.auditType);
+    if (filter?.periodId) query = query.eq("period_id", filter.periodId);
+    if (filter?.agentId) query = query.eq("agent_id", filter.agentId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []).map(mapQaAuditRow);
+  }
+
+  async getQaAuditById(id: string): Promise<QaAuditRecord | null> {
+    const { data, error } = await this.writeClient.from("qa_audits").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data ? mapQaAuditRow(data) : null;
+  }
+
+  async createQaAudit(
+    input: NewQaAuditInput & {
+      applicablePoints: number;
+      totalPoints: number;
+      percentage: number | null;
+      autoFail: boolean;
+      band: 0 | 1 | 2 | 3 | null;
+    }
+  ): Promise<QaAuditRecord> {
+    const { data, error } = await this.writeClient
+      .from("qa_audits")
+      .insert({
+        audit_type: input.auditType,
+        agent_id: input.agentId,
+        agent_name: input.agentName,
+        period_id: input.periodId,
+        period_label: input.periodLabel,
+        auditor_email: input.auditorEmail,
+        auditor_name: input.auditorName,
+        case_reference: input.caseReference,
+        audit_date: input.auditDate,
+        answers: input.answers,
+        overall_remarks: input.overallRemarks,
+        applicable_points: input.applicablePoints,
+        total_points: input.totalPoints,
+        percentage: input.percentage,
+        auto_fail: input.autoFail,
+        band: input.band,
+        status: "submitted",
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return mapQaAuditRow(data);
+  }
+
+  async setQaAuditStatus(id: string, status: QaAuditStatus): Promise<QaAuditRecord> {
+    const { data, error } = await this.writeClient
+      .from("qa_audits")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapQaAuditRow(data);
+  }
+
+  async deleteQaAudit(id: string): Promise<void> {
+    const { error } = await this.writeClient.from("qa_audits").delete().eq("id", id);
+    if (error) throw error;
+  }
 }
 
 function mapPerformanceRow(row: Record<string, unknown>): RawAgentMetrics {
@@ -327,5 +403,30 @@ function mapGateRow(row: Record<string, unknown>): RawGateMetrics {
     teamProcessingTimeMin: (row.team_processing_time_min as number) ?? null,
     chatTeamAvgResponseSec: (row.chat_team_avg_response_sec as number) ?? null,
     teamTicketAHTMin: (row.team_ticket_aht_min as number) ?? null,
+  };
+}
+
+function mapQaAuditRow(row: Record<string, unknown>): QaAuditRecord {
+  return {
+    id: row.id as string,
+    auditType: row.audit_type as QaAuditType,
+    agentId: row.agent_id as string,
+    agentName: row.agent_name as string,
+    periodId: row.period_id as string,
+    periodLabel: row.period_label as string,
+    auditorEmail: row.auditor_email as string,
+    auditorName: row.auditor_name as string,
+    caseReference: (row.case_reference as string) ?? null,
+    auditDate: row.audit_date as string,
+    answers: (row.answers as QaAuditRecord["answers"]) ?? [],
+    overallRemarks: (row.overall_remarks as string) ?? null,
+    applicablePoints: row.applicable_points as number,
+    totalPoints: row.total_points as number,
+    percentage: (row.percentage as number) ?? null,
+    autoFail: Boolean(row.auto_fail),
+    band: (row.band as QaAuditRecord["band"]) ?? null,
+    status: row.status as QaAuditRecord["status"],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   };
 }
