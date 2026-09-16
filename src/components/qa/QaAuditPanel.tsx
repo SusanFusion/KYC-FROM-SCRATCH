@@ -52,8 +52,7 @@ function ScorePreview({ answers, auditType }: { answers: Record<string, QaAnswer
     <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
       <span className="font-medium text-foreground">
         {score.totalPoints}/{score.applicablePoints} points
-        {score.percentage !== null ? ` · ${score.percentage.toFixed(1)}%` : " · no applicable answers yet"}
-      </span>
+        {score.percentage !== null ? ` · ${score.percentage.toFixed(1)}%` : ""}      </span>
       <Badge variant={bandBadgeVariant(score.band)}>{score.band !== null ? `Band ${score.band} — ${bandLabel(score.band)}` : "No data"}</Badge>
       {score.autoFail && (
         <Badge variant="danger" className="gap-1">
