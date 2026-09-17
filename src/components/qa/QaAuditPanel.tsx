@@ -18,11 +18,11 @@ import {
   computeAuditScore,
   getAuditDefinition,
   bandLabel,
+  QA_AUDIT_TYPE_LABELS,
   type QaAnswerValue,
   type QaAuditRecord,
   type QaAuditType,
 } from "@/lib/qa/auditDefinitions";
-
 interface AgentOption {
   id: string;
   name: string;
@@ -484,6 +484,43 @@ export function QaAuditPanel({ auditType, agents, periods }: { auditType: QaAudi
       <TabsContent value="history" className="mt-4">
         <AuditHistory auditType={auditType} />
       </TabsContent>
+          <TabsContent value="history" className="mt-4">
+        <AuditHistory auditType={auditType} />
+      </TabsContent>
     </Tabs>
+  );
+}
+
+const AUDIT_TYPE_OPTIONS: { value: QaAuditType; label: string }[] = [
+  { value: "applications", label: QA_AUDIT_TYPE_LABELS.applications },
+  { value: "chats", label: QA_AUDIT_TYPE_LABELS.chats },
+  { value: "emails", label: QA_AUDIT_TYPE_LABELS.emails },
+];
+
+/**
+ * One shared workspace for all three audit types, with a dropdown to pick
+ * which form the auditor is filling out -- replaces showing all three
+ * forms spread down the page at once. Meant to sit inside a single
+ * PasswordGate (see qa-quality/page.tsx): switching the dropdown only
+ * swaps which QaAuditPanel is mounted (the `key` below forces a fresh
+ * Submit/History tab state per type), it never re-locks the password.
+ */
+export function QaAuditWorkspace({ agents, periods }: { agents: AgentOption[]; periods: PeriodOption[] }) {
+  const [auditType, setAuditType] = React.useState<QaAuditType>("applications");
+
+  return (
+    <div className="space-y-4">
+      <div className="max-w-xs">
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">Audit form</label>
+        <Select value={auditType} onChange={(e) => setAuditType(e.target.value as QaAuditType)} className="w-full">
+          {AUDIT_TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <QaAuditPanel key={auditType} auditType={auditType} agents={agents} periods={periods} />
+    </div>
   );
 }
