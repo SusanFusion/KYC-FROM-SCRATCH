@@ -60,6 +60,14 @@ export interface AuditDefinition {
   /** Name of the source form, shown on the PDF export footer for traceability. */
   sourceFormName: string;
   sections: AuditSectionDef[];
+  /** How an "N/A" answer affects the denominator, per audit type (they were
+   *  deliberately built to differ):
+   *  - Applications: false/unset — the denominator is fixed at the form's
+   *    full question count and never shrinks; N/A earns its point the same
+   *    way "Yes" would.
+   *  - Emails / Chats: true — N/A is excluded from BOTH the numerator and
+   *    the denominator (the denominator shrinks by one for every N/A). */
+  naExcludedFromDenominator?: boolean;
 }
 
 // Same BAND QUALITY AUDITS reference table printed at the bottom of all
@@ -141,8 +149,198 @@ const APPLICATIONS_DEFINITION: AuditDefinition = {
   ],
 };
 
+const CHATS_DEFINITION: AuditDefinition = {
+  type: "chats",
+  label: QA_AUDIT_TYPE_LABELS.chats,
+  sourceFormName: "Chats Audits Form",
+  naExcludedFromDenominator: true,
+  sections: [
+    {
+      key: "opening",
+      title: "Soft Skills — Opening",
+      questions: [
+        { key: "op_1", label: "Did the agent use the opening script consistently?" },
+        { key: "op_2", label: "Did the agent follow the FRT threshold? (<=10 seconds)" },
+        { key: "op_3", label: "Did the agent provide the correct branding?" },
+      ],
+    },
+    {
+      key: "cx_handling",
+      title: "Customer Experience and Chat Handling",
+      questions: [
+        {
+          key: "cx_1",
+          label:
+            "Did the agent communicate effectively and professionally? (tone/politeness, acknowledgement of frustration, willingness to help)",
+        },
+        {
+          key: "cx_2",
+          label: "Did the agent review previous conversation? (applicable for returned clients with same concern as before)",
+        },
+      ],
+    },
+    {
+      key: "probing",
+      title: "Technical Skills & Product Knowledge — Probing",
+      questions: [
+        {
+          key: "pr_1",
+          label: "Were necessary probing questions asked? (account number, trade details, resolution-necessary info, error details)",
+        },
+        { key: "pr_2", label: "Did the probing questions relate appropriately to the client's concern?" },
+        { key: "pr_3", label: "Did the agent demonstrate active listening by immediately understanding the query?" },
+      ],
+    },
+    {
+      key: "resolution",
+      title: "Resolution",
+      questions: [
+        { key: "res_1", label: "Was the provided resolution correct? (aligned with existing process/standards/instructions)" },
+        {
+          key: "res_2",
+          label:
+            "Was the provided resolution complete? (answered all questions, FCR: anticipated follow-up concerns and offered proactive solutions)",
+        },
+        { key: "res_3", label: "Was the provided resolution explained correctly and appropriately?" },
+        { key: "res_4", label: "Did the agent escalate the concern to the correct department, if necessary?" },
+        {
+          key: "res_5",
+          label:
+            "Were security guidelines observed? (sensitive info only to authorized holders, Tip-off laws, no disclosure of internal security procedures, SQ applied for relevant scenarios)",
+        },
+        { key: "res_6", label: "Did the associate utilize all available resources? (Knowledge Base, Account Hub, etc.)" },
+        { key: "res_7", label: "Did the associate add value to the interaction and provided extra mile when applicable?" },
+      ],
+    },
+    {
+      key: "closing",
+      title: "Closing",
+      questions: [
+        {
+          key: "cl_1",
+          label: 'Were proper chat closing procedures followed? ("2 plus 2" rule, asking for further concerns, auto-resolved conversations)',
+        },
+        { key: "cl_2", label: "Did the agent use the standard closing script?" },
+        { key: "cl_3", label: "Did the agent close the chat in a timely manner? (not abrupt closure/not late closure)" },
+      ],
+    },
+    {
+      key: "auto_fail",
+      title: "AutoFail — Zero Tolerance",
+      autoFail: true,
+      questions: [
+        { key: "af_1", label: "Is there Rudeness: any unprofessional or disrespectful behavior" },
+        { key: "af_2", label: "Is there a Misinformation: providing incorrect data that impacts the client" },
+        { key: "af_3", label: "Is there Work Avoidance: abandonment of chats, calls, or emails" },
+        { key: "af_4", label: "Are there Business-Impacting Errors: critical mistakes affecting company operations or finances" },
+      ],
+    },
+  ],
+};
+
+const EMAILS_DEFINITION: AuditDefinition = {
+  type: "emails",
+  label: QA_AUDIT_TYPE_LABELS.emails,
+  sourceFormName: "Emails Audits Form",
+  naExcludedFromDenominator: true,
+  sections: [
+    {
+      key: "opening",
+      title: "Soft Skills — Opening",
+      questions: [
+        { key: "op_1", label: "Did the agent use a proper greeting/acknowledgment spiel?" },
+        { key: "op_2", label: "Did the agent use the correct client's name?" },
+        { key: "op_3", label: "Did the agent provide the correct branding?" },
+      ],
+    },
+    {
+      key: "cx_handling",
+      title: "Customer Experience and Email Handling",
+      questions: [
+        {
+          key: "cx_1",
+          label:
+            "Did the agent communicate effectively and professionally? (tone/politeness, acknowledgement of frustration, willingness to help)",
+        },
+        {
+          key: "cx_2",
+          label: "Did the agent review previous/duplicate conversations? (applicable for returned clients with same concern as before)",
+        },
+      ],
+    },
+    {
+      key: "probing",
+      title: "Technical Skills & Product Knowledge — Probing",
+      questions: [
+        {
+          key: "pr_1",
+          label: "Were necessary probing questions asked? (account number, trade details, resolution-necessary info, error details)",
+        },
+        { key: "pr_2", label: "Did the probing questions relate appropriately to the client's concern?" },
+        { key: "pr_3", label: "Did the agent demonstrate active listening by immediately understanding the query?" },
+      ],
+    },
+    {
+      key: "resolution",
+      title: "Resolution",
+      questions: [
+        { key: "res_1", label: "Was the provided resolution correct? (aligned with existing process/standards/instructions)" },
+        {
+          key: "res_2",
+          label:
+            "Was the provided resolution complete? (answered all questions, FCR: anticipated follow-up concerns and offered proactive solutions)",
+        },
+        { key: "res_3", label: "Was the provided resolution explained correctly and appropriately?" },
+        { key: "res_4", label: "Did the agent escalate the concern to the correct department, if necessary?" },
+        {
+          key: "res_5",
+          label:
+            "Were security guidelines observed? (sensitive info only to authorized holders, Tip-off laws, no disclosure of internal security procedures, SQ applied for relevant scenarios)",
+        },
+        { key: "res_6", label: "Did the associate utilize all available resources? (Knowledge Base, Account Hub, etc.)" },
+        { key: "res_7", label: "Did the associate add value to the interaction and provided extra mile when applicable?" },
+      ],
+    },
+    {
+      key: "email_handling",
+      title: "Channel Specific Metrics — Proper Email Handling",
+      questions: [
+        {
+          key: "eh_1",
+          label: "Was the correct email format followed? (signature, spacing, grammar, spelling, ticket status tagging)",
+        },
+        { key: "eh_2", label: "Is the correct signature used?" },
+        { key: "eh_3", label: "Is the ticket properties updated correctly and properly?" },
+        { key: "eh_4", label: "Was the email handled within reasonable threshold? (30mins)" },
+      ],
+    },
+    {
+      key: "closing",
+      title: "Closing",
+      questions: [
+        { key: "cl_1", label: "Did the agent use a standard closing script?" },
+        { key: "cl_2", label: "Did the agent close the ticket in a timely manner? (not premature closure/not late closure)" },
+        { key: "cl_3", label: "Were the ticket properties updated appropriately? (Ticket Status, Type, Group, Agent Assigned)" },
+      ],
+    },
+    {
+      key: "auto_fail",
+      title: "AutoFail — Zero Tolerance",
+      autoFail: true,
+      questions: [
+        { key: "af_1", label: "Is there Rudeness: any unprofessional or disrespectful behavior" },
+        { key: "af_2", label: "Is there a Misinformation: providing incorrect data that impacts the client" },
+        { key: "af_3", label: "Is there Work Avoidance: abandonment of chats, calls, or emails" },
+        { key: "af_4", label: "Are there Business-Impacting Errors: critical mistakes affecting company operations or finances" },
+      ],
+    },
+  ],
+};
+
 export const AUDIT_DEFINITIONS: Partial<Record<QaAuditType, AuditDefinition>> = {
   applications: APPLICATIONS_DEFINITION,
+  chats: CHATS_DEFINITION,
+  emails: EMAILS_DEFINITION,
 };
 
 export function getAuditDefinition(type: QaAuditType): AuditDefinition {
@@ -174,12 +372,13 @@ export function buildDefaultAnswers(def: AuditDefinition): Record<string, QaAnsw
 }
 
 export interface ComputedAuditScore {
-  /** Fixed at the form's total question count (e.g. 20 for Applications) —
-   *  every question counts toward this denominator, including ones
-   *  answered N/A, so it never shrinks. See computeAuditScore(). */
+  /** For Applications: fixed at the form's full question count and never
+   *  shrinks, even for N/A answers. For Emails/Chats (naExcludedFromDenominator):
+   *  shrinks by one for every question answered N/A. See computeAuditScore(). */
   applicablePoints: number;
   totalPoints: number;
-  /** null only when the audit definition has zero questions. */
+  /** null only when nothing is applicable yet (e.g. an Emails/Chats audit
+   *  where every question so far is N/A or unanswered). */
   percentage: number | null;
   autoFail: boolean;
   band: 0 | 1 | 2 | 3 | null;
@@ -188,36 +387,58 @@ export interface ComputedAuditScore {
 /**
  * Pure scoring function — same math for every audit type, mirroring the
  * "TOTAL SCORE / Percentage / BAND QUALITY AUDITS" rules printed on all
- * three source forms, with one deliberate departure: N/A does NOT reduce
- * the denominator here — the denominator is always the form's full
- * question count, and an N/A answer earns its point the same way "Yes"
- * would (so marking something N/A never counts against the score). Auto-
- * Fail sections have flipped Yes/No polarity (see the doc comment on
- * AuditSectionDef.autoFail) — "No" and "N/A" both earn the point, and
- * "Yes" earns no point and forces band to 0 regardless of the computed
- * percentage (the percentage itself is still returned/displayed, per
- * those forms' own notes).
+ * three source forms, with one deliberate per-type departure controlled by
+ * AuditDefinition.naExcludedFromDenominator:
+ * - Applications (false/unset): the denominator is fixed at the form's full
+ *   question count and never shrinks; an N/A answer earns its point the
+ *   same way "Yes" would (so marking something N/A never counts against
+ *   the score).
+ * - Emails / Chats (true): N/A is excluded from BOTH the numerator and the
+ *   denominator, same as an unanswered question — the denominator shrinks
+ *   by one for every N/A.
+ * Auto-Fail sections have flipped Yes/No polarity either way (see the doc
+ * comment on AuditSectionDef.autoFail) — "No" earns the point same as
+ * "Yes" does everywhere else, and "Yes" earns no point and forces band to
+ * 0 regardless of the computed percentage (the percentage itself is still
+ * returned/displayed, per those forms' own notes).
  */
 export function computeAuditScore(answers: Record<string, QaAnswerValue | undefined>, def: AuditDefinition): ComputedAuditScore {
-  const applicablePoints = allQuestionKeys(def).length;
+  const excludeNa = def.naExcludedFromDenominator === true;
+  let applicablePoints = excludeNa ? 0 : allQuestionKeys(def).length;
   let totalPoints = 0;
   let autoFail = false;
 
   for (const section of def.sections) {
     for (const q of section.questions) {
       const value = answers[q.key];
-      if (section.autoFail) {
-        if (value === "no" || value === "na") totalPoints += 1;
-        if (value === "yes") autoFail = true;
+
+      if (excludeNa) {
+        // Emails/Chats: N/A (and unanswered) drop out of both the
+        // numerator and denominator entirely.
+        if (value !== "yes" && value !== "no") continue;
+        applicablePoints += 1;
+        if (section.autoFail) {
+          if (value === "no") totalPoints += 1;
+          if (value === "yes") autoFail = true;
+        } else {
+          if (value === "yes") totalPoints += 1;
+        }
       } else {
-        if (value === "yes" || value === "na") totalPoints += 1;
+        // Applications: denominator is fixed above; N/A earns its point
+        // the same way "Yes" would. An unanswered question earns no point
+        // but still counts toward that fixed denominator.
+        if (section.autoFail) {
+          if (value === "no" || value === "na") totalPoints += 1;
+          if (value === "yes") autoFail = true;
+        } else {
+          if (value === "yes" || value === "na") totalPoints += 1;
+        }
       }
-      // an unanswered question earns no point but still counts toward the
-      // fixed denominator above.
     }
   }
 
   const percentage = applicablePoints > 0 ? (totalPoints / applicablePoints) * 100 : null;
+
   let band: 0 | 1 | 2 | 3 | null = null;
   if (percentage !== null) {
     band = percentage >= 95 ? 3 : percentage >= 85 ? 2 : percentage >= 75 ? 1 : 0;
