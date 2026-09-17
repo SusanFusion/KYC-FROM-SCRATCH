@@ -4,7 +4,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PasswordGate } from "@/components/shared/PasswordGate";
-import { QaAuditPanel } from "@/components/qa/QaAuditPanel";
+import { QaAuditWorkspace } from "@/components/qa/QaAuditPanel";
 import { INDIVIDUAL_METRICS } from "@/lib/scoring";
 import { getRepository } from "@/lib/data/repository";
 
@@ -97,50 +97,19 @@ export default async function QaQualityPage() {
 
         <Card className="mt-4">
           <CardHeader>
-            <CardTitle>Applications Quality Audit</CardTitle>
+            <CardTitle>Quality Audits</CardTitle>
             <CardDescription>
-              Submit and manage KYC Applications QA audits. Answers and remarks are confidential to Leads/Managers —
-              only the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same
-              QA Audit % shown above.
+              Submit and manage KYC QA audits — pick the audit form below (Applications, Chats, or Emails). Answers
+              and remarks are confidential to Leads/Managers — only the resulting percentage ever reaches an
+              agent&apos;s scorecard, once published, blended into the same QA Audit % shown above. Note: for
+              Applications, the total points stay fixed and an &ldquo;N/A&rdquo; answer earns full credit; for Chats
+              and Emails, N/A is excluded from the score entirely and the total points shrink by one for every
+              question marked N/A.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Applications audits.">
-              <QaAuditPanel auditType="applications" agents={agentOptions} periods={periodOptions} />
-            </PasswordGate>
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Chats Quality Audit</CardTitle>
-            <CardDescription>
-              Submit and manage KYC Chats QA audits. Answers and remarks are confidential to Leads/Managers — only the
-              resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same QA
-              Audit % shown above. Unlike Applications, an &ldquo;N/A&rdquo; answer here is excluded from the score
-              entirely — the total points shrink by one for every question marked N/A.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Chats audits.">
-              <QaAuditPanel auditType="chats" agents={agentOptions} periods={periodOptions} />
-            </PasswordGate>
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Emails Quality Audit</CardTitle>
-            <CardDescription>
-              Submit and manage KYC Emails QA audits. Answers and remarks are confidential to Leads/Managers — only
-              the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same
-              QA Audit % shown above. Unlike Applications, an &ldquo;N/A&rdquo; answer here is excluded from the score
-              entirely — the total points shrink by one for every question marked N/A.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Emails audits.">
-              <QaAuditPanel auditType="emails" agents={agentOptions} periods={periodOptions} />
+            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review QA audits.">
+              <QaAuditWorkspace agents={agentOptions} periods={periodOptions} />
             </PasswordGate>
           </CardContent>
         </Card>
