@@ -100,12 +100,47 @@ export default async function QaQualityPage() {
             <CardTitle>Applications Quality Audit</CardTitle>
             <CardDescription>
               Submit and manage KYC Applications QA audits. Answers and remarks are confidential to Leads/Managers —
-only the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same              QA Audit % shown above.
+              only the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same
+              QA Audit % shown above.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Applications audits.">
               <QaAuditPanel auditType="applications" agents={agentOptions} periods={periodOptions} />
+            </PasswordGate>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Chats Quality Audit</CardTitle>
+            <CardDescription>
+              Submit and manage KYC Chats QA audits. Answers and remarks are confidential to Leads/Managers — only the
+              resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same QA
+              Audit % shown above. Unlike Applications, an &ldquo;N/A&rdquo; answer here is excluded from the score
+              entirely — the total points shrink by one for every question marked N/A.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Chats audits.">
+              <QaAuditPanel auditType="chats" agents={agentOptions} periods={periodOptions} />
+            </PasswordGate>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Emails Quality Audit</CardTitle>
+            <CardDescription>
+              Submit and manage KYC Emails QA audits. Answers and remarks are confidential to Leads/Managers — only
+              the resulting percentage ever reaches an agent&apos;s scorecard, once published, blended into the same
+              QA Audit % shown above. Unlike Applications, an &ldquo;N/A&rdquo; answer here is excluded from the score
+              entirely — the total points shrink by one for every question marked N/A.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordGate description="Enter the shared Lead/Manager password to submit, publish, or review Emails audits.">
+              <QaAuditPanel auditType="emails" agents={agentOptions} periods={periodOptions} />
             </PasswordGate>
           </CardContent>
         </Card>
