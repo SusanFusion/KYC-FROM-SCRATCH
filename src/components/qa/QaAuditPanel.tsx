@@ -129,12 +129,13 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Failed to save the audit.");
-        return;
-      }
-      showToast("Audit submitted. Publish it from the History tab to reflect its score on the scorecard.", "success");
-      resetForm();
-      onSubmitted();
+          } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
