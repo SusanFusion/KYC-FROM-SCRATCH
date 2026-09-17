@@ -23,6 +23,7 @@ import {
   type QaAuditRecord,
   type QaAuditType,
 } from "@/lib/qa/auditDefinitions";
+
 interface AgentOption {
   id: string;
   name: string;
@@ -52,7 +53,8 @@ function ScorePreview({ answers, auditType }: { answers: Record<string, QaAnswer
     <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
       <span className="font-medium text-foreground">
         {score.totalPoints}/{score.applicablePoints} points
-        {score.percentage !== null ? ` · ${score.percentage.toFixed(1)}%` : ""}      </span>
+        {score.percentage !== null ? ` · ${score.percentage.toFixed(1)}%` : ""}
+      </span>
       <Badge variant={bandBadgeVariant(score.band)}>{score.band !== null ? `Band ${score.band} — ${bandLabel(score.band)}` : "No data"}</Badge>
       {score.autoFail && (
         <Badge variant="danger" className="gap-1">
@@ -81,11 +83,9 @@ function SubmitAuditForm({
   const [auditorEmail, setAuditorEmail] = React.useState(AUDITORS[0]?.email ?? "");
   const [caseReference, setCaseReference] = React.useState("");
   const [auditDate, setAuditDate] = React.useState(() => getLocalTodayIso());
-const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => buildDefaultAnswers(definition));  const [overallRemarks, setOverallRemarks] = React.useState("");
+  const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => buildDefaultAnswers(definition));
+  const [overallRemarks, setOverallRemarks] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-    const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   // A plain ref, not state: it's set synchronously the instant handleSubmit
   // runs, so it blocks a second click that lands before React has had a
@@ -116,6 +116,9 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
     submittingRef.current = true;
     setSubmitting(true);
     try {
+      const res = await fetch("/api/qa-audits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           auditType,
           agentId,
@@ -129,16 +132,16 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
       });
       const data = await res.json();
       if (!res.ok) {
-          } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-    }
-  }
+        setError(data.error ?? "Failed to save the audit.");
+        return;
+      }
+      showToast("Audit submitted. Publish it from the History tab to reflect its score on the scorecard.", "success");
+      resetForm();
+      onSubmitted();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -221,7 +224,8 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
               <CardDescription>
                 Defaults to &ldquo;No&rdquo; (violation did not occur) with no penalty. A single &ldquo;Yes&rdquo; here fails the whole audit
                 (Band 0), regardless of the overall percentage.
-              </CardDescription>            )}
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {section.questions.map((q) => (
@@ -492,9 +496,6 @@ export function QaAuditPanel({ auditType, agents, periods }: { auditType: QaAudi
         <SubmitAuditForm auditType={auditType} agents={agents} periods={periods} onSubmitted={() => setTab("history")} />
       </TabsContent>
       <TabsContent value="history" className="mt-4">
-        <AuditHistory auditType={auditType} />
-      </TabsContent>
-          <TabsContent value="history" className="mt-4">
         <AuditHistory auditType={auditType} />
       </TabsContent>
     </Tabs>
