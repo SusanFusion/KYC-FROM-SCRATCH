@@ -85,11 +85,21 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+    const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  // A plain ref, not state: it's set synchronously the instant handleSubmit
+  // runs, so it blocks a second click that lands before React has had a
+  // chance to re-render the button as disabled (a fast double-click, or a
+  // stray duplicate click event) -- the `submitting` state above is still
+  // what disables the button visually, but this is what actually prevents
+  // two identical audits from being created from one submission.
+  const submittingRef = React.useRef(false);
+
   function setAnswer(key: string, value: QaAnswerValue) {
     setAnswers((prev) => ({ ...prev, [key]: value }));
   }
 
-    function resetForm() {
+  function resetForm() {
     setAnswers(buildDefaultAnswers(definition));
     setCaseReference("");
     setOverallRemarks("");
@@ -97,16 +107,15 @@ const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | unde
   }
 
   async function handleSubmit() {
+    if (submittingRef.current) return;
     setError(null);
     if (!agentId || !periodId || !auditorEmail) {
       setError("Pick an agent, a period, and an auditor.");
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/qa-audits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           auditType,
           agentId,
