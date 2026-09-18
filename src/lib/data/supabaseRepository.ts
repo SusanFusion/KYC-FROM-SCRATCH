@@ -243,6 +243,7 @@ export class SupabaseRepository implements DataRepository {
         csat_count: m.csatCount,
         dsat_count: m.dsatCount,
         qa_audit_pct: m.qaAuditPct,
+        email_ticket_count: m.emailTicketCount,
       })),
       { onConflict: "agent_id,period_id" }
     );
@@ -393,6 +394,7 @@ function mapPerformanceRow(row: Record<string, unknown>): RawAgentMetrics {
     csatCount: (row.csat_count as number) ?? null,
     dsatCount: (row.dsat_count as number) ?? null,
     qaAuditPct: (row.qa_audit_pct as number) ?? null,
+    emailTicketCount: (row.email_ticket_count as number) ?? null,
   };
 }
 
