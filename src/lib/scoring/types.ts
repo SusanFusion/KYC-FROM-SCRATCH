@@ -76,7 +76,14 @@ export interface RawAgentMetrics {
   totalChats: number | null;
   csatCount: number | null;
   dsatCount: number | null;
-  qaAuditPct: number | null; // null = not measured this period
+    qaAuditPct: number | null; // null = not measured this period
+  /** Email + KYB ticket volume this agent handled this day (the "Agent KYC
+   *  Email Ave Volume" report table) — NOT the application-ticket count;
+   *  per Susan, Team Ticket AHT is scored on email/KYB tickets only. Used
+   *  solely to weight the team-level teamTicketAHTMin average by actual
+   *  daily ticket volume instead of averaging days equally (see
+   *  aggregateGate in query.ts) — never scored or displayed on its own. */
+  emailTicketCount: number | null;
 }
 
 /** Raw team-level (Business Gate) inputs for one reporting period. */
