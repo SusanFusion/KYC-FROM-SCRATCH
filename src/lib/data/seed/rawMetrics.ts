@@ -54,6 +54,9 @@ export function buildSeedRawMetrics(): RawAgentMetrics[] {
     csatCount: row.csatCount,
     dsatCount: row.dsatCount,
     qaAuditPct: QA_AUDIT_PCT[row.agentId] ?? null,
+    // Not present in this snapshot's source pages -- never invented, per
+    // this file's own rule above.
+    emailTicketCount: null,
   }));
 }
 
