@@ -249,21 +249,12 @@ export interface RangeSpec {
   label: string;
   id: string;
   type: PeriodType;
-  const rawMetrics = agents.map((agent) => {
-    const rows = perDayRaw.flatMap((dayRows) => dayRows.filter((r) => r.agentId === agent.id));
-    return aggregateAgentRaw(agent.id, spec.id, rows);
-  });
+}
 
-  // Each day's total chat volume (summed across every agent's own
-  // totalChatConversations for that day) -- used to weight
-  // chatTeamAvgResponseSec by actual volume instead of averaging days
-  // equally. Same order/length as perDayGate (both built from dayPeriods),
-  // so index i always lines up with the same calendar day.
-  const chatVolumeByDay = perDayRaw.map((dayRows) =>
-    dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
-  );
-
-  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay);
+/**
+ * Aggregates every daily period inside [spec.start, spec.end] into one
+ * dataset, shaped exactly like loadPeriodDataset's — same result type, same
+ * scoring pass — so any page that already knows how to render a
  * PeriodDataset (Team Performance, Trends, Rankings) needs no special
  * casing to render a weekly or MTD one instead of a single day's.
  */
@@ -285,7 +276,16 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
     return aggregateAgentRaw(agent.id, spec.id, rows);
   });
 
-  const gateInput = aggregateGate(perDayGate, spec.id);
+  // Each day's total chat volume (summed across every agent's own
+  // totalChatConversations for that day) -- used to weight
+  // chatTeamAvgResponseSec by actual volume instead of averaging days
+  // equally. Same order/length as perDayGate (both built from dayPeriods),
+  // so index i always lines up with the same calendar day.
+  const chatVolumeByDay = perDayRaw.map((dayRows) =>
+    dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
+  );
+
+  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay);
 
   // Penalties carry their own occurredOn date (independent of which period
   // they were logged against), so a range view collects every penalty whose
