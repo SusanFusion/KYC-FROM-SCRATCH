@@ -17,7 +17,7 @@ export interface PageTextItem {
   y: number;
 }
 
-export type TableType = "chatMetrics" | "emailAHT" | "appAHT" | "csatDsat" | "qaAudit" | "unknown";
+export type TableType = "chatMetrics" | "emailAHT" | "appAHT" | "csatDsat" | "qaAudit" | "emailTicketVolume" | "unknown";
 
 const TABLE_MATCHERS: { type: TableType; test: (pageText: string) => boolean }[] = [
   {
@@ -31,9 +31,21 @@ const TABLE_MATCHERS: { type: TableType; test: (pageText: string) => boolean }[]
   { type: "appAHT", test: (t) => /application ave handling time/i.test(t) },
   { type: "csatDsat", test: (t) => /csat/i.test(t) && /dsat/i.test(t) },
   { type: "qaAudit", test: (t) => /qa audit/i.test(t) },
+  // The daily volume behind Team Ticket AHT -- per-agent count of email +
+  // KYB tickets that day (NOT application tickets; confirmed with Susan
+  // that Team Ticket AHT is scored on email/KYB tickets only). This table
+  // only started appearing in the source report recently, so older PDFs
+  // simply won't match this and emailTicketCount stays null for that day
+  // (aggregateGate's weighting falls back to a plain mean when that
+  // happens -- see query.ts).
+  { type: "emailTicketVolume", test: (t) => /email ave volume/i.test(t) },
 ];
 
-const HEADER_FIRST_CELLS = new Set(["agent", "assigned agent name"]);
+// "agent name" added alongside "agent" because this new table's header
+// cell has been seen rendered as one two-word cell ("Agent name") rather
+// than split the way the older tables' headers are -- listing both means
+// detection works regardless of exactly how this particular PDF splits it.
+const HEADER_FIRST_CELLS = new Set(["agent", "assigned agent name", "agent name"]);
 const IGNORE_ROW_PATTERNS = [/^date range/i, /^generated date/i, /^\+\s*\d+\s*additional/i, /^\s*$/];
 
 const TABLE_LABELS: Record<TableType, string> = {
@@ -42,6 +54,7 @@ const TABLE_LABELS: Record<TableType, string> = {
   appAHT: "Application AHT",
   csatDsat: "CSAT / DSAT",
   qaAudit: "QA Audit",
+  emailTicketVolume: "Email Ticket Volume (Team Ticket AHT weighting)",
   unknown: "Unrecognized table",
 };
 
@@ -319,8 +332,11 @@ function pushRowsForTable(
       addRow("csatCount", values[1], false);
       addRow("dsatCount", values[2], false);
       break;
-    case "qaAudit":
+        case "qaAudit":
       addRow("qaAuditPct", values[0]?.replace("%", ""), false);
+      break;
+    case "emailTicketVolume":
+      addRow("emailTicketCount", values[0], false);
       break;
     default:
       warnings.push(`No column mapping for table type "${tableType}" (agent: ${agentNameRaw})`);
