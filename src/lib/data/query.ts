@@ -30,6 +30,7 @@ function emptyRawMetrics(agentId: string, periodId: string): RawAgentMetrics {
     csatCount: null,
     dsatCount: null,
     qaAuditPct: null,
+    emailTicketCount: null,
   };
 }
 
@@ -179,7 +180,7 @@ export async function loadAgentPeriodResult(agentId: string, periodId?: string):
 // ─────────────────────────────────────────────────────────────────────────
 
 const AVERAGE_FIELDS = ["avgFirstResponseTimeSec", "avgResponseTimeSec", "emailAHTSec", "appAHTSec", "qaAuditPct"] as const;
-const SUM_FIELDS = ["totalChatConversations", "totalChats", "csatCount", "dsatCount"] as const;
+const SUM_FIELDS = ["totalChatConversations", "totalChats", "csatCount", "dsatCount", "emailTicketCount"] as const;
 const GATE_FIELDS = ["clientAvgWaitTimeMin", "teamProcessingTimeMin", "chatTeamAvgResponseSec", "teamTicketAHTMin"] as const;
 
 function mean(values: number[]): number | null {
@@ -202,10 +203,40 @@ function aggregateAgentRaw(agentId: string, periodId: string, dayRows: RawAgentM
   return result;
 }
 
+/** Shared by both weighted GATE_FIELDS below -- weights each day's value by
+ *  that day's volume (a chat count or a ticket count) instead of averaging
+ *  days equally.
+ *
+ *  A day with no volume figure at all (weight 0 -- an older period
+ *  imported before its volume table existed, or a day that just hasn't
+ *  been backfilled yet) does NOT get silently dropped from the average.
+ *  Simply treating a missing weight as 0 would mean that day's value
+ *  contributes nothing at all the moment even ONE other day in the same
+ *  week has real weight data -- effectively vanishing rather than
+ *  averaging fairly. Instead, a weightless day is imputed the AVERAGE of
+ *  whatever weights ARE known this week, so it still counts roughly as
+ *  much as a typical day. If NO day this week has any weight data, every
+ *  day falls back to an equal weight of 1, which reduces this to exactly
+ *  the same plain mean this always used before volume weighting existed. */
+function weightedOrPlainMean(values: (number | null)[], weights: number[]): number | null {
+  const present = values
+    .map((v, i) => ({ value: v, weight: weights[i] ?? 0 }))
+    .filter((p): p is { value: number; weight: number } => p.value !== null);
+  if (present.length === 0) return null;
+
+  const knownWeights = present.map((p) => p.weight).filter((w) => w > 0);
+  const fallbackWeight = knownWeights.length > 0 ? mean(knownWeights)! : 1;
+  const effectiveWeight = (w: number) => (w > 0 ? w : fallbackWeight);
+
+  const totalWeight = present.reduce((s, p) => s + effectiveWeight(p.weight), 0);
+  return present.reduce((s, p) => s + p.value * effectiveWeight(p.weight), 0) / totalWeight;
+}
+
 function aggregateGate(
   dayGates: (RawGateMetrics | null)[],
   periodId: string,
-  chatVolumeByDay: number[] = []
+  chatVolumeByDay: number[] = [],
+  ticketVolumeByDay: number[] = []
 ): RawGateMetrics {
   const result: RawGateMetrics = {
     periodId,
@@ -215,22 +246,18 @@ function aggregateGate(
     teamTicketAHTMin: null,
   };
   for (const field of GATE_FIELDS) {
+    // Weighted by that day's actual volume (already imported per-agent as
+    // totalChatConversations / emailTicketCount) instead of a plain
+    // day-average -- an equal-weighted average treats a 5-chat day and a
+    // 50-chat day the same, which is why these used to drift from the
+    // source report's own weekly figure (a true volume-weighted average).
     if (field === "chatTeamAvgResponseSec") {
-      // Weighted by that day's actual total chat volume (already imported
-      // per-agent as totalChatConversations) instead of a plain day-average --
-      // an equal-weighted average treats a 5-chat day and a 50-chat day the
-      // same, which is why this used to drift from the source report's own
-      // weekly figure (a true volume-weighted average). Falls back to a
-      // plain mean when no volume data is available at all (e.g. older
-      // periods imported before this), so this never regresses to "No data".
-      const pairs = dayGates
-        .map((g, i) => ({ value: g?.chatTeamAvgResponseSec ?? null, weight: chatVolumeByDay[i] ?? 0 }))
-        .filter((p): p is { value: number; weight: number } => p.value !== null);
-      const totalWeight = pairs.reduce((s, p) => s + p.weight, 0);
-      result.chatTeamAvgResponseSec =
-        totalWeight > 0
-          ? pairs.reduce((s, p) => s + p.value * p.weight, 0) / totalWeight
-          : mean(pairs.map((p) => p.value));
+      result.chatTeamAvgResponseSec = weightedOrPlainMean(dayGates.map((g) => g?.chatTeamAvgResponseSec ?? null), chatVolumeByDay);
+    } else if (field === "teamTicketAHTMin") {
+      // Volume here is email + KYB ticket count only (confirmed with
+      // Susan) -- Team Ticket AHT does not include application tickets,
+      // so this is the correct full weighting basis, not a partial proxy.
+      result.teamTicketAHTMin = weightedOrPlainMean(dayGates.map((g) => g?.teamTicketAHTMin ?? null), ticketVolumeByDay);
     } else {
       result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
     }
@@ -285,7 +312,15 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
     dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
   );
 
-  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay);
+  // Same idea for teamTicketAHTMin -- each day's total email + KYB ticket
+  // volume (from the "Agent KYC Email Ave Volume" report table, only
+  // present in more recent imports; older days simply sum to 0 and
+  // aggregateGate falls back to a plain mean for those).
+  const ticketVolumeByDay = perDayRaw.map((dayRows) =>
+    dayRows.reduce((total, r) => total + (r.emailTicketCount ?? 0), 0)
+  );
+
+  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay, ticketVolumeByDay);
 
   // Penalties carry their own occurredOn date (independent of which period
   // they were logged against), so a range view collects every penalty whose
