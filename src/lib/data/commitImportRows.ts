@@ -118,11 +118,13 @@ export async function commitImportRows(params: CommitImportRowsParams): Promise<
         avgResponseTimeSec: null,
         emailAHTSec: null,
         appAHTSec: null,
-        totalChats: null,
+                totalChats: null,
         csatCount: null,
         dsatCount: null,
         qaAuditPct: null,
+        emailTicketCount: null,
       });
+    }
     }
     const entry = byAgent.get(agentId)!;
     if (row.metricKey in entry && row.parsedValue !== null) {
