@@ -15,6 +15,7 @@ function raw(overrides: Partial<RawAgentMetrics> = {}): RawAgentMetrics {
     csatCount: 10,
     dsatCount: 0,
     qaAuditPct: 96,
+    emailTicketCount: null,
     ...overrides,
   };
 }
