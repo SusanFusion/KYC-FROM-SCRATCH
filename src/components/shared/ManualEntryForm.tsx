@@ -36,6 +36,7 @@ const INDIVIDUAL_FIELDS: { key: string; label: string; hint: string }[] = [
   { key: "csatCount", label: "CSAT Count", hint: "count" },
   { key: "dsatCount", label: "DSAT Count", hint: "count" },
   { key: "qaAuditPct", label: "QA Audit", hint: "%" },
+  { key: "emailTicketCount", label: "Email Ticket Count (incl. KYB)", hint: "count" },
 ];
 
 const GATE_FIELDS: { key: string; label: string; hint: string }[] = [
