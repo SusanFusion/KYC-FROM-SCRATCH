@@ -48,6 +48,12 @@ create table if not exists performance_entries (
   csat_count integer,
   dsat_count integer,
   qa_audit_pct numeric,
+  -- Email + KYB ticket volume this agent handled this day. Used only to
+  -- weight the team-level Team Ticket AHT average by actual daily volume
+  -- instead of averaging days equally -- never scored or displayed on its
+  -- own. Confirmed with Susan: Team Ticket AHT is email/KYB tickets only,
+  -- not application tickets.
+  email_ticket_count integer,
   unique (agent_id, period_id)
 );
 
