@@ -202,7 +202,11 @@ function aggregateAgentRaw(agentId: string, periodId: string, dayRows: RawAgentM
   return result;
 }
 
-function aggregateGate(dayGates: (RawGateMetrics | null)[], periodId: string): RawGateMetrics {
+function aggregateGate(
+  dayGates: (RawGateMetrics | null)[],
+  periodId: string,
+  chatVolumeByDay: number[] = []
+): RawGateMetrics {
   const result: RawGateMetrics = {
     periodId,
     clientAvgWaitTimeMin: null,
@@ -211,7 +215,25 @@ function aggregateGate(dayGates: (RawGateMetrics | null)[], periodId: string): R
     teamTicketAHTMin: null,
   };
   for (const field of GATE_FIELDS) {
-    result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
+    if (field === "chatTeamAvgResponseSec") {
+      // Weighted by that day's actual total chat volume (already imported
+      // per-agent as totalChatConversations) instead of a plain day-average --
+      // an equal-weighted average treats a 5-chat day and a 50-chat day the
+      // same, which is why this used to drift from the source report's own
+      // weekly figure (a true volume-weighted average). Falls back to a
+      // plain mean when no volume data is available at all (e.g. older
+      // periods imported before this), so this never regresses to "No data".
+      const pairs = dayGates
+        .map((g, i) => ({ value: g?.chatTeamAvgResponseSec ?? null, weight: chatVolumeByDay[i] ?? 0 }))
+        .filter((p): p is { value: number; weight: number } => p.value !== null);
+      const totalWeight = pairs.reduce((s, p) => s + p.weight, 0);
+      result.chatTeamAvgResponseSec =
+        totalWeight > 0
+          ? pairs.reduce((s, p) => s + p.value * p.weight, 0) / totalWeight
+          : mean(pairs.map((p) => p.value));
+    } else {
+      result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
+    }
   }
   return result;
 }
@@ -227,12 +249,21 @@ export interface RangeSpec {
   label: string;
   id: string;
   type: PeriodType;
-}
+  const rawMetrics = agents.map((agent) => {
+    const rows = perDayRaw.flatMap((dayRows) => dayRows.filter((r) => r.agentId === agent.id));
+    return aggregateAgentRaw(agent.id, spec.id, rows);
+  });
 
-/**
- * Aggregates every daily period inside [spec.start, spec.end] into one
- * dataset, shaped exactly like loadPeriodDataset's — same result type, same
- * scoring pass — so any page that already knows how to render a
+  // Each day's total chat volume (summed across every agent's own
+  // totalChatConversations for that day) -- used to weight
+  // chatTeamAvgResponseSec by actual volume instead of averaging days
+  // equally. Same order/length as perDayGate (both built from dayPeriods),
+  // so index i always lines up with the same calendar day.
+  const chatVolumeByDay = perDayRaw.map((dayRows) =>
+    dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
+  );
+
+  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay);
  * PeriodDataset (Team Performance, Trends, Rankings) needs no special
  * casing to render a weekly or MTD one instead of a single day's.
  */
