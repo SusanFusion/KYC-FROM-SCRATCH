@@ -137,6 +137,22 @@ function activeRanked(dataset: PeriodDataset): RankedActive[] {
   return dataset.ranked.filter(hasAnyData).map((result, i) => ({ result, rank: i + 1 }));
 }
 
+/** Active-roster agents with nothing to score this period. These used to be
+ *  silently dropped from every section below (same all-null placeholder row
+ *  hasAnyData excludes) — meaning an agent who simply hadn't been imported
+ *  yet just vanished from the report instead of showing up as a gap to
+ *  chase down. They're excluded from ranking/rank-movement (there's nothing
+ *  to rank), but every section still lists them with an explicit
+ *  "No data yet" placeholder rather than omitting them. Inactive-status
+ *  agents (former staff) are left out here so they don't clutter the report
+ *  forever — this only affects the "no data" group; an inactive agent who
+ *  *does* have data this period still shows normally via activeRanked above,
+ *  unchanged from before.
+ */
+function noDataAgents(dataset: PeriodDataset): AgentPeriodResult[] {
+  return dataset.ranked.filter((r) => r.agent.status === "active" && !hasAnyData(r));
+}
+
 export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWeek: WeeklyReportWeekData | null): string {
   const now = new Date();
   const generatedLabel = `${new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now)} · ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(now).toLowerCase()}`;
@@ -144,6 +160,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
   const thisActive = activeRanked(thisWeek.dataset);
   const lastActive = lastWeek ? activeRanked(lastWeek.dataset) : [];
   const lastByAgent = new Map(lastActive.map((a) => [a.result.agent.id, a]));
+  const thisNoData = noDataAgents(thisWeek.dataset);
 
   const thisGate = thisWeek.dataset.results[0]?.gate ?? null;
   const lastGate = lastWeek?.dataset.results[0]?.gate ?? null;
@@ -151,7 +168,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
   const lastPct = lastGate ? lastGate.gateMultiplier * 100 : null;
   const gateDeltaPct = thisPct !== null && lastPct !== null ? thisPct - lastPct : null;
 
-  const agentCount = thisActive.length;
+  const agentCount = thisActive.length + thisNoData.length;
 
   // ── Header ────────────────────────────────────────────────────────────
   const header = `
@@ -183,7 +200,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
       </div>
       <p style="margin:16px 0 0;font-size:11px;color:${COLOR.muted};">
         Generated: <strong style="color:${COLOR.ink};">${escapeHtml(generatedLabel)}</strong>
-        &nbsp;·&nbsp; Agents: <strong style="color:${COLOR.ink};">${agentCount}</strong>
+        &nbsp;·&nbsp; Agents: <strong style="color:${COLOR.ink};">${agentCount}</strong>${thisNoData.length > 0 ? ` <span style="color:${COLOR.muted};">(${thisActive.length} reported, ${thisNoData.length} no data yet)</span>` : ""}
         &nbsp;·&nbsp; QA: <strong style="color:${COLOR.ink};">${thisWeek.qaCount}</strong>
         &nbsp;·&nbsp; Penalties: <strong style="color:${COLOR.ink};">${thisWeek.penaltyCount}</strong>
       </p>
@@ -346,11 +363,26 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
     })
     .join("");
 
+  const noDataScoreboardRows = thisNoData
+    .map(
+      (r) => `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;opacity:0.65;">
+          <div style="width:120px;font-size:12px;color:${COLOR.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.agent.name)}</div>
+          <div style="flex:1;background:#f1f2f4;border-radius:4px;height:14px;display:flex;align-items:center;">
+            <span style="margin-left:8px;font-size:10px;font-style:italic;color:${COLOR.muted};">No data yet</span>
+          </div>
+          <div style="width:56px;text-align:right;font-size:12px;color:${COLOR.muted};">—</div>
+          <div style="width:44px;text-align:right;font-size:12px;color:${COLOR.muted};">—</div>
+        </div>`
+    )
+    .join("");
+
   const scoreboardSection = `
     <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid #6b46c1;border-radius:10px;padding:20px 22px;margin-bottom:20px;">
       <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">👥 Agent Scoreboard — Week-on-Week</p>
       <p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:${COLOR.muted};">Score bars — this week (amber marker = last week · right column = rank change)</p>
       ${scoreboardRows}
+      ${noDataScoreboardRows ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed ${COLOR.border};">${noDataScoreboardRows}</div>` : ""}
       ${lastWeek ? `
         <p style="margin:20px 0 8px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:${COLOR.muted};">Score change vs last week</p>
         ${scoreChangeRows || `<p style="font-size:12px;color:${COLOR.muted};">No agents overlap between both weeks.</p>`}
@@ -412,6 +444,25 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
     )
     .join("");
 
+  // Roster agents with no data this week who ALSO aren't in absentAgents
+  // above (i.e. they had no data last week either, or there's no prior week
+  // at all) — agents who had data last week but not this week are already
+  // covered by the ABSENT table, so this stays a distinct, non-overlapping
+  // group rather than double-listing the same person.
+  const neverReported = thisNoData.filter((r) => !absentAgents.some((a) => a.result.agent.id === r.agent.id));
+  const neverReportedRows = neverReported
+    .map(
+      (r) => `<tr style="border-top:1px solid ${COLOR.border};color:${COLOR.muted};">
+        <td style="padding:8px 10px;">${escapeHtml(r.agent.name)}</td>
+        <td style="padding:8px 10px;">—</td>
+        <td style="padding:8px 10px;">—</td>
+        <td style="padding:8px 10px;">—</td>
+        <td style="padding:8px 10px;font-style:italic;">No data yet</td>
+        <td style="padding:8px 10px;">—</td>
+      </tr>`
+    )
+    .join("");
+
   const movementSection = `
     <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid ${COLOR.success};border-radius:10px;padding:20px 22px;margin-bottom:20px;">
       <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">Movement Table</p>
@@ -430,6 +481,12 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
         <p style="margin:18px 0 6px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:${COLOR.muted};">No entries this week (had data last week)</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tbody>${absentRows}</tbody>
+        </table>
+      ` : ""}
+      ${neverReported.length > 0 ? `
+        <p style="margin:18px 0 6px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:${COLOR.muted};">No data yet (no import on record)</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tbody>${neverReportedRows}</tbody>
         </table>
       ` : ""}
     </div>`;
