@@ -90,7 +90,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               </p>
             )}
           </div>
-          
+          <a
             href={effectiveWeek ? `/api/reports/export?type=weekly&week=${encodeURIComponent(effectiveWeek)}` : undefined}
             download
             aria-disabled={!effectiveWeek}
