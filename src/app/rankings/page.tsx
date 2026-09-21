@@ -6,6 +6,7 @@ import { TopPerformersSpotlight } from "@/components/rankings/TopPerformersSpotl
 import { EncouragementBand } from "@/components/rankings/EncouragementBand";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { loadPeriodDataset } from "@/lib/data/query";
+import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
 
 // Scores are derived fresh from live data on every request — this page must
 // never be served from a cached/stale build snapshot (Vercel/Next can
@@ -40,6 +41,11 @@ export default async function RankingsPage() {
     // row yet. Used to show a plain "No data" badge instead of a 0.00 score
     // that would otherwise look like a genuine failing grade.
     hasNoData: r.individual.effectiveWeight === 0,
+    // True when SOME data exists but it's under MIN_SCORE_COVERAGE of the
+    // scorecard's weight (thresholds.ts) — more than just the one metric
+    // (QA Audit) missing app-wide. A thin sample like that can otherwise
+    // renormalize to a misleadingly high score.
+    hasInsufficientData: r.individual.effectiveWeight > 0 && !hasSufficientDataCoverage(r.individual.effectiveWeight),
     appAHT: r.individual.metrics.find((m) => m.key === "appAHT")?.actualDisplay ?? "—",
     emailAHT: r.individual.metrics.find((m) => m.key === "emailAHT")?.actualDisplay ?? "—",
     chatAvgResponse: r.individual.metrics.find((m) => m.key === "chatAvgResponse")?.actualDisplay ?? "—",
@@ -47,13 +53,17 @@ export default async function RankingsPage() {
     csatDsat: r.individual.metrics.find((m) => m.key === "csatDsat")?.actualDisplay ?? "—",
   }));
 
-  // Top 3 and "room to grow" 3 only ever draw from agents who actually have
-  // data this period — an agent with no import yet has a 0.00 placeholder
-  // score that would otherwise wrongly land them in "Room to Grow" (or, on
-  // a very sparse period, even "Top Performers"). They still show up in the
-  // full table below either way. The two groups are otherwise disjoint: the
-  // "room to grow" 3 are only drawn from whatever's left after the top 3.
-  const scoredRows = rows.filter((r) => !r.hasNoData);
+  // Top 3 and "room to grow" 3 only ever draw from agents with a genuinely
+  // comparable score this period — an agent with no import yet has a 0.00
+  // placeholder that would otherwise wrongly land them in "Room to Grow"
+  // (or, on a very sparse period, even "Top Performers"), and an agent
+  // reporting only a couple of metrics can renormalize to a misleadingly
+  // high score that would wrongly land them in "Top Performers" instead
+  // (see MIN_SCORE_COVERAGE in thresholds.ts). They still show up in the
+  // full table below either way (in RankingTable's separate "not ranked"
+  // section). The two groups are otherwise disjoint: the "room to grow" 3
+  // are only drawn from whatever's left after the top 3.
+  const scoredRows = rows.filter((r) => !r.hasNoData && !r.hasInsufficientData);
   const toSpotlightAgent = (r: RankingRow) => ({ agentId: r.agentId, name: r.name, department: r.department, score: r.finalScore });
   const topThree = scoredRows.slice(0, 3).map(toSpotlightAgent);
   const growCount = Math.min(3, Math.max(0, scoredRows.length - 3));
