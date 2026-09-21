@@ -63,21 +63,26 @@ export function PenaltyForm({
           </option>
         ))}
       </Select>
-      {/* Chrome/Safari/Edge draw a native up/down spinner control inside
-          type="number" fields, visually divided from the text area by its
-          own thin border -- on a field this narrow that reads as a second,
-          overlapping box rather than a spinner. (Extra right padding alone,
-          tried first, didn't remove that divider -- it's the browser's own
-          spin-button chrome, not a spacing issue.) Turning the spin buttons
-          off removes that seam entirely, leaving one clean box; the field
-          still only accepts numbers via type="number" and min=1. */}
+      {/* type="number" is what's been causing this: I confirmed the markup
+          itself only ever had one <Input> here (checked the actual file as
+          committed on GitHub, no duplicate), so the extra box you were
+          seeing was the browser's own number-input widget internals -- even
+          with the spin buttons turned off (previous attempt), some browsers
+          still render a leftover boundary around the old spin-button slot.
+          Switching to a plain text field sidesteps that machinery
+          entirely -- no special widget, so no leftover boxes -- while
+          inputMode="numeric" still brings up a numeric keypad on mobile and
+          pattern restricts typed characters to digits. The server already
+          coerces this to a number and falls back to 1 for anything invalid
+          or blank (see addPenaltyAction), so behavior on submit is
+          unchanged. */}
       <Input
         name="count"
-        type="number"
-        min={1}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         defaultValue={1}
         placeholder="Count"
-        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
       <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
       <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
