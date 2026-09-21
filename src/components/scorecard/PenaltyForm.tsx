@@ -19,6 +19,15 @@ function SubmitButton() {
   );
 }
 
+// Small shared label, matching the style ManualEntryForm already uses
+// elsewhere in the app -- every field here is now clearly identified
+// instead of relying on placeholder text alone (placeholder text vanishes
+// the moment you start typing, which was part of why "Count" wasn't
+// obvious what it was for).
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="mb-1 block text-xs font-medium text-muted-foreground">{children}</label>;
+}
+
 export function PenaltyForm({
   agents,
   periodId,
@@ -40,54 +49,69 @@ export function PenaltyForm({
           setTimeout(() => setStatus("idle"), 2500);
         }
       }}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6"
+      // More breathing room than before: gap-x-4 (16px) between columns,
+      // gap-y-5 (20px) between rows -- rows now read as visually distinct
+      // groups instead of everything crowding together.
+      className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-6"
     >
       <input type="hidden" name="periodId" value={periodId} />
-      {/* Row 1: agent, infraction, then Count pushed out to its own wider
-          slot on the right -- it used to sit squeezed between infraction and
-          date (1 of 6 columns), which is why it was so easy to miss at
-          normal zoom. Giving it col-span-2 here, the same width as every
-          other field, is the actual fix for that -- not just cosmetic. */}
-      <Select name="agentId" required defaultValue="" className="lg:col-span-2">
-        <option value="" disabled>
-          Select agent…
-        </option>
-        {agents.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
+
+      {/* Row 1: agent, infraction, count -- each an equal-width slot. Count
+          used to be squeezed into 1 of 6 columns; giving it the same
+          col-span-2 as everything else is what actually fixed it being
+          hard to see, not just the spacing around it. */}
+      <div className="lg:col-span-2">
+        <FieldLabel>Agent</FieldLabel>
+        <Select name="agentId" required defaultValue="">
+          <option value="" disabled>
+            Select agent…
           </option>
-        ))}
-      </Select>
-      <Select name="code" required defaultValue="" className="lg:col-span-2">
-        <option value="" disabled>
-          Select infraction…
-        </option>
-        {ALL_PENALTIES.map((p) => (
-          <option key={p.code} value={p.code}>
-            {p.label} (-{p.deduction.toFixed(2)})
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div className="lg:col-span-2">
+        <FieldLabel>Infraction</FieldLabel>
+        <Select name="code" required defaultValue="">
+          <option value="" disabled>
+            Select infraction…
           </option>
-        ))}
-      </Select>
-      {/* type="text" (not "number") deliberately -- see addPenaltyAction,
-          which already coerces whatever's typed here to a number and falls
-          back to 1 for anything invalid or blank, so this doesn't need the
-          browser's native number-input widget to behave correctly. */}
-      <Input
-        name="count"
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        defaultValue={1}
-        placeholder="Count"
-        className="lg:col-span-2"
-      />
-      {/* Row 2: date sits directly under Agent (same lg:col-span-2 slot),
-          note fills the rest of the row. */}
-      <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} className="lg:col-span-2" />
-      <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
-      {/* Row 3: submit, on its own row now that row 2 is full (date + note
-          already add up to all 6 columns). */}
-      <div className="flex items-center gap-2 lg:col-span-6 lg:justify-end">
+          {ALL_PENALTIES.map((p) => (
+            <option key={p.code} value={p.code}>
+              {p.label} (-{p.deduction.toFixed(2)})
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div className="lg:col-span-2">
+        <FieldLabel>Count</FieldLabel>
+        {/* type="text" (not "number") deliberately -- addPenaltyAction
+            already coerces whatever's typed here to a number and falls back
+            to 1 for anything invalid or blank, so this doesn't need the
+            browser's native number-input widget to behave correctly. */}
+        <Input name="count" type="text" inputMode="numeric" pattern="[0-9]*" defaultValue={1} placeholder="1" />
+      </div>
+
+      {/* Row 2: date directly under Agent, note filling the rest of the
+          row. */}
+      <div className="lg:col-span-2">
+        <FieldLabel>Date</FieldLabel>
+        <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
+      </div>
+
+      <div className="lg:col-span-4">
+        <FieldLabel>Note (optional)</FieldLabel>
+        <Input name="note" placeholder="Add any context…" />
+      </div>
+
+      {/* Row 3: submit, on its own row, right-aligned, with a little extra
+          top padding so it doesn't feel glued to the row above. */}
+      <div className="flex items-center gap-2 lg:col-span-6 lg:justify-end lg:pt-1">
         <SubmitButton />
         {status === "success" && <span className="text-xs text-success">Recorded.</span>}
       </div>
