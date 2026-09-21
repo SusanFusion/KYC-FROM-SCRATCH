@@ -1,3 +1,4 @@
+ts
 // All numeric rules below are transcribed directly from:
 //  - "KYC KPI Realignment Framework" (07/29/2026), pages: Business Gate (Layer 1),
 //    Proposed Individual Grading Scales (Layer 2), Individual Bonus Bracket,
@@ -180,6 +181,42 @@ export const INDIVIDUAL_MAX_SCORE = 3;
  * their own 3/2/1/0 thresholds for a different purpose).
  */
 export const SCORE_PASS_THRESHOLD = 2.5;
+
+/**
+ * Minimum share of the individual scorecard's total weight (0-1) that must
+ * actually have data before a renormalized finalScore is treated as a real,
+ * comparable number in rankings — i.e. before an agent is ranked at all
+ * rather than shown separately as not-yet-comparable. calculateIndividualScore
+ * renormalizes whatever metrics ARE present back up to a full 0-3 scale (see
+ * its own comment) — deliberately, so a small, uniform gap like QA Audit %
+ * (5% weight) doesn't drag anyone's score down. QA Audit % is the ONE metric
+ * genuinely missing for the whole roster today (see notes.ts
+ * "missing-qa-audit-data": "The Daily KYC Team Performance Report has no QA
+ * Audit % column for any agent") — that's the actual, documented reason the
+ * renormalization exists at all. Set at 0.95 (= 1 − QA Audit's 5% weight),
+ * this tolerates exactly that one known gap and nothing more: an agent
+ * missing only QA Audit still scores/ranks normally, same as everyone else.
+ * An agent missing anything beyond that — e.g. only 2 of 6 metrics reported,
+ * both happening to land "Exceptional" — drops below this bar. Per Susan's
+ * direction, agents below it are excluded from the ranked comparison
+ * entirely and shown as a separate, clearly-unranked group instead of tying
+ * or beating fully-reported agents on a number built from a lucky sliver of
+ * data. This does NOT change finalScore itself or bonus calculations — only
+ * how thin-data agents are ranked/displayed — changing the underlying payout
+ * math is a separate decision this doesn't make.
+ */
+export const MIN_SCORE_COVERAGE = 0.95;
+
+/** True once at least MIN_SCORE_COVERAGE of the scorecard's total weight is
+ *  backed by real data — see that constant's comment for why this matters
+ *  separately from hasIncompleteData (which is true for ANY missing metric,
+ *  even just QA Audit alone, and stays as-is for the existing "Incomplete"
+ *  name badge — nearly every agent has that badge today since QA Audit is
+ *  missing app-wide; this check is deliberately stricter). A small epsilon
+ *  guards against float rounding on the weight sum. */
+export function hasSufficientDataCoverage(effectiveWeight: number): boolean {
+  return effectiveWeight >= MIN_SCORE_COVERAGE - 0.001;
+}
 
 /** Individual Bonus Bracket (Department: KYC). */
 export const BONUS_BRACKETS: BonusBracket[] = [
