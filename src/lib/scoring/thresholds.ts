@@ -1,4 +1,3 @@
-ts
 // All numeric rules below are transcribed directly from:
 //  - "KYC KPI Realignment Framework" (07/29/2026), pages: Business Gate (Layer 1),
 //    Proposed Individual Grading Scales (Layer 2), Individual Bonus Bracket,
