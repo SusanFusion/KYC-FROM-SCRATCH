@@ -43,6 +43,22 @@ function teamGateMultiplier(results: AgentPeriodResult[]): number | null {
   return results[0]?.gate ? gateMultiplierOrNull(results[0].gate) : null;
 }
 
+// Individual KPI Trends deliberately breaks its line on any day with no
+// real data for that agent/metric (see MetricTrendChart's connectNulls:
+// false) rather than drawing a straight segment across a gap that would
+// otherwise look like a smooth trend on a day that was never actually
+// measured. That's correct, but a broken line alone doesn't say WHICH
+// day(s) are missing — this turns the same points already computed for the
+// chart into a plain list of the day labels with no data, so it's obvious
+// at a glance which day(s) to check in Import History or fix via Manual
+// Entry's edit view, instead of having to count gaps on the chart by eye.
+function missingDayLabels(points: MetricTrendPoint[], max = 8): string | null {
+  const missing = points.filter((p) => p.value === null).map((p) => p.label);
+  if (missing.length === 0) return null;
+  if (missing.length <= max) return missing.join(", ");
+  return `${missing.slice(0, max).join(", ")}, +${missing.length - max} more`;
+}
+
 function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetricKey): number | null {
   const values = scoredOnly(results)
     .map((r) => r.individual.metrics.find((m) => m.key === key))
@@ -406,14 +422,22 @@ export default async function TrendsPage({
               <p className="text-sm text-muted-foreground">No officers on the roster yet.</p>
             ) : (
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                {agentDailySeries.map((s) => (
-                  <div key={s.key} className="rounded-lg border border-border p-3">
-                    <p className="mb-1 text-xs font-medium text-foreground">
-                      {s.name} <span className="text-muted-foreground/70">({s.unit})</span>
-                    </p>
-                    <MetricTrendChart data={s.points} />
-                  </div>
-                ))}
+                {agentDailySeries.map((s) => {
+                  const missing = missingDayLabels(s.points);
+                  return (
+                    <div key={s.key} className="rounded-lg border border-border p-3">
+                      <p className="mb-1 text-xs font-medium text-foreground">
+                        {s.name} <span className="text-muted-foreground/70">({s.unit})</span>
+                      </p>
+                      <MetricTrendChart data={s.points} />
+                      {missing && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground/70">No data (line breaks here):</span> {missing}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
