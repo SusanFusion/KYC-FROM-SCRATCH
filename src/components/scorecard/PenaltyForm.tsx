@@ -63,12 +63,22 @@ export function PenaltyForm({
           </option>
         ))}
       </Select>
-      {/* Extra right padding (beyond the Input component's default px-3) so
-          the typed number/placeholder doesn't visually crowd against the
-          browser's native up/down spinner buttons -- on a field this narrow
-          (1 of 6 grid columns), px-3 alone leaves the spinner sitting almost
-          on top of the text. */}
-      <Input name="count" type="number" min={1} defaultValue={1} placeholder="Count" className="pr-8" />
+      {/* Chrome/Safari/Edge draw a native up/down spinner control inside
+          type="number" fields, visually divided from the text area by its
+          own thin border -- on a field this narrow that reads as a second,
+          overlapping box rather than a spinner. (Extra right padding alone,
+          tried first, didn't remove that divider -- it's the browser's own
+          spin-button chrome, not a spacing issue.) Turning the spin buttons
+          off removes that seam entirely, leaving one clean box; the field
+          still only accepts numbers via type="number" and min=1. */}
+      <Input
+        name="count"
+        type="number"
+        min={1}
+        defaultValue={1}
+        placeholder="Count"
+        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
       <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
       <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
       <div className="flex items-center gap-2 lg:col-span-2">
