@@ -5,8 +5,9 @@ import { RankingTable, type RankingRow } from "@/components/rankings/RankingTabl
 import { TopPerformersSpotlight } from "@/components/rankings/TopPerformersSpotlight";
 import { EncouragementBand } from "@/components/rankings/EncouragementBand";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { loadPeriodDataset } from "@/lib/data/query";
+import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
 import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
+import { formatDate } from "@/lib/utils";
 
 // Scores are derived fresh from live data on every request — this page must
 // never be served from a cached/stale build snapshot (Vercel/Next can
@@ -16,9 +17,9 @@ import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
 export const dynamic = "force-dynamic";
 
 export default async function RankingsPage() {
-  const { period, ranked, teams } = await loadPeriodDataset();
+  const months = await listAvailableMonths();
 
-  if (!period) {
+  if (months.length === 0) {
     return (
       <>
         <TopHeader title="Rankings" description="Leaderboard across the team" />
@@ -28,6 +29,29 @@ export default async function RankingsPage() {
       </>
     );
   }
+
+  // Rankings is now month-to-date cumulative rather than a single day's
+  // snapshot. It used to call loadPeriodDataset() with no id, which always
+  // scoped the whole page to just the single most-recently-imported day.
+  // That's a problem because a day's import can legitimately be missing a
+  // field for most of the roster — e.g. chat metrics land here from a
+  // separate import step than the main KYC report, and don't always get
+  // merged in for every agent on the same day they're imported — which
+  // used to strand most of the team in "Not ranked — insufficient data"
+  // even though they had perfectly good data earlier in the month. This
+  // now aggregates every daily import in the current month exactly the way
+  // Overall MTD already does (see loadRangeDataset in query.ts), so a thin
+  // single day no longer drags the whole leaderboard down. MIN_SCORE_
+  // COVERAGE (thresholds.ts) still decides who's rankable either way.
+  const selectedMonth = months[0]!;
+  const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
+  const { ranked, teams } = await loadRangeDataset({
+    start: selectedMonth.start,
+    end: selectedMonth.end,
+    label: monthThruLabel,
+    id: `mtd-${selectedMonth.key}`,
+    type: "month-to-date",
+  });
 
   const rows: RankingRow[] = ranked.map((r) => ({
     agentId: r.agent.id,
@@ -71,7 +95,7 @@ export default async function RankingsPage() {
 
   return (
     <>
-      <TopHeader title="Rankings" description={`Leaderboard for ${period.label}`} />
+      <TopHeader title="Rankings" description={`Leaderboard for ${monthThruLabel}`} />
       <PageShell>
         <TopPerformersSpotlight agents={topThree} />
 
