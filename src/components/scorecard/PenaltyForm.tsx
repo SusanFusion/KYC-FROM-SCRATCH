@@ -43,6 +43,11 @@ export function PenaltyForm({
       className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6"
     >
       <input type="hidden" name="periodId" value={periodId} />
+      {/* Row 1: agent, infraction, then Count pushed out to its own wider
+          slot on the right -- it used to sit squeezed between infraction and
+          date (1 of 6 columns), which is why it was so easy to miss at
+          normal zoom. Giving it col-span-2 here, the same width as every
+          other field, is the actual fix for that -- not just cosmetic. */}
       <Select name="agentId" required defaultValue="" className="lg:col-span-2">
         <option value="" disabled>
           Select agent…
@@ -63,19 +68,10 @@ export function PenaltyForm({
           </option>
         ))}
       </Select>
-      {/* type="number" is what's been causing this: I confirmed the markup
-          itself only ever had one <Input> here (checked the actual file as
-          committed on GitHub, no duplicate), so the extra box you were
-          seeing was the browser's own number-input widget internals -- even
-          with the spin buttons turned off (previous attempt), some browsers
-          still render a leftover boundary around the old spin-button slot.
-          Switching to a plain text field sidesteps that machinery
-          entirely -- no special widget, so no leftover boxes -- while
-          inputMode="numeric" still brings up a numeric keypad on mobile and
-          pattern restricts typed characters to digits. The server already
-          coerces this to a number and falls back to 1 for anything invalid
-          or blank (see addPenaltyAction), so behavior on submit is
-          unchanged. */}
+      {/* type="text" (not "number") deliberately -- see addPenaltyAction,
+          which already coerces whatever's typed here to a number and falls
+          back to 1 for anything invalid or blank, so this doesn't need the
+          browser's native number-input widget to behave correctly. */}
       <Input
         name="count"
         type="text"
@@ -83,10 +79,15 @@ export function PenaltyForm({
         pattern="[0-9]*"
         defaultValue={1}
         placeholder="Count"
+        className="lg:col-span-2"
       />
-      <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
+      {/* Row 2: date sits directly under Agent (same lg:col-span-2 slot),
+          note fills the rest of the row. */}
+      <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} className="lg:col-span-2" />
       <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
-      <div className="flex items-center gap-2 lg:col-span-2">
+      {/* Row 3: submit, on its own row now that row 2 is full (date + note
+          already add up to all 6 columns). */}
+      <div className="flex items-center gap-2 lg:col-span-6 lg:justify-end">
         <SubmitButton />
         {status === "success" && <span className="text-xs text-success">Recorded.</span>}
       </div>
