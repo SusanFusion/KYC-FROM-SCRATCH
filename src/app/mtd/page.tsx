@@ -10,7 +10,7 @@ import { RangePicker } from "@/components/shared/RangePicker";
 import { RankingTable, type RankingRow } from "@/components/rankings/RankingTable";
 import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
 import { buildGateScaleTable } from "@/lib/scoring/display";
-import { GATE_TIER_SCORES } from "@/lib/scoring/thresholds";
+import { GATE_TIER_SCORES, hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
 import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDate } from "@/lib/utils";
@@ -92,6 +92,13 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     finalScore: r.individual.finalScore,
     hasIncompleteData: r.individual.hasIncompleteData,
     hasNoData: r.individual.effectiveWeight === 0,
+    // True when SOME data exists but it's under MIN_SCORE_COVERAGE of the
+    // scorecard's weight (thresholds.ts) — more missing than just QA Audit
+    // (the one metric known to be missing app-wide). Without this, an agent
+    // reporting only 2 of 6 metrics that happen to grade "Exceptional"
+    // renormalizes to a perfect 3.00 and can tie or outrank agents who
+    // reported everything but weren't perfect on every metric.
+    hasInsufficientData: r.individual.effectiveWeight > 0 && !hasSufficientDataCoverage(r.individual.effectiveWeight),
     appAHT: r.individual.metrics.find((m) => m.key === "appAHT")?.actualDisplay ?? "—",
     emailAHT: r.individual.metrics.find((m) => m.key === "emailAHT")?.actualDisplay ?? "—",
     chatAvgResponse: r.individual.metrics.find((m) => m.key === "chatAvgResponse")?.actualDisplay ?? "—",
