@@ -104,6 +104,7 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     chatAvgResponse: r.individual.metrics.find((m) => m.key === "chatAvgResponse")?.actualDisplay ?? "—",
     chatFRT: r.individual.metrics.find((m) => m.key === "chatFRT")?.actualDisplay ?? "—",
     csatDsat: r.individual.metrics.find((m) => m.key === "csatDsat")?.actualDisplay ?? "—",
+    qaAudit: r.individual.metrics.find((m) => m.key === "qaAudit")?.actualDisplay ?? "—",
   }));
 
   return (
