@@ -71,7 +71,75 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
   const [cells, setCells] = React.useState<CellValues>({});
   const [savedCount, setSavedCount] = React.useState(0);
+  const [loadingExisting, setLoadingExisting] = React.useState(false);
   const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
+
+  // Whenever an existing period is selected (including on first render, if
+  // that's what the default above lands on), pull in whatever's already
+  // committed for it — from an earlier manual entry OR a PDF import — and
+  // fill the grid with it, instead of showing a blank form for a period
+  // that already has real numbers on record. This is what actually lets
+  // you EDIT previously-entered data rather than only ever adding to it:
+  // before this, reselecting an existing period always started blank, so
+  // fixing a typo meant retyping every other value too just to avoid
+  // silently blanking them (this form only ever touches the fields you
+  // actually type into — see commitImportRows.ts's merge-safe write).
+  // Switching to "+ Start a new period" clears the grid instead, since
+  // there's nothing to load yet.
+  React.useEffect(() => {
+    if (isNewPeriod) {
+      setCells({});
+      setGateValues({});
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingExisting(true);
+    setErrorMsg(null);
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/import/period/${targetPeriodId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load this period's existing data.");
+        if (cancelled) return;
+
+        const nextCells: CellValues = {};
+        for (const m of data.metrics as Record<string, unknown>[]) {
+          const agentId = m.agentId as string;
+          const byMetric: Record<string, string> = {};
+          for (const f of INDIVIDUAL_FIELDS) {
+            const v = m[f.key];
+            if (typeof v === "number") byMetric[f.key] = String(v);
+          }
+          nextCells[agentId] = byMetric;
+        }
+        setCells(nextCells);
+
+        const nextGate: Record<string, string> = {};
+        if (data.gate) {
+          for (const f of GATE_FIELDS) {
+            const v = (data.gate as Record<string, unknown>)[f.key];
+            if (typeof v === "number") nextGate[f.key] = String(v);
+          }
+        }
+        setGateValues(nextGate);
+        if (!cancelled) setPhase("idle");
+      } catch (err) {
+        if (!cancelled) {
+          setErrorMsg(err instanceof Error ? err.message : "Failed to load this period's existing data.");
+          setPhase("error");
+        }
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPeriodId, isNewPeriod]);
 
   function setCell(agentId: string, metricKey: string, raw: string) {
     setCells((prev) => ({ ...prev, [agentId]: { ...(prev[agentId] ?? {}), [metricKey]: raw } }));
@@ -183,9 +251,10 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
         <CardHeader>
           <CardTitle>Which period is this for?</CardTitle>
           <CardDescription>
-            Values you leave blank are treated as not measured — not scored as zero. Adding to an existing period only
-            fills in what you enter here; everything else already recorded for it (from a PDF import or an earlier
-            manual entry) stays exactly as it was.
+            Picking an existing period loads whatever&apos;s already on record for it below, so you can review and
+            correct it — not just add to it. Values you leave blank stay untouched (treated as not measured, never
+            scored as zero); they&apos;re not cleared just because the box is empty, so nothing you don&apos;t
+            actively change gets erased.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -273,7 +342,10 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
       <Card>
         <CardHeader>
           <CardTitle>Individual metrics (per agent)</CardTitle>
-          <CardDescription>Layer 2 — fill in only the columns you have data for; the rest stay unmeasured.</CardDescription>
+          <CardDescription>
+            Layer 2 — fill in only the columns you have data for; the rest stay unmeasured.
+            {!isNewPeriod && (loadingExisting ? " Loading this period's existing values…" : " Existing values for this period are pre-filled below — edit any cell to correct it.")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -312,7 +384,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={phase === "saving"}>
+        <Button onClick={handleSave} disabled={phase === "saving" || loadingExisting}>
           {phase === "saving" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" /> Saving…
