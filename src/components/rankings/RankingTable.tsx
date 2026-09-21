@@ -35,6 +35,12 @@ export interface RankingRow {
   chatAvgResponse: string;
   chatFRT: string;
   csatDsat: string;
+  /** QA Audit % — missing app-wide today (see MIN_SCORE_COVERAGE in
+   *  thresholds.ts), so this column reads "No data" for virtually every
+   *  agent right now. Shown anyway rather than omitted, so it's obvious
+   *  this metric exists and is simply awaiting real numbers, not silently
+   *  left out of the scorecard. */
+  qaAudit: string;
 }
 
 type SortKey = "finalScore" | "name";
@@ -129,6 +135,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
             <TableHead>Chat Response</TableHead>
             <TableHead>First Response</TableHead>
             <TableHead>CSAT</TableHead>
+            <TableHead>QA Audit</TableHead>
             <TableHead>
               <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
                 Score <ArrowUpDown className="h-3 w-3" />
@@ -161,6 +168,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                 <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
                 <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
                 <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
+                <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                 <TableCell>{scoreCell(r)}</TableCell>
               </TableRow>
             );
@@ -194,6 +202,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                   <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
                   <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
                   <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                   <TableCell>{scoreCell(r)}</TableCell>
                 </TableRow>
               ))}
