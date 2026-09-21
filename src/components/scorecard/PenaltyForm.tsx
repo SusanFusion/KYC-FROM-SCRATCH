@@ -63,7 +63,12 @@ export function PenaltyForm({
           </option>
         ))}
       </Select>
-      <Input name="count" type="number" min={1} defaultValue={1} placeholder="Count" />
+      {/* Extra right padding (beyond the Input component's default px-3) so
+          the typed number/placeholder doesn't visually crowd against the
+          browser's native up/down spinner buttons -- on a field this narrow
+          (1 of 6 grid columns), px-3 alone leaves the spinner sitting almost
+          on top of the text. */}
+      <Input name="count" type="number" min={1} defaultValue={1} placeholder="Count" className="pr-8" />
       <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
       <Input name="note" placeholder="Note (optional)" className="lg:col-span-4" />
       <div className="flex items-center gap-2 lg:col-span-2">
