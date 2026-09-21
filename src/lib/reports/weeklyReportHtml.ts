@@ -11,7 +11,7 @@
 // route) and passed in, so this module has no data-access concerns of its
 // own and stays trivially testable.
 
-import { INDIVIDUAL_METRICS, GATE_METRICS } from "../scoring/thresholds";
+import { INDIVIDUAL_METRICS, GATE_METRICS, hasSufficientDataCoverage } from "../scoring/thresholds";
 import { formatSeconds, formatMinutesValue } from "../data/time";
 import type { PeriodDataset, AgentPeriodResult } from "../data/query";
 import type { DateRange } from "../data/dateRanges";
@@ -123,34 +123,50 @@ function renderGauge(pct: number, color: string, valueLabel: string, caption: st
 /** True if this agent's individual metrics show at least one real data
  *  point — distinguishes "actually reported this week" from the
  *  all-null placeholder row every unimported roster agent otherwise gets
- *  (see emptyRawMetrics/computeResults in query.ts). */
+ *  (see emptyRawMetrics/computeResults in query.ts). Used only to tell
+ *  "zero data" apart from "some but not enough" for display wording below —
+ *  ranking itself uses isRankable, not this. */
 function hasAnyData(r: AgentPeriodResult): boolean {
   return r.individual.metrics.some((m) => !m.excluded);
 }
 
+/** True once this agent has at least MIN_SCORE_COVERAGE of the scorecard's
+ *  total weight backed by real data (see thresholds.ts). Below that,
+ *  calculateIndividualScore's renormalization can turn a thin, lucky
+ *  sample (e.g. 2 of 6 metrics, both "Exceptional") into a misleadingly
+ *  perfect score — so those agents are excluded from ranking/rank-movement
+ *  here, same as an agent with literally zero data, rather than letting a
+ *  thin sample tie or beat someone who reported everything. */
+function isRankable(r: AgentPeriodResult): boolean {
+  return hasSufficientDataCoverage(r.individual.effectiveWeight);
+}
+
 interface RankedActive {
   result: AgentPeriodResult;
-  rank: number; // 1-based, among active agents only
+  rank: number; // 1-based, among rankable agents only
 }
 
 function activeRanked(dataset: PeriodDataset): RankedActive[] {
-  return dataset.ranked.filter(hasAnyData).map((result, i) => ({ result, rank: i + 1 }));
+  return dataset.ranked.filter(isRankable).map((result, i) => ({ result, rank: i + 1 }));
 }
 
-/** Active-roster agents with nothing to score this period. These used to be
- *  silently dropped from every section below (same all-null placeholder row
- *  hasAnyData excludes) — meaning an agent who simply hadn't been imported
- *  yet just vanished from the report instead of showing up as a gap to
- *  chase down. They're excluded from ranking/rank-movement (there's nothing
- *  to rank), but every section still lists them with an explicit
- *  "No data yet" placeholder rather than omitting them. Inactive-status
- *  agents (former staff) are left out here so they don't clutter the report
- *  forever — this only affects the "no data" group; an inactive agent who
- *  *does* have data this period still shows normally via activeRanked above,
+/** Active-roster agents without enough data to rank this period — either
+ *  literally none, or under the MIN_SCORE_COVERAGE threshold above. These
+ *  used to be silently dropped from every section below (activeRanked's old
+ *  filter excluded anyone below the threshold too), meaning an agent who
+ *  simply hadn't been imported yet — or had only a couple of metrics
+ *  reported — just vanished from the report instead of showing up as a gap
+ *  to chase down. They're excluded from ranking/rank-movement (there's
+ *  nothing meaningfully comparable to rank), but every section still lists
+ *  them with an explicit "No data yet" / "Insufficient data" placeholder
+ *  rather than omitting them. Inactive-status agents (former staff) are
+ *  left out here so they don't clutter the report forever — this only
+ *  affects this "not enough data" group; an inactive agent who *does* have
+ *  enough data this period still shows normally via activeRanked above,
  *  unchanged from before.
  */
 function noDataAgents(dataset: PeriodDataset): AgentPeriodResult[] {
-  return dataset.ranked.filter((r) => r.agent.status === "active" && !hasAnyData(r));
+  return dataset.ranked.filter((r) => r.agent.status === "active" && !isRankable(r));
 }
 
 export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWeek: WeeklyReportWeekData | null): string {
@@ -369,7 +385,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;opacity:0.65;">
           <div style="width:120px;font-size:12px;color:${COLOR.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.agent.name)}</div>
           <div style="flex:1;background:#f1f2f4;border-radius:4px;height:14px;display:flex;align-items:center;">
-            <span style="margin-left:8px;font-size:10px;font-style:italic;color:${COLOR.muted};">No data yet</span>
+            <span style="margin-left:8px;font-size:10px;font-style:italic;color:${COLOR.muted};">${hasAnyData(r) ? "Insufficient data" : "No data yet"}</span>
           </div>
           <div style="width:56px;text-align:right;font-size:12px;color:${COLOR.muted};">—</div>
           <div style="width:44px;text-align:right;font-size:12px;color:${COLOR.muted};">—</div>
@@ -457,7 +473,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
         <td style="padding:8px 10px;">—</td>
         <td style="padding:8px 10px;">—</td>
         <td style="padding:8px 10px;">—</td>
-        <td style="padding:8px 10px;font-style:italic;">No data yet</td>
+        <td style="padding:8px 10px;font-style:italic;">${hasAnyData(r) ? "Insufficient data" : "No data yet"}</td>
         <td style="padding:8px 10px;">—</td>
       </tr>`
     )
