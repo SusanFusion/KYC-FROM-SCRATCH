@@ -8,6 +8,9 @@ export interface AppliedPenalty {
   category: "disciplinary" | "attendance";
   deduction: number;
   count: number;
+  /** ISO date the infraction actually occurred on (as entered on the
+   *  "Record a penalty" form) -- distinct from when it was logged. */
+  occurredOn: string;
 }
 
 /**
@@ -32,6 +35,7 @@ export function calculatePenalty(
         category: def?.category ?? "disciplinary",
         deduction: (def?.deduction ?? 0) * p.count,
         count: p.count,
+        occurredOn: p.occurredOn,
       };
     });
 }
