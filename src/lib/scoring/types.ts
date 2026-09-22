@@ -102,8 +102,10 @@ export type PenaltyCode =
   | "invalid_approval"
   | "invalid_rejection"
   | "repeated_offenses"
-  | "late_under_15"
-  | "late_over_15"
+  | "late_onsite_under_15"
+  | "late_onsite_15_plus"
+  | "late_wfh_under_15"
+  | "late_wfh_15_plus"
   | "undertime"
   | "half_day"
   | "unexcused_absence"
@@ -127,6 +129,20 @@ export interface PenaltyStatus {
   variant: "default" | "warning" | "danger" | "outline";
 }
 
+/** Meters a penalty code so it's free for the first few times in a calendar
+ *  month and only deducts every Nth occurrence -- e.g. { every: 4, deduction:
+ *  0.05 } means the 1st-3rd time this code is recorded in a month are free,
+ *  the 4th deducts -0.05, the 5th-7th are free again, the 8th deducts, and
+ *  so on, resetting at the start of each calendar month. `deduction` here is
+ *  what's actually applied on a triggering occurrence -- the definition's
+ *  own top-level `deduction` is shown as the "if it triggers" amount in the
+ *  UI (see PenaltyForm), not applied directly. See calculatePenalty's
+ *  monthlyGraceShare for the actual math. */
+export interface PenaltyMonthlyGrace {
+  every: number;
+  deduction: number;
+}
+
 export interface PenaltyDefinition {
   code: PenaltyCode;
   category: PenaltyCategory;
@@ -134,6 +150,7 @@ export interface PenaltyDefinition {
   deduction: number; // positive number, subtracted from score
   example: string;
   status?: PenaltyStatus;
+  monthlyGrace?: PenaltyMonthlyGrace;
 }
 
 export interface PenaltyEntry {
