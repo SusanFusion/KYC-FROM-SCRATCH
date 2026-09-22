@@ -326,10 +326,72 @@ export const ATTENDANCE_PENALTIES: PenaltyDefinition[] = [
   },
 ];
 
+/**
+ * Employment track-record actions -- distinct from the Disciplinary/
+ * Attendance tables above in that deduction is always 0: these never touch
+ * an agent's score. They exist so an escalation path (feedback → verbal →
+ * written → final warning → suspension → dismissal) has an actual place to
+ * be logged, alongside the score-affecting infractions, instead of living
+ * only in a side conversation. `status` drives the badge shown in place of
+ * a numeric deduction wherever these are displayed (see PenaltyTable and
+ * the "Recorded this period" table in app/penalties/page.tsx).
+ */
+export const EMPLOYMENT_ACTIONS: PenaltyDefinition[] = [
+  {
+    code: "feedback",
+    category: "escalation",
+    label: "Feedback",
+    deduction: 0,
+    example: "Informal coaching conversation — no score impact, not an employment record.",
+    status: { label: "No deduction", variant: "outline" },
+  },
+  {
+    code: "verbal_warning",
+    category: "escalation",
+    label: "Verbal Warning",
+    deduction: 0,
+    example: "No penalty deduction — included in employment track record.",
+    status: { label: "Track record", variant: "default" },
+  },
+  {
+    code: "written_warning",
+    category: "escalation",
+    label: "Written Warning",
+    deduction: 0,
+    example: "No penalty deduction — included in employment track record.",
+    status: { label: "Track record", variant: "default" },
+  },
+  {
+    code: "final_warning",
+    category: "escalation",
+    label: "Final Warning",
+    deduction: 0,
+    example: "No penalty deduction — included in employment track record.",
+    status: { label: "Track record", variant: "warning" },
+  },
+  {
+    code: "suspension",
+    category: "escalation",
+    label: "Suspension",
+    deduction: 0,
+    example: "No penalty deduction — agent is at risk.",
+    status: { label: "At risk", variant: "danger" },
+  },
+  {
+    code: "dismissal",
+    category: "escalation",
+    label: "Dismissal",
+    deduction: 0,
+    example: "Employment ended.",
+    status: { label: "Dismissed", variant: "danger" },
+  },
+];
+
 export const ALL_PENALTIES: PenaltyDefinition[] = [
   ...DISCIPLINARY_PENALTIES,
   ...ATTENDANCE_PENALTIES,
+  ...EMPLOYMENT_ACTIONS,
 ];
 
 export const PENALTY_NOTE_DEDUCTION_TIMING =
-  "Deductions apply to the individual weighted score before the Business Gate multiplier is applied. Verbal Warnings (VW) and Written Warnings (WW) are disciplinary-escalation records, not score deductions.";
+  "Deductions apply to the individual weighted score before the Business Gate multiplier is applied. Feedback, Verbal Warning, Written Warning, Final Warning, Suspension, and Dismissal carry no score deduction — they're employment track-record actions instead (see the table below).";
