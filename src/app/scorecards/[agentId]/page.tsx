@@ -58,7 +58,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
     <>
       <TopHeader
         title={agent.name}
-                description={`${agent.department} · ${monthThruLabel}`}
+        description={`${agent.department} · ${monthThruLabel}`}
         actions={
           <Link href="/scorecards" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> All scorecards
@@ -156,11 +156,25 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
               ) : (
                 <ul className="space-y-2">
                   {individual.penaltiesApplied.map((p) => (
-                    <li key={p.code} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                    // key={p.id}, not p.code -- an agent can now legitimately
+                    // have more than one entry with the SAME code in one
+                    // view (e.g. several Late Onsite <15min occurrences this
+                    // month), which duplicate-keyed p.code.
+                    <li key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
                       <span className="text-foreground">
                         {p.label} {p.count > 1 && <span className="text-muted-foreground">×{p.count}</span>}
                       </span>
-                      <span className="font-medium text-danger">-{p.deduction.toFixed(2)}</span>
+                      {p.status ? (
+                        <Badge variant={p.status.variant}>{p.status.label}</Badge>
+                      ) : p.deduction === 0 ? (
+                        // A monthlyGrace-metered code (e.g. Late Onsite
+                        // <15min) can genuinely deduct nothing this time --
+                        // "-0.00" would misleadingly read as a real, if
+                        // tiny, deduction.
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <span className="font-medium text-danger">-{p.deduction.toFixed(2)}</span>
+                      )}
                     </li>
                   ))}
                 </ul>
