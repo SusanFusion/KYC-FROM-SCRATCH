@@ -5,7 +5,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { PasswordGate } from "@/components/shared/PasswordGate";
 import { PenaltyForm } from "@/components/scorecard/PenaltyForm";
-import { DeletePenaltyButton } from "@/components/scorecard/DeletePenaltyButton";
+import { PenaltyRecordsTable } from "@/components/scorecard/PenaltyRecordsTable";
 import {
   DISCIPLINARY_PENALTIES,
   ATTENDANCE_PENALTIES,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/scoring";
 import type { PenaltyDefinition } from "@/lib/scoring/types";
 import { loadPeriodDataset } from "@/lib/data/query";
-import { formatDate } from "@/lib/utils";
 
 /** columnLabel switches this between the two disciplinary/attendance tables
  *  (a plain numeric "Deduction" column, every row here) and the employment
@@ -104,44 +103,11 @@ export default async function PenaltiesPage() {
             <CardTitle>Recorded this period</CardTitle>
           </CardHeader>
           <CardContent>
-            {recorded.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No penalties recorded for {period?.label ?? "this period"}.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Infraction</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Recorded by</TableHead>
-                    <TableHead>Count</TableHead>
-                    <TableHead className="text-right">Deduction</TableHead>
-                    <TableHead className="text-right">&nbsp;</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recorded.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium text-foreground">{p.agent}</TableCell>
-                      <TableCell>{p.label}</TableCell>
-                      <TableCell className="text-muted-foreground">{formatDate(p.occurredOn)}</TableCell>
-                      <TableCell className="text-muted-foreground">{p.recordedBy}</TableCell>
-                      <TableCell>{p.count}</TableCell>
-                      <TableCell className="text-right">
-                        {p.status ? (
-                          <Badge variant={p.status.variant}>{p.status.label}</Badge>
-                        ) : (
-                          <span className="text-danger">-{p.deduction.toFixed(2)}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DeletePenaltyButton id={p.id} agentId={p.agentId} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <PenaltyRecordsTable
+              records={recorded}
+              agents={agents.map((a) => ({ id: a.id, name: a.name }))}
+              periodLabel={period?.label ?? "this period"}
+            />
           </CardContent>
         </Card>
       </PageShell>
