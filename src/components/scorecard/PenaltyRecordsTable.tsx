@@ -1,0 +1,108 @@
+"use client";
+
+import * as React from "react";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
+import { DeletePenaltyButton } from "@/components/scorecard/DeletePenaltyButton";
+import { formatDate } from "@/lib/utils";
+import type { PenaltyStatus } from "@/lib/scoring/types";
+
+export type RecordedPenaltyRow = {
+  id: string;
+  label: string;
+  deduction: number;
+  count: number;
+  occurredOn: string;
+  recordedBy: string;
+  status?: PenaltyStatus;
+  agent: string;
+  agentId: string;
+};
+
+/** Client component so the agent filter can react instantly without a
+ *  server round-trip -- every row for the period is already loaded on the
+ *  page (loadPeriodDataset already fetched it), so filtering is just a
+ *  client-side narrowing of what's already there. */
+export function PenaltyRecordsTable({
+  records,
+  agents,
+  periodLabel,
+}: {
+  records: RecordedPenaltyRow[];
+  agents: { id: string; name: string }[];
+  periodLabel: string;
+}) {
+  const [agentId, setAgentId] = React.useState("");
+
+  // Only list agents who actually have a record this period -- picking a
+  // name from the full roster only to see "no records" isn't useful.
+  const agentsWithRecords = agents.filter((a) => records.some((r) => r.agentId === a.id));
+  const filtered = agentId ? records.filter((r) => r.agentId === agentId) : records;
+
+  return (
+    <>
+      <div className="mb-3 flex items-center gap-2">
+        <label htmlFor="penalty-agent-filter" className="text-xs font-medium text-muted-foreground">
+          Filter by agent
+        </label>
+        <Select
+          id="penalty-agent-filter"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          className="w-full sm:w-56"
+        >
+          <option value="">All agents ({records.length})</option>
+          {agentsWithRecords.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name} ({records.filter((r) => r.agentId === a.id).length})
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {records.length === 0
+            ? `No penalties recorded for ${periodLabel}.`
+            : "No records for this agent this period."}
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Agent</TableHead>
+              <TableHead>Infraction</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Recorded by</TableHead>
+              <TableHead>Count</TableHead>
+              <TableHead className="text-right">Deduction</TableHead>
+              <TableHead className="text-right">&nbsp;</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((p) => (
+              <TableRow key={p.id}>
+                <TableCell className="font-medium text-foreground">{p.agent}</TableCell>
+                <TableCell>{p.label}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDate(p.occurredOn)}</TableCell>
+                <TableCell className="text-muted-foreground">{p.recordedBy}</TableCell>
+                <TableCell>{p.count}</TableCell>
+                <TableCell className="text-right">
+                  {p.status ? (
+                    <Badge variant={p.status.variant}>{p.status.label}</Badge>
+                  ) : (
+                    <span className="text-danger">-{p.deduction.toFixed(2)}</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <DeletePenaltyButton id={p.id} agentId={p.agentId} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </>
+  );
+}
