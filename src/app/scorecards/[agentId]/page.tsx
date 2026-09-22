@@ -11,18 +11,38 @@ import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { ScoreBreakdown } from "@/components/scorecard/ScoreBreakdown";
 import { CalculationDetails } from "@/components/scorecard/CalculationDetails";
-import { loadAgentPeriodResult } from "@/lib/data/query";
+import { loadAgentRangeResult, listAvailableMonths } from "@/lib/data/query";
 import { buildIndividualScaleTable } from "@/lib/scoring/display";
-import { initials } from "@/lib/utils";
+import { initials, formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
+// Scores are derived fresh from live data on every request — see
+// rankings/page.tsx for why this must never be served from a cached/stale
+// build snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function AgentScorecardPage({ params }: { params: { agentId: string } }) {
+  const months = await listAvailableMonths();
+  if (months.length === 0) notFound();
+
+  // Same month-to-date view the Individual Scorecards list now uses (see
+  // scorecards/page.tsx) -- landing here from that list previously showed a
+  // different rank/score/metrics than the list itself, because this page
+  // alone still read a single day's import via loadAgentPeriodResult.
+  const selectedMonth = months[0]!;
+  const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
   const [{ result, rank, dataset }, user] = await Promise.all([
-    loadAgentPeriodResult(params.agentId),
+    loadAgentRangeResult(params.agentId, {
+      start: selectedMonth.start,
+      end: selectedMonth.end,
+      label: monthThruLabel,
+      id: `mtd-${selectedMonth.key}`,
+      type: "month-to-date",
+    }),
     getCurrentUser(),
   ]);
 
-  if (!result || !dataset.period) notFound();
+  if (!result) notFound();
 
   const { agent, individual } = result;
   const { columns, rows } = buildIndividualScaleTable();
