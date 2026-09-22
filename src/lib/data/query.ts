@@ -336,6 +336,12 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
   // volume (from the "Agent KYC Email Ave Volume" report table, only
   // present in more recent imports; older days simply sum to 0 and
   // aggregateGate falls back to a plain mean for those).
+  
+  const ticketVolumeByDay = perDayRaw.map((dayRows) =>
+    dayRows.reduce((total, r) => total + (r.emailTicketCount ?? 0), 0)
+  );
+
+  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay, ticketVolumeByDay);
     // Penalties carry their own occurredOn date (independent of which period
   // they were logged against), so a range view re-tags every penalty whose
   // date falls in the window with this range's synthetic period id —
