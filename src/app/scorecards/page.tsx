@@ -57,7 +57,7 @@ export default async function ScorecardsPage() {
   // month, had it.
   const selectedMonth = months[0]!;
   const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
-  const [{ period, ranked }, user] = await Promise.all([
+    const [{ ranked }, user] = await Promise.all([
     loadRangeDataset({
       start: selectedMonth.start,
       end: selectedMonth.end,
@@ -76,7 +76,7 @@ export default async function ScorecardsPage() {
     <>
       <TopHeader
         title="Individual Scorecards"
-        description={`${ranked.length} agents · ${period.label}`}
+        description={`${ranked.length} agents · ${monthThruLabel}`}
         actions={<AgentSearch agents={ranked.map((r) => ({ id: r.agent.id, name: r.agent.name }))} />}
       />
       <PageShell>
