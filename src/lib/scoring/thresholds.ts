@@ -282,17 +282,33 @@ export const DISCIPLINARY_PENALTIES: PenaltyDefinition[] = [
 
 /** Attendance Penalty. */
 export const ATTENDANCE_PENALTIES: PenaltyDefinition[] = [
-  {
-    code: "late_under_15",
+    {
+    code: "late_onsite_under_15",
     category: "attendance",
-    label: "Late/Overbreak (less than 15 minutes)",
+    label: "Late Onsite (less than 15 minutes)",
+    deduction: 0.05,
+    example:
+      "Free for the first 3 times in a calendar month. Every 4th time that month (the 4th, 8th, 12th, …) deducts -0.05; the ones in between stay free. Resets at the start of each month.",
+    monthlyGrace: { every: 4, deduction: 0.05 },
+  },
+  {
+    code: "late_onsite_15_plus",
+    category: "attendance",
+    label: "Late Onsite (15 minutes or more)",
+    deduction: 0.1,
+    example: "—",
+  },
+  {
+    code: "late_wfh_under_15",
+    category: "attendance",
+    label: "Late WFH (less than 15 minutes)",
     deduction: 0.05,
     example: "—",
   },
   {
-    code: "late_over_15",
+    code: "late_wfh_15_plus",
     category: "attendance",
-    label: "Late/Overbreak (15 minutes or more)",
+    label: "Late WFH (15 minutes or more)",
     deduction: 0.1,
     example: "—",
   },
