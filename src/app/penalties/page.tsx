@@ -14,6 +14,8 @@ import {
 } from "@/lib/scoring";
 import type { PenaltyDefinition } from "@/lib/scoring/types";
 import { loadPeriodDataset } from "@/lib/data/query";
+import { getRepository } from "@/lib/data/repository";
+import { calculateAllPenalties } from "@/lib/scoring/penalties";
 
 /** columnLabel switches this between the two disciplinary/attendance tables
  *  (a plain numeric "Deduction" column, every row here) and the employment
@@ -56,10 +58,19 @@ function PenaltyTable({ title, rows, columnLabel = "Deduction" }: { title: strin
 }
 
 export default async function PenaltiesPage() {
-  const { period, agents, results } = await loadPeriodDataset();
+  const { period, agents } = await loadPeriodDataset();
 
-  const recorded = results
-    .flatMap((r) => r.individual.penaltiesApplied.map((p) => ({ ...p, agent: r.agent.name, agentId: r.agent.id })))
+  // Every penalty ever recorded, for every agent -- NOT scoped to
+  // `period.id`. This list is meant to be a durable running log of
+  // everything anyone has recorded, and used to only look that way by
+  // coincidence: every entry happened to share whatever period was
+  // "current" at the time it was typed in, until a new daily import rolled
+  // "current" forward and the whole list silently went to zero. See
+  // calculateAllPenalties in penalties.ts.
+  const repo = await getRepository();
+  const allPenalties = await repo.getPenalties();
+  const recorded = agents
+    .flatMap((a) => calculateAllPenalties(a.id, allPenalties).map((p) => ({ ...p, agent: a.name, agentId: a.id })))
     .filter((p) => p.count > 0);
 
   return (
