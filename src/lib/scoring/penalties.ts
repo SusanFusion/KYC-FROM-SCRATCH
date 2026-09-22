@@ -41,11 +41,11 @@ function chronological(entries: PenaltyEntry[]): PenaltyEntry[] {
  * not just what's in view for the period/range currently being rendered —
  * otherwise an agent's real 4th time this month could read as their "1st"
  * simply because the page happens to only show a single day or one week.
- * See calculatePenalty below for where that full history comes from, and
- * count as the running total -- a single entry recorded with count > 1
- * (several occurrences logged at once) is handled correctly too, since a
- * telescoping floor-division still lands the deduction on whichever
- * occurrence position(s) inside that entry cross a multiple of `every`.
+ * See resolveEntry below for where that full history comes from, and count
+ * as the running total -- a single entry recorded with count > 1 (several
+ * occurrences logged at once) is handled correctly too, since a telescoping
+ * floor-division still lands the deduction on whichever occurrence
+ * position(s) inside that entry cross a multiple of `every`.
  */
 function monthlyGraceShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[], grace: PenaltyMonthlyGrace): number {
   const month = entry.occurredOn.slice(0, 7); // YYYY-MM
@@ -63,12 +63,34 @@ function monthlyGraceShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[
   return 0; // unreachable -- entry is always a member of sameCodeThisAgent
 }
 
+/** Resolves one penalty entry against the Disciplinary + Attendance Penalty
+ *  tables and works out its deduction (per-occurrence deduction × count, or
+ *  the monthly-grace share for a metered code like Late Onsite <15min -- see
+ *  monthlyGraceShare). Shared by calculatePenalty (period/range-scoped) and
+ *  calculateAllPenalties (every entry, no period scoping) below -- both need
+ *  the exact same per-entry math, just over a different slice of entries. */
+function resolveEntry(p: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[]): AppliedPenalty {
+  const def = ALL_PENALTIES.find((d) => d.code === p.code);
+  const deduction = def?.monthlyGrace
+    ? monthlyGraceShare(p, sameCodeThisAgent, def.monthlyGrace)
+    : (def?.deduction ?? 0) * p.count;
+  return {
+    id: p.id,
+    code: p.code,
+    label: def?.label ?? p.code,
+    category: def?.category ?? "disciplinary",
+    deduction,
+    count: p.count,
+    occurredOn: p.occurredOn,
+    recordedBy: p.recordedBy,
+    status: def?.status,
+  };
+}
+
 /**
  * Resolves the penalty entries recorded for one agent/period against the
  * Disciplinary + Attendance Penalty tables and returns each with its total
- * deduction (per-occurrence deduction × count, or the monthly-grace share
- * for a metered code like Late Onsite <15min -- see monthlyGraceShare). No
- * cap is applied — see notes.ts "penalty-floor".
+ * deduction. No cap is applied — see notes.ts "penalty-floor".
  *
  * `penalties` must be the agent's FULL penalty history, not just this
  * period/range's -- entries outside `periodId` are filtered out of the
@@ -87,23 +109,23 @@ export function calculatePenalty(
 
   return agentPenalties
     .filter((p) => p.periodId === periodId)
-    .map((p) => {
-      const def = ALL_PENALTIES.find((d) => d.code === p.code);
-      const deduction = def?.monthlyGrace
-        ? monthlyGraceShare(p, agentPenalties.filter((e) => e.code === p.code), def.monthlyGrace)
-        : (def?.deduction ?? 0) * p.count;
-      return {
-        id: p.id,
-        code: p.code,
-        label: def?.label ?? p.code,
-        category: def?.category ?? "disciplinary",
-        deduction,
-        count: p.count,
-        occurredOn: p.occurredOn,
-        recordedBy: p.recordedBy,
-        status: def?.status,
-      };
-    });
+    .map((p) => resolveEntry(p, agentPenalties.filter((e) => e.code === p.code)));
+}
+
+/**
+ * Every penalty entry ever recorded for one agent, regardless of which
+ * period it's tagged with -- used by the Penalties admin page's "Recorded
+ * this period" log (see penalties/page.tsx), which is meant to be a durable
+ * running record of everything anyone has logged, not scoped to whichever
+ * daily import happens to be "current" today. (calculatePenalty above IS
+ * meant to be period/range-scoped -- that's what actually feeds an agent's
+ * score on Scorecards/Rankings/Team Performance -- so it stays as-is.)
+ * Deductions, including monthlyGrace shares, are computed exactly the same
+ * way as calculatePenalty.
+ */
+export function calculateAllPenalties(agentId: string, penalties: PenaltyEntry[]): AppliedPenalty[] {
+  const agentPenalties = penalties.filter((p) => p.agentId === agentId);
+  return agentPenalties.map((p) => resolveEntry(p, agentPenalties.filter((e) => e.code === p.code)));
 }
 
 export function totalPenaltyDeduction(applied: AppliedPenalty[]): number {
