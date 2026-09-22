@@ -1,16 +1,21 @@
 import { ALL_PENALTIES } from "./thresholds";
-import type { PenaltyEntry } from "./types";
+import type { PenaltyEntry, PenaltyCategory, PenaltyStatus } from "./types";
 
 export interface AppliedPenalty {
   id: string;
   code: PenaltyEntry["code"];
   label: string;
-  category: "disciplinary" | "attendance";
+  category: PenaltyCategory;
   deduction: number;
   count: number;
   /** ISO date the infraction actually occurred on (as entered on the
    *  "Record a penalty" form) -- distinct from when it was logged. */
   occurredOn: string;
+  /** Who recorded this entry -- see PenaltyEntry.recordedBy. */
+  recordedBy: string;
+  /** Present only for employment track-record actions (deduction is always
+   *  0 for these) -- see EMPLOYMENT_ACTIONS in thresholds.ts. */
+  status?: PenaltyStatus;
 }
 
 /**
@@ -36,6 +41,8 @@ export function calculatePenalty(
         deduction: (def?.deduction ?? 0) * p.count,
         count: p.count,
         occurredOn: p.occurredOn,
+        recordedBy: p.recordedBy,
+        status: def?.status,
       };
     });
 }
