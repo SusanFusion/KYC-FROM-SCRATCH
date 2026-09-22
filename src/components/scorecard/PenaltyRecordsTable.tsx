@@ -91,6 +91,13 @@ export function PenaltyRecordsTable({
                 <TableCell className="text-right">
                   {p.status ? (
                     <Badge variant={p.status.variant}>{p.status.label}</Badge>
+                  ) : p.deduction === 0 ? (
+                    // A monthlyGrace-metered code (e.g. Late Onsite <15min)
+                    // can genuinely deduct nothing THIS time -- "-0.00" in
+                    // red would misleadingly read as a real, if tiny,
+                    // deduction, so a free occurrence shows a plain dash
+                    // instead, same treatment as the status badge above.
+                    <span className="text-muted-foreground">—</span>
                   ) : (
                     <span className="text-danger">-{p.deduction.toFixed(2)}</span>
                   )}
