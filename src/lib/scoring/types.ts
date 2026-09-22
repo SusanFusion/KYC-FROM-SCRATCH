@@ -165,7 +165,7 @@ export interface IndividualScoreResult {
   baseScore: number; // weightedSubtotal renormalized to the full 0-3 scale
   maxScore: number; // always 3
   penaltyTotal: number;
-  penaltiesApplied: {id: string; code: PenaltyCode; label: string; deduction: number; count: number }[];
+  penaltiesApplied: {id: string; code: PenaltyCode; label: string; deduction: number; count: number; occurredOn: string }[];
   finalScore: number; // baseScore - penaltyTotal, floored at 0
 }
 
