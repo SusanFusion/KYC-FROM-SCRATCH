@@ -58,7 +58,7 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
     <>
       <TopHeader
         title={agent.name}
-        description={`${agent.department} · ${dataset.period.label}`}
+                description={`${agent.department} · ${monthThruLabel}`}
         actions={
           <Link href="/scorecards" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> All scorecards
