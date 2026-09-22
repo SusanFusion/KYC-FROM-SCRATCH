@@ -82,7 +82,10 @@ export function PenaltyForm({
           </option>
           {ALL_PENALTIES.map((p) => (
             <option key={p.code} value={p.code}>
-              {p.label} (-{p.deduction.toFixed(2)})
+              {/* Employment track-record actions (status set, deduction
+                  always 0) show their status instead of "(-0.00)", which
+                  would misleadingly read as a real, if tiny, deduction. */}
+              {p.label} {p.status ? `(${p.status.label})` : `(-${p.deduction.toFixed(2)})`}
             </option>
           ))}
         </Select>
@@ -97,19 +100,24 @@ export function PenaltyForm({
         <Input name="count" type="text" inputMode="numeric" pattern="[0-9]*" defaultValue={1} placeholder="1" />
       </div>
 
-      {/* Row 2: date directly under Agent, note filling the rest of the
-          row. */}
-      <div className="lg:col-span-2">
+      {/* Row 2: date and who's recording this, each half the row. */}
+      <div className="lg:col-span-3">
         <FieldLabel>Date</FieldLabel>
         <Input name="occurredOn" type="date" defaultValue={getLocalTodayIso()} />
       </div>
 
-      <div className="lg:col-span-4">
+      <div className="lg:col-span-3">
+        <FieldLabel>Recorded by</FieldLabel>
+        <Input name="recordedBy" required placeholder="Your name" autoComplete="name" />
+      </div>
+
+      {/* Row 3: note, full width. */}
+      <div className="lg:col-span-6">
         <FieldLabel>Note (optional)</FieldLabel>
         <Input name="note" placeholder="Add any context…" />
       </div>
 
-      {/* Row 3: submit, on its own row, right-aligned, with a little extra
+      {/* Row 4: submit, on its own row, right-aligned, with a little extra
           top padding so it doesn't feel glued to the row above. */}
       <div className="flex items-center gap-2 lg:col-span-6 lg:justify-end lg:pt-1">
         <SubmitButton />
