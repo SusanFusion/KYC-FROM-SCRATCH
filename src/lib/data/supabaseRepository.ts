@@ -97,6 +97,9 @@ export class SupabaseRepository implements DataRepository {
       count: row.count as number,
       note: (row.note as string) ?? undefined,
       occurredOn: row.occurred_on as string,
+      // Rows recorded before this column existed read back null -- "Unknown"
+      // rather than a blank cell, so old records aren't mistaken for a bug.
+      recordedBy: (row.recorded_by as string | null) ?? "Unknown",
     }));
   }
 
@@ -110,6 +113,7 @@ export class SupabaseRepository implements DataRepository {
         count: entry.count,
         note: entry.note ?? null,
         occurred_on: entry.occurredOn,
+        recorded_by: entry.recordedBy,
       })
       .select()
       .single();
@@ -122,6 +126,7 @@ export class SupabaseRepository implements DataRepository {
       count: data.count,
       note: data.note ?? undefined,
       occurredOn: data.occurred_on,
+      recordedBy: data.recorded_by ?? "Unknown",
     };
   }
 
