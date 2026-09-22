@@ -107,9 +107,25 @@ export type PenaltyCode =
   | "undertime"
   | "half_day"
   | "unexcused_absence"
-  | "absence_with_documentation";
+  | "absence_with_documentation"
+  // Employment track-record actions -- no score deduction (see
+  // EMPLOYMENT_ACTIONS in thresholds.ts), logged for HR/escalation history.
+  | "feedback"
+  | "verbal_warning"
+  | "written_warning"
+  | "final_warning"
+  | "suspension"
+  | "dismissal";
 
-export type PenaltyCategory = "disciplinary" | "attendance";
+export type PenaltyCategory = "disciplinary" | "attendance" | "escalation";
+
+/** Badge shown in place of a numeric deduction for escalation-only actions
+ *  (deduction is always 0 for these) -- see EMPLOYMENT_ACTIONS. Absent on
+ *  disciplinary/attendance entries, which keep the plain deduction badge. */
+export interface PenaltyStatus {
+  label: string;
+  variant: "default" | "warning" | "danger" | "outline";
+}
 
 export interface PenaltyDefinition {
   code: PenaltyCode;
@@ -117,6 +133,7 @@ export interface PenaltyDefinition {
   label: string;
   deduction: number; // positive number, subtracted from score
   example: string;
+  status?: PenaltyStatus;
 }
 
 export interface PenaltyEntry {
@@ -127,6 +144,10 @@ export interface PenaltyEntry {
   count: number;
   note?: string;
   occurredOn: string; // ISO date
+  /** Who recorded this entry (free text, typed on the "Record a penalty"
+   *  form) -- there's no per-user login in this app (see actionAccess.ts),
+   *  just a shared password, so this is the only record of who logged it. */
+  recordedBy: string;
 }
 
 export interface BonusBracket {
@@ -165,7 +186,16 @@ export interface IndividualScoreResult {
   baseScore: number; // weightedSubtotal renormalized to the full 0-3 scale
   maxScore: number; // always 3
   penaltyTotal: number;
-  penaltiesApplied: {id: string; code: PenaltyCode; label: string; deduction: number; count: number; occurredOn: string }[];
+  penaltiesApplied: {
+    id: string;
+    code: PenaltyCode;
+    label: string;
+    deduction: number;
+    count: number;
+    occurredOn: string;
+    recordedBy: string;
+    status?: PenaltyStatus;
+  }[];
   finalScore: number; // baseScore - penaltyTotal, floored at 0
 }
 
