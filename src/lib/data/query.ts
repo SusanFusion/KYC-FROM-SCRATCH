@@ -124,10 +124,16 @@ export async function loadPeriodDataset(periodId?: string): Promise<PeriodDatase
     return { period: null, periods, teams, agents, gate: null, results: [], ranked: [], tieForTop: false };
   }
 
+    // Every penalty ever recorded, not just this period's -- a monthlyGrace
+  // -metered code (e.g. Late Onsite <15min, see thresholds.ts) needs to see
+  // an agent's whole calendar month to know whether THIS entry is their
+  // free 1st-3rd time or a deducting 4th/8th/12th, and this period alone
+  // can't tell it that. calculatePenalty still only returns entries whose
+  // periodId matches this one -- see its own comment.
   const [rawMetrics, gate, penalties] = await Promise.all([
     repo.getRawMetrics(period.id),
     repo.getGateMetrics(period.id),
-    repo.getPenalties(period.id),
+    repo.getPenalties(),
   ]);
 
   const gateInput: RawGateMetrics =
@@ -330,15 +336,22 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
   // volume (from the "Agent KYC Email Ave Volume" report table, only
   // present in more recent imports; older days simply sum to 0 and
   // aggregateGate falls back to a plain mean for those).
-  const ticketVolumeByDay = perDayRaw.map((dayRows) =>
-    dayRows.reduce((total, r) => total + (r.emailTicketCount ?? 0), 0)
+    // Penalties carry their own occurredOn date (independent of which period
+  // they were logged against), so a range view re-tags every penalty whose
+  // date falls in the window with this range's synthetic period id —
+  // calculatePenalty() matches strictly on periodId, so without this remap
+  // a week/month's penalties (logged against their own daily period ids)
+  // would silently fail to apply at all. Entries OUTSIDE the window are
+  // deliberately kept in the array (with their original periodId, so they
+  // still won't show up in this range's results) rather than dropped —
+  // calculatePenalty needs an agent's FULL history for a monthlyGrace
+  // -metered code (e.g. Late Onsite <15min, see thresholds.ts) to know
+  // whether an entry near a week's edge is really their 4th/8th/12th time
+  // that whole calendar month, which a week-long (or even a partial-month)
+  // window alone can't tell it.
+  const penalties = allPenalties.map((p) =>
+    p.occurredOn >= spec.start && p.occurredOn <= spec.end ? { ...p, periodId: spec.id } : p
   );
-
-  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay, ticketVolumeByDay);
-
-  // Penalties carry their own occurredOn date (independent of which period
-  // they were logged against), so a range view collects every penalty whose
-  // date falls in the window and re-tags it with this range's synthetic
   // period id — calculatePenalty() matches strictly on periodId, so without
   // this remap a week/month's penalties (logged against their own daily
   // period ids) would silently fail to apply at all.
