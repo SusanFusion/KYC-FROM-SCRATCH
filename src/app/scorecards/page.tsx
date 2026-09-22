@@ -5,11 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AgentSearch } from "@/components/scorecard/AgentSearch";
-import { loadPeriodDataset } from "@/lib/data/query";
+import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import type { IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
+
+// Scores are derived fresh from live data on every request — see
+// rankings/page.tsx for why this must never be served from a cached/stale
+// build snapshot.
+export const dynamic = "force-dynamic";
 
 // Overall-score highlight threshold — deliberately independent of the
 // per-metric grade bands (3/2/1/0): this is a single pass/fail line across
@@ -30,9 +35,9 @@ const ROW_TONE = {
 };
 
 export default async function ScorecardsPage() {
-  const [{ period, ranked }, user] = await Promise.all([loadPeriodDataset(), getCurrentUser()]);
+  const months = await listAvailableMonths();
 
-  if (!period) {
+  if (months.length === 0) {
     return (
       <>
         <TopHeader title="Individual Scorecards" description="Per-agent performance breakdown" />
@@ -42,6 +47,26 @@ export default async function ScorecardsPage() {
       </>
     );
   }
+
+  // Month-to-date rather than a single imported day — same reason Rankings
+  // moved to loadRangeDataset (see rankings/page.tsx): a single day's import
+  // can legitimately be missing a field most of the roster only has from a
+  // different day's import (e.g. chat metrics land from a separate import
+  // step than the main KYC report), which used to make most of the roster
+  // read as "No data" here even though Rankings, aggregating the same
+  // month, had it.
+  const selectedMonth = months[0]!;
+  const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
+  const [{ period, ranked }, user] = await Promise.all([
+    loadRangeDataset({
+      start: selectedMonth.start,
+      end: selectedMonth.end,
+      label: monthThruLabel,
+      id: `mtd-${selectedMonth.key}`,
+      type: "month-to-date",
+    }),
+    getCurrentUser(),
+  ]);
 
   // Alphabetical by name rather than by rank — this page is a roster to
   // look someone up in, not a leaderboard (that's what Rankings is for).
