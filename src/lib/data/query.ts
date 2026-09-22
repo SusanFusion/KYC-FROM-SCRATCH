@@ -349,15 +349,26 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
   // whether an entry near a week's edge is really their 4th/8th/12th time
   // that whole calendar month, which a week-long (or even a partial-month)
   // window alone can't tell it.
+  //
+  // For a month-to-date range specifically, the window's own `end` is
+  // capped at the latest day actually IMPORTED this month (see
+  // listAvailableMonths -- deliberately, since metrics can't exist for a
+  // day nothing's been imported for yet). Penalties aren't tied to imports
+  // though -- you can log one for any date, including a day later in the
+  // month that hasn't been imported yet -- so capping penalty inclusion at
+  // that same import cutoff was silently dropping an otherwise-valid entry
+  // from every MTD-based view (Scorecards, Rankings) even though it's
+  // sitting right there on the Penalties page. A month-to-date range
+  // therefore includes every penalty in the same calendar month as
+  // spec.start, regardless of spec.end; a week range keeps the exact
+  // [start, end] bound as before.
+  const inPenaltyWindow = (occurredOn: string) =>
+    spec.type === "month-to-date"
+      ? occurredOn.slice(0, 7) === spec.start.slice(0, 7)
+      : occurredOn >= spec.start && occurredOn <= spec.end;
   const penalties = allPenalties.map((p) =>
-    p.occurredOn >= spec.start && p.occurredOn <= spec.end ? { ...p, periodId: spec.id } : p
+    inPenaltyWindow(p.occurredOn) ? { ...p, periodId: spec.id } : p
   );
-  // period id — calculatePenalty() matches strictly on periodId, so without
-  // this remap a week/month's penalties (logged against their own daily
-  // period ids) would silently fail to apply at all.
-  const penalties = allPenalties
-    .filter((p) => p.occurredOn >= spec.start && p.occurredOn <= spec.end)
-    .map((p) => ({ ...p, periodId: spec.id }));
 
   const { results, ranked, tieForTop } = computeResults(agents, rawMetrics, gateInput, penalties);
 
