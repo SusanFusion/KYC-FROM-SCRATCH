@@ -153,7 +153,21 @@ export async function loadAgentPeriodResult(agentId: string, periodId?: string):
   const idx = dataset.ranked.findIndex((r) => r.agent.id === agentId);
   return { dataset, result: idx >= 0 ? dataset.ranked[idx]! : null, rank: idx >= 0 ? idx + 1 : null };
 }
-
+/** Same shape as loadAgentPeriodResult, but reads a single agent's result out
+ *  of an aggregated loadRangeDataset (week/MTD) instead of a single day —
+ *  see scorecards/[agentId]/page.tsx, which moved to month-to-date for the
+ *  exact reason Rankings did (see loadRangeDataset's own comment): a single
+ *  day's import can legitimately be missing a field most of the roster only
+ *  has from a different day's import. */
+export async function loadAgentRangeResult(agentId: string, spec: RangeSpec): Promise<{
+  dataset: PeriodDataset;
+  result: AgentPeriodResult | null;
+  rank: number | null;
+}> {
+  const dataset = await loadRangeDataset(spec);
+  const idx = dataset.ranked.findIndex((r) => r.agent.id === agentId);
+  return { dataset, result: idx >= 0 ? dataset.ranked[idx]! : null, rank: idx >= 0 ? idx + 1 : null };
+}
 // ─────────────────────────────────────────────────────────────────────────
 // Weekly / month-to-date aggregation
 //
