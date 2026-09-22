@@ -84,8 +84,17 @@ export function PenaltyForm({
             <option key={p.code} value={p.code}>
               {/* Employment track-record actions (status set, deduction
                   always 0) show their status instead of "(-0.00)", which
-                  would misleadingly read as a real, if tiny, deduction. */}
-              {p.label} {p.status ? `(${p.status.label})` : `(-${p.deduction.toFixed(2)})`}
+                  would misleadingly read as a real, if tiny, deduction. A
+                  monthlyGrace code (e.g. Late Onsite <15min) isn't a flat
+                  deduction either -- it's free most of the time -- so its
+                  hint spells out the actual rule instead of implying every
+                  recorded instance deducts. */}
+              {p.label}{" "}
+              {p.status
+                ? `(${p.status.label})`
+                : p.monthlyGrace
+                  ? `(free ×${p.monthlyGrace.every - 1}/mo, then -${p.deduction.toFixed(2)} every ${p.monthlyGrace.every}th)`
+                  : `(-${p.deduction.toFixed(2)})`}
             </option>
           ))}
         </Select>
