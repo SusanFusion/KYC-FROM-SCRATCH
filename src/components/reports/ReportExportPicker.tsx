@@ -43,10 +43,16 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               ))}
             </Select>
           </div>
-          <div className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
-            <Badge variant="outline">Coming soon</Badge>
-            <span className="text-xs text-muted-foreground">Trend charts, streaks, and alerts are still being built.</span>
-          </div>
+                    
+            href={mtdMonth ? `/api/reports/export?type=mtd&month=${encodeURIComponent(mtdMonth)}` : undefined}
+            download
+            aria-disabled={!mtdMonth}
+            className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors ${
+              mtdMonth ? "bg-primary-600 hover:bg-primary-700" : "pointer-events-none bg-muted text-muted-foreground"
+            }`}
+          >
+            <Download className="h-4 w-4" /> Export MTD →
+          </a>
         </CardContent>
       </Card>
 
