@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AgentSearch } from "@/components/scorecard/AgentSearch";
+import { gradeTone } from "@/components/dashboard/PerformanceBadge";
 import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import type { IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
+import type { Grade, IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
 import { cn, formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
 
@@ -23,6 +24,20 @@ const SCORE_PASS_THRESHOLD = 2.5;
 
 function metricValue(metrics: MetricScoreBreakdown[], key: IndividualMetricKey) {
   return metrics.find((m) => m.key === key)?.actualDisplay ?? "—";
+}
+
+// The 0-3 grade a metric earned against its scoring scale (thresholds.ts
+// bands) -- same value that drives that metric's color everywhere else,
+// shown here as its own "Point" column right next to the raw value.
+function metricPoint(metrics: MetricScoreBreakdown[], key: IndividualMetricKey): Grade | null {
+  return metrics.find((m) => m.key === key)?.grade ?? null;
+}
+
+// Compact companion cell for a "Point" column -- just the digit, colored by
+// the same gradeTone every other grade indicator in the app uses.
+function pointCell(point: Grade | null) {
+  if (point === null) return <span className="text-muted-foreground">—</span>;
+  return <Badge variant={gradeTone(point) as "primary" | "success" | "warning" | "danger"}>{point}</Badge>;
 }
 
 // Same light-tint formula as Team Performance's "emphasized" metric tiles
@@ -57,7 +72,7 @@ export default async function ScorecardsPage() {
   // month, had it.
   const selectedMonth = months[0]!;
   const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
-    const [{ ranked }, user] = await Promise.all([
+  const [{ ranked }, user] = await Promise.all([
     loadRangeDataset({
       start: selectedMonth.start,
       end: selectedMonth.end,
@@ -82,81 +97,97 @@ export default async function ScorecardsPage() {
       <PageShell>
         <Card>
           <CardContent className="p-5">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>App AHT</TableHead>
-                  <TableHead>Email AHT</TableHead>
-                  <TableHead>Chat Response</TableHead>
-                  <TableHead>First Response</TableHead>
-                  <TableHead>CSAT</TableHead>
-                  <TableHead>QA Audit</TableHead>
-                  <TableHead className="text-right">Penalty</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {agentsAlphabetical.map((r) => {
-                  // Same rule as the individual Scorecard page: an agent sees
-                  // their own QA Audit result; Leads/Managers see everyone's.
-                  const canSeeQaAudit = !user || user.role === "lead" || user.agentId === r.agent.id;
-                  const passing = r.individual.finalScore >= SCORE_PASS_THRESHOLD;
-                  // True only when NOT ONE metric has data yet this period —
-                  // distinct from hasIncompleteData, which can also mean
-                  // just one metric (e.g. QA Audit) is still missing. Shown
-                  // as a plain "No data yet" pill instead of a 0.00 score,
-                  // which would otherwise misrepresent an unimported agent
-                  // as having failed.
-                  const noDataYet = r.individual.effectiveWeight === 0;
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent</TableHead>
+                    <TableHead>App AHT</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead>Email AHT</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead>Chat Response</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead>First Response</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead>CSAT</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead>QA Audit</TableHead>
+                    <TableHead>Point</TableHead>
+                    <TableHead className="text-right">Penalty</TableHead>
+                    <TableHead className="text-right">Score</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {agentsAlphabetical.map((r) => {
+                    // Same rule as the individual Scorecard page: an agent sees
+                    // their own QA Audit result; Leads/Managers see everyone's.
+                    const canSeeQaAudit = !user || user.role === "lead" || user.agentId === r.agent.id;
+                    const passing = r.individual.finalScore >= SCORE_PASS_THRESHOLD;
+                    // True only when NOT ONE metric has data yet this period —
+                    // distinct from hasIncompleteData, which can also mean
+                    // just one metric (e.g. QA Audit) is still missing. Shown
+                    // as a plain "No data yet" pill instead of a 0.00 score,
+                    // which would otherwise misrepresent an unimported agent
+                    // as having failed.
+                    const noDataYet = r.individual.effectiveWeight === 0;
 
-                  return (
-                    <TableRow key={r.agent.id} className={noDataYet ? ROW_TONE.noData : passing ? ROW_TONE.pass : ROW_TONE.fail}>
-                      <TableCell>
-                        <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
-                          {r.agent.name}
-                        </Link>
-                        {r.individual.hasIncompleteData && (
-                          <Badge variant="outline" className="ml-2">
-                            Incomplete
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "appAHT")}</TableCell>
-                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "emailAHT")}</TableCell>
-                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatAvgResponse")}</TableCell>
-                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatFRT")}</TableCell>
-                      <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "csatDsat")}</TableCell>
-                      <TableCell
-                        className="text-muted-foreground"
-                        title={canSeeQaAudit ? undefined : "Visible to this agent and Leads/Managers only"}
-                      >
-                        {canSeeQaAudit ? metricValue(r.individual.metrics, "qaAudit") : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {r.individual.penaltyTotal > 0 ? (
-                          <span className="font-medium text-danger">-{r.individual.penaltyTotal.toFixed(2)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {noDataYet ? (
-                          // Plain text here, not a pill — the row itself is
-                          // already tinted (ROW_TONE.noData), so a second
-                          // background on top of that would just look muddy.
-                          <span className="text-xs font-medium text-muted-foreground">No data yet</span>
-                        ) : (
-                          <span className={cn("text-sm font-semibold", passing ? "text-success" : "text-danger")}>
-                            {r.individual.finalScore.toFixed(2)}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    return (
+                      <TableRow key={r.agent.id} className={noDataYet ? ROW_TONE.noData : passing ? ROW_TONE.pass : ROW_TONE.fail}>
+                        <TableCell>
+                          <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
+                            {r.agent.name}
+                          </Link>
+                          {r.individual.hasIncompleteData && (
+                            <Badge variant="outline" className="ml-2">
+                              Incomplete
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "appAHT")}</TableCell>
+                        <TableCell>{pointCell(metricPoint(r.individual.metrics, "appAHT"))}</TableCell>
+                        <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "emailAHT")}</TableCell>
+                        <TableCell>{pointCell(metricPoint(r.individual.metrics, "emailAHT"))}</TableCell>
+                        <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatAvgResponse")}</TableCell>
+                        <TableCell>{pointCell(metricPoint(r.individual.metrics, "chatAvgResponse"))}</TableCell>
+                        <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "chatFRT")}</TableCell>
+                        <TableCell>{pointCell(metricPoint(r.individual.metrics, "chatFRT"))}</TableCell>
+                        <TableCell className="text-muted-foreground">{metricValue(r.individual.metrics, "csatDsat")}</TableCell>
+                        <TableCell>{pointCell(metricPoint(r.individual.metrics, "csatDsat"))}</TableCell>
+                        <TableCell
+                          className="text-muted-foreground"
+                          title={canSeeQaAudit ? undefined : "Visible to this agent and Leads/Managers only"}
+                        >
+                          {canSeeQaAudit ? metricValue(r.individual.metrics, "qaAudit") : "—"}
+                        </TableCell>
+                        <TableCell title={canSeeQaAudit ? undefined : "Visible to this agent and Leads/Managers only"}>
+                          {canSeeQaAudit ? pointCell(metricPoint(r.individual.metrics, "qaAudit")) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.individual.penaltyTotal > 0 ? (
+                            <span className="font-medium text-danger">-{r.individual.penaltyTotal.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {noDataYet ? (
+                            // Plain text here, not a pill — the row itself is
+                            // already tinted (ROW_TONE.noData), so a second
+                            // background on top of that would just look muddy.
+                            <span className="text-xs font-medium text-muted-foreground">No data yet</span>
+                          ) : (
+                            <span className={cn("text-sm font-semibold", passing ? "text-success" : "text-danger")}>
+                              {r.individual.finalScore.toFixed(2)}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </PageShell>
