@@ -95,7 +95,7 @@ export default async function DashboardPage() {
           <KpiCard
             label="Agents On Target"
             value={`${onTarget} / ${results.length}`}
-            sublabel="Final score ≥ 2.40"
+            sublabel="Final score ≥ 2.80"
             icon={Users}
             tone={results.length > 0 && onTarget === results.length ? "success" : "primary"}
           />
