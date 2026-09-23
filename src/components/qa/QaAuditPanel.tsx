@@ -390,6 +390,7 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
   const [audits, setAudits] = React.useState<QaAuditRecord[] | null>(null);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [publishingId, setPublishingId] = React.useState<string | null>(null);
+  const [unpublishingId, setUnpublishingId] = React.useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<QaAuditRecord | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
@@ -423,6 +424,38 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
       showToast(err instanceof Error ? err.message : "Unexpected error.", "error");
     } finally {
       setPublishingId(null);
+    }
+  }
+
+  // The inverse of publish: sets the audit back to "submitted" (kept, just
+  // no longer counted) and recomputes the scorecard the exact same way
+  // Delete does (see refreshQaAuditPct.ts) -- re-blend whatever else is
+  // still published, fall back to the last Manual Entry/PDF import value if
+  // nothing else is, or clear to null if there's genuinely nothing. This is
+  // the action that actually changes the scorecard number; Delete (below)
+  // does the same recompute and additionally removes the record.
+  async function unpublish(audit: QaAuditRecord) {
+    setUnpublishingId(audit.id);
+    try {
+      const res = await fetch(`/api/qa-audits/${audit.id}/unpublish`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error ?? "Failed to unpublish.", "error");
+        return;
+      }
+      if (data.blendedFrom > 0) {
+        showToast(`Unpublished — scorecard's QA Audit % recalculated to ${data.qaAuditPct}% from ${data.blendedFrom} remaining published audit${data.blendedFrom === 1 ? "" : "s"}.`, "success");
+      } else if (data.restoredFromImport) {
+        showToast(`Unpublished — no published audits remain, so the scorecard's QA Audit % reverted to the last Manual Entry/Import value: ${data.qaAuditPct}%.`, "success");
+      } else {
+        showToast("Unpublished — no published audits remain for that agent/period, and no earlier Manual Entry/Import value was found, so the scorecard's QA Audit % was cleared.", "success");
+      }
+      await load();
+      router.refresh();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Unexpected error.", "error");
+    } finally {
+      setUnpublishingId(null);
     }
   }
 
@@ -503,6 +536,17 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
                 <Button size="sm" onClick={() => publish(audit)} disabled={publishingId === audit.id}>
                   {publishingId === audit.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : audit.status === "published" ? "Re-publish" : "Publish"}
                 </Button>
+                {audit.status === "published" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => unpublish(audit)}
+                    disabled={unpublishingId === audit.id}
+                    title="Pull this audit's score off the scorecard without deleting the record"
+                  >
+                    {unpublishingId === audit.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Unpublish"}
+                  </Button>
+                )}
                 <button
                   type="button"
                   onClick={() => setPendingDelete(audit)}
