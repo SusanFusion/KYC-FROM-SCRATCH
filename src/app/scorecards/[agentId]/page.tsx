@@ -11,7 +11,9 @@ import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { ScoreBreakdown } from "@/components/scorecard/ScoreBreakdown";
 import { CalculationDetails } from "@/components/scorecard/CalculationDetails";
-import { loadAgentRangeResult, listAvailableMonths } from "@/lib/data/query";
+import { RangePicker } from "@/components/shared/RangePicker";
+import { MetricTrendChart, type MetricTrendPoint } from "@/components/charts/MetricTrendChart";
+import { loadAgentRangeResult, listAvailableMonths, loadAgentDailyTrend } from "@/lib/data/query";
 import { buildIndividualScaleTable } from "@/lib/scoring/display";
 import { initials, formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
@@ -21,7 +23,38 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 // build snapshot.
 export const dynamic = "force-dynamic";
 
-export default async function AgentScorecardPage({ params }: { params: { agentId: string } }) {
+const DAY_RANGE_OPTIONS = [
+  { value: "30", label: "Last 30 days" },
+  { value: "60", label: "Last 60 days" },
+  { value: "90", label: "Last 90 days" },
+  { value: "all", label: "All time" },
+];
+
+// This agent's daily KPI trend deliberately breaks its line on any day with
+// no real data for that metric (see MetricTrendChart's connectNulls: false)
+// rather than drawing a straight segment across a gap that would otherwise
+// look like a smooth trend on a day that was never actually measured.
+// That's correct, but a broken line alone doesn't say WHICH day(s) are
+// missing — this turns the same points already computed for the chart into
+// a plain list of the day labels with no data, so it's obvious at a glance
+// which day(s) to check in Import History or fix via Manual Entry's edit
+// view, instead of having to count gaps on the chart by eye. (Formerly on
+// Trends' own "Individual KPI Trends" picker — moved here so it sits with
+// the specific agent it's about, see trends/page.tsx's own comment.)
+function missingDayLabels(points: MetricTrendPoint[], max = 8): string | null {
+  const missing = points.filter((p) => p.value === null).map((p) => p.label);
+  if (missing.length === 0) return null;
+  if (missing.length <= max) return missing.join(", ");
+  return `${missing.slice(0, max).join(", ")}, +${missing.length - max} more`;
+}
+
+export default async function AgentScorecardPage({
+  params,
+  searchParams,
+}: {
+  params: { agentId: string };
+  searchParams: { days?: string };
+}) {
   const months = await listAvailableMonths();
   if (months.length === 0) notFound();
 
@@ -53,6 +86,20 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
   const canSeeQaAudit = !user || user.role === "lead" || user.agentId === params.agentId;
   const visibleMetrics = canSeeQaAudit ? individual.metrics : individual.metrics.filter((m) => m.key !== "qaAudit");
   const visibleResult = canSeeQaAudit ? result : { ...result, individual: { ...individual, metrics: visibleMetrics } };
+
+  // Individual KPI Trends — this agent's own daily numbers (moved here from
+  // Trends' picker; see that page's comment). Same actual/actualDisplay →
+  // value/display reshape MetricTrendChart expects everywhere else it's
+  // used in this app.
+  const daysParam = DAY_RANGE_OPTIONS.some((o) => o.value === searchParams.days) ? searchParams.days! : "30";
+  const daysWindow = daysParam === "all" ? null : Number(daysParam);
+  const dailySeriesAll = await loadAgentDailyTrend(params.agentId, daysWindow);
+  const dailySeries = (canSeeQaAudit ? dailySeriesAll : dailySeriesAll.filter((s) => s.key !== "qaAudit")).map((s) => ({
+    key: s.key,
+    name: s.name,
+    unit: s.unit,
+    points: s.points.map((p): MetricTrendPoint => ({ label: p.label, value: p.actual, display: p.actualDisplay })),
+  }));
 
   return (
     <>
@@ -126,6 +173,40 @@ export default async function AgentScorecardPage({ params }: { params: { agentId
                 QA Audit results for this agent are only visible to {agent.name} and to Leads/Managers.
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>KPI Trends</CardTitle>
+                <CardDescription>
+                  {agent.name}&apos;s daily numbers, {daysParam === "all" ? "every day on record" : `the last ${daysParam} days`}.
+                </CardDescription>
+              </div>
+              <RangePicker paramName="days" current={daysParam} options={DAY_RANGE_OPTIONS} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {dailySeries.map((s) => {
+                const missing = missingDayLabels(s.points);
+                return (
+                  <div key={s.key} className="rounded-lg border border-border p-3">
+                    <p className="mb-1 text-xs font-medium text-foreground">
+                      {s.name} <span className="text-muted-foreground/70">({s.unit})</span>
+                    </p>
+                    <MetricTrendChart data={s.points} />
+                    {missing && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/70">No data (line breaks here):</span> {missing}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
