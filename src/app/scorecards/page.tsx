@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 // Overall-score highlight threshold — deliberately independent of the
 // per-metric grade bands (3/2/1/0): this is a single pass/fail line across
 // the final 0–3 score, per explicit instruction.
-const SCORE_PASS_THRESHOLD = 2.5;
+const SCORE_PASS_THRESHOLD = 2.8;
 
 function metricValue(metrics: MetricScoreBreakdown[], key: IndividualMetricKey) {
   return metrics.find((m) => m.key === key)?.actualDisplay ?? "—";
