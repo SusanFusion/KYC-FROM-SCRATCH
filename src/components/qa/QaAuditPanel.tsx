@@ -445,9 +445,14 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
         showToast(data.error ?? "Failed to delete.", "error");
         return;
       }
-      showToast("Audit deleted.", "success");
+      if (data.qaAuditPct !== null && data.qaAuditPct !== undefined) {
+        showToast(`Audit deleted — scorecard's QA Audit % recalculated to ${data.qaAuditPct}% from ${data.blendedFrom} remaining published audit${data.blendedFrom === 1 ? "" : "s"}.`, "success");
+      } else {
+        showToast("Audit deleted — no published audits remain for that agent/period, so the scorecard's QA Audit % was cleared.", "success");
+      }
       setPendingDelete(null);
       await load();
+      router.refresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Unexpected error.", "error");
     } finally {
@@ -524,7 +529,7 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}
         title="Delete this audit?"
-        description="This removes the audit record permanently. If it was already published, the scorecard's QA Audit % it contributed to is NOT automatically recalculated — publish another remaining audit for that agent/period afterward to refresh it."
+        description="This removes the audit record permanently. If it was already published, the scorecard's QA Audit % is automatically recalculated from whatever other audits are still published for that agent/period — or cleared if none are."
         footer={
           <>
             <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={deleting}>
