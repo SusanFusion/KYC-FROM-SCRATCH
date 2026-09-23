@@ -4,6 +4,8 @@ import { getRepository, type DataRepository } from "@/lib/data/repository";
 import { formatWeekLabel } from "@/lib/data/dateRanges";
 import { generatePeriodReportHtml } from "@/lib/reports/generateReportHtml";
 import { generateWeeklyReportHtml, type WeeklyReportWeekData } from "@/lib/reports/weeklyReportHtml";
+import { generateMtdReportHtml } from "@/lib/reports/mtdReportHtml";
+import { loadMtdReportData } from "@/lib/data/mtdReportData";
 import { requireActionAccess } from "@/lib/auth/actionAccess";
 import { APP_NAME } from "@/lib/appConfig";
 import { slugify } from "@/lib/utils";
@@ -22,6 +24,14 @@ export const dynamic = "force-dynamic";
  *   - "snapshot" — the original single-period outlier-flagged summary
  *     (generateReportHtml.ts), kept for any existing link/bookmark that
  *     still points at this route without a `type`.
+ *   - "mtd" (see reports/page.tsx's MTD Report card) — the full
+ *     Month-to-Date report: alerts, executive summary, Business Gate MTD
+ *     trend charts, Individual Agent Rankings (KPI heatmap + per-department
+ *     tables), a Month-over-Month score comparison against the prior
+ *     calendar month, and Consistent Performers / Agents Needing Attention
+ *     streak tables (mtdReportHtml.ts / mtdReportData.ts). `?month=` is
+ *     that month's "YYYY-MM" key; omitted, defaults to the most recently
+ *     imported month.
  */
 export async function GET(request: Request) {
   const denied = await requireActionAccess();
@@ -43,10 +53,21 @@ export async function GET(request: Request) {
     return htmlResponse(html, `kyc-performance-report-${slug || "snapshot"}.html`);
   }
 
+  if (type === "mtd") {
+    const monthParam = searchParams.get("month") ?? undefined;
+    const data = await loadMtdReportData(monthParam);
+    if (!data) {
+      return htmlResponse(noDataHtml("MTD"), "kyc-mtd-report.html");
+    }
+    const html = generateMtdReportHtml(data);
+    const slug = slugify(data.monthLabel);
+    return htmlResponse(html, `kyc-mtd-report-${slug || "report"}.html`);
+  }
+
   // type === "weekly" (also the fallback for any unrecognized value)
   const weeks = await listAvailableWeeks();
   if (weeks.length === 0) {
-    return htmlResponse(noDataHtml(), "kyc-weekly-report.html");
+    return htmlResponse(noDataHtml("Weekly"), "kyc-weekly-report.html");
   }
 
   const weekParam = searchParams.get("week");
@@ -103,8 +124,8 @@ function htmlResponse(html: string, filename: string): NextResponse {
   });
 }
 
-function noDataHtml(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${APP_NAME} — Weekly Report</title></head>
-    <body style="font-family:Inter,system-ui,sans-serif;padding:40px;color:#222"><h1>${APP_NAME} — Weekly Report</h1>
+function noDataHtml(reportName: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${APP_NAME} — ${reportName} Report</title></head>
+    <body style="font-family:Inter,system-ui,sans-serif;padding:40px;color:#222"><h1>${APP_NAME} — ${reportName} Report</h1>
     <p>No performance data has been imported yet.</p></body></html>`;
 }
