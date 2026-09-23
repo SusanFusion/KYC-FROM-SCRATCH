@@ -43,7 +43,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               ))}
             </Select>
           </div>
-          
+          <a
             href={mtdMonth ? `/api/reports/export?type=mtd&month=${encodeURIComponent(mtdMonth)}` : undefined}
             download
             aria-disabled={!mtdMonth}
@@ -96,7 +96,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               </p>
             )}
           </div>
-          
+          <a
             href={effectiveWeek ? `/api/reports/export?type=weekly&week=${encodeURIComponent(effectiveWeek)}` : undefined}
             download
             aria-disabled={!effectiveWeek}
@@ -147,7 +147,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
           </CardDescription>
         </CardHeader>
         <CardContent>
-          
+          <a
             href="/api/backup/export"
             download
             className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background shadow-sm transition-colors hover:opacity-90 sm:w-auto"
