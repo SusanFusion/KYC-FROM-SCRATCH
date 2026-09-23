@@ -445,10 +445,12 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
         showToast(data.error ?? "Failed to delete.", "error");
         return;
       }
-      if (data.qaAuditPct !== null && data.qaAuditPct !== undefined) {
+      if (data.blendedFrom > 0) {
         showToast(`Audit deleted — scorecard's QA Audit % recalculated to ${data.qaAuditPct}% from ${data.blendedFrom} remaining published audit${data.blendedFrom === 1 ? "" : "s"}.`, "success");
+      } else if (data.restoredFromImport) {
+        showToast(`Audit deleted — no published audits remain, so the scorecard's QA Audit % reverted to the last Manual Entry/Import value: ${data.qaAuditPct}%.`, "success");
       } else {
-        showToast("Audit deleted — no published audits remain for that agent/period, so the scorecard's QA Audit % was cleared.", "success");
+        showToast("Audit deleted — no published audits remain for that agent/period, and no earlier Manual Entry/Import value was found, so the scorecard's QA Audit % was cleared.", "success");
       }
       setPendingDelete(null);
       await load();
@@ -529,7 +531,7 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}
         title="Delete this audit?"
-        description="This removes the audit record permanently. If it was already published, the scorecard's QA Audit % is automatically recalculated from whatever other audits are still published for that agent/period — or cleared if none are."
+        description="This removes the audit record permanently. If it was already published, the scorecard's QA Audit % is automatically recalculated from whatever other audits are still published for that agent/period — or, if none are, reverted to the last Manual Entry/Import value for that agent/period, or cleared if there's no earlier value either."
         footer={
           <>
             <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={deleting}>
