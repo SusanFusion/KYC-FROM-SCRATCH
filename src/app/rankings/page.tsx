@@ -53,7 +53,7 @@ export default async function RankingsPage() {
     type: "month-to-date",
   });
 
-  const rows: RankingRow[] = ranked.map((r) => ({
+    const rows: RankingRow[] = ranked.map((r) => ({
     agentId: r.agent.id,
     name: r.agent.name,
     department: r.agent.department,
@@ -76,6 +76,15 @@ export default async function RankingsPage() {
     chatFRT: r.individual.metrics.find((m) => m.key === "chatFRT")?.actualDisplay ?? "—",
     csatDsat: r.individual.metrics.find((m) => m.key === "csatDsat")?.actualDisplay ?? "—",
     qaAudit: r.individual.metrics.find((m) => m.key === "qaAudit")?.actualDisplay ?? "—",
+    // The 0-3 grade each metric above earned against its scoring scale --
+    // shown as its own "Point" column right next to the raw value (see
+    // RankingTable). Null exactly when the raw value is "—" (no data yet).
+    appAHTPoint: r.individual.metrics.find((m) => m.key === "appAHT")?.grade ?? null,
+    emailAHTPoint: r.individual.metrics.find((m) => m.key === "emailAHT")?.grade ?? null,
+    chatAvgResponsePoint: r.individual.metrics.find((m) => m.key === "chatAvgResponse")?.grade ?? null,
+    chatFRTPoint: r.individual.metrics.find((m) => m.key === "chatFRT")?.grade ?? null,
+    csatDsatPoint: r.individual.metrics.find((m) => m.key === "csatDsat")?.grade ?? null,
+    qaAuditPoint: r.individual.metrics.find((m) => m.key === "qaAudit")?.grade ?? null,
   }));
 
   // Top 3 and "room to grow" 3 only ever draw from agents with a genuinely
