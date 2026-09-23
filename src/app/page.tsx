@@ -52,7 +52,7 @@ export default async function DashboardPage() {
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
     : 0;
-  const onTarget = results.filter((r) => r.individual.finalScore >= 2.4).length;
+  const onTarget = results.filter((r) => r.individual.finalScore >= 2.8).length;
   const incompleteCount = results.filter((r) => r.individual.hasIncompleteData).length;
 
   // Same "rankable" rule Rankings/RankingTable uses (see isRankable there):
@@ -82,8 +82,8 @@ export default async function DashboardPage() {
             value={teamAverage.toFixed(2)}
             sublabel="out of 3.00 · Individual Scorecard (Layer 2)"
             icon={Gauge}
-            tone={teamAverage >= 2.4 ? "success" : "warning"}
-            statusBadge={<Badge variant={teamAverage >= 2.4 ? "success" : "warning"}>{teamAverage >= 2.4 ? "On Target" : "Needs Attention"}</Badge>}
+            tone={teamAverage >= 2.8 ? "success" : "warning"}
+            statusBadge={<Badge variant={teamAverage >= 2.8 ? "success" : "warning"}>{teamAverage >= 2.8 ? "On Target" : "Needs Attention"}</Badge>}
           />
           <KpiCard
             label="Business Gate Multiplier"
