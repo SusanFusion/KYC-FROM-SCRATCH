@@ -55,8 +55,8 @@ function bandBadgeVariant(band: 0 | 1 | 2 | 3 | null): "primary" | "success" | "
 // body are all auto-populated, but nothing is actually sent until a human
 // reviews the draft and clicks Send there. mailto: links cannot attach a
 // file (a browser/OS restriction, not something any amount of code here can
-// work around), so the body ends with an explicit reminder to attach the
-// PDF that just downloaded before sending.
+// work around) — the PDF still downloads automatically on the same click,
+// it just has to be attached by hand before sending.
 //
 // Recipient: per an explicit decision (confirmed after flagging that this
 // overrides the app's own "answers/remarks stay hidden from agents"
@@ -74,7 +74,7 @@ function defaultCcFor(audit: QaAuditRecord): string[] {
   return Array.from(new Set([audit.auditorEmail, ...leadEmails]));
 }
 
-function buildAuditEmailBody(audit: QaAuditRecord, pdfFilename: string): string {
+function buildAuditEmailBody(audit: QaAuditRecord): string {
   const lines = [
     `Hi ${audit.agentName},`,
     "",
@@ -84,13 +84,7 @@ function buildAuditEmailBody(audit: QaAuditRecord, pdfFilename: string): string 
   ];
   if (audit.autoFail) lines.push("Note: this audit triggered an Auto-Fail.");
   if (audit.caseReference) lines.push(`Reference: ${audit.caseReference}`);
-  lines.push(
-    "",
-    `Attachment: "${pdfFilename}" just downloaded to your computer — please attach it here before sending; email links can't attach files automatically.`,
-    "",
-    "Regards,",
-    audit.auditorName
-  );
+  lines.push("", "Regards,", audit.auditorName);
   return lines.join("\r\n");
 }
 
@@ -101,17 +95,11 @@ function emailAudit(audit: QaAuditRecord): string | null {
   const to = agentEmailFor(audit.agentId);
   if (!to) return `${audit.agentName} has no email on file in the roster — can't address this draft.`;
 
-  const slug = `${audit.auditType}-${audit.agentName}-${audit.auditDate}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  const pdfFilename = `qa-audit-${slug}.pdf`;
-
   window.open(`/api/qa-audits/${audit.id}/pdf`, "_blank");
 
   const cc = defaultCcFor(audit).join(",");
   const subject = `QA Audit — ${audit.agentName} — ${QA_AUDIT_TYPE_LABELS[audit.auditType]} (${formatDate(audit.auditDate)})`;
-  const body = buildAuditEmailBody(audit, pdfFilename);
+  const body = buildAuditEmailBody(audit);
   const mailto = `mailto:${to}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailto;
   return null;
