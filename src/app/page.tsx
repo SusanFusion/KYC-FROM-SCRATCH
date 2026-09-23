@@ -72,7 +72,7 @@ export default async function DashboardPage() {
         title="Dashboard"
         description={`Overview for ${monthThruLabel}`}
         actions={
-          <Badge variant="outline">{period.type.replace(/-/g, " ")}</Badge>
+                  <Badge variant="outline">month to date</Badge>
         }
       />
       <PageShell>
