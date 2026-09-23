@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Info, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -10,7 +11,6 @@ import { MetricDeltaGrid, deltaBadgeVariant, type MetricDeltaDatum } from "@/com
 import {
   loadRangeDataset,
   listAvailableWeeks,
-  loadAgentDailyTrend,
   loadGateDailyTrend,
   loadGateMetricsDailyTrend,
   gateMultiplierOrNull,
@@ -43,22 +43,6 @@ function teamGateMultiplier(results: AgentPeriodResult[]): number | null {
   return results[0]?.gate ? gateMultiplierOrNull(results[0].gate) : null;
 }
 
-// Individual KPI Trends deliberately breaks its line on any day with no
-// real data for that agent/metric (see MetricTrendChart's connectNulls:
-// false) rather than drawing a straight segment across a gap that would
-// otherwise look like a smooth trend on a day that was never actually
-// measured. That's correct, but a broken line alone doesn't say WHICH
-// day(s) are missing — this turns the same points already computed for the
-// chart into a plain list of the day labels with no data, so it's obvious
-// at a glance which day(s) to check in Import History or fix via Manual
-// Entry's edit view, instead of having to count gaps on the chart by eye.
-function missingDayLabels(points: MetricTrendPoint[], max = 8): string | null {
-  const missing = points.filter((p) => p.value === null).map((p) => p.label);
-  if (missing.length === 0) return null;
-  if (missing.length <= max) return missing.join(", ");
-  return `${missing.slice(0, max).join(", ")}, +${missing.length - max} more`;
-}
-
 function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetricKey): number | null {
   const values = scoredOnly(results)
     .map((r) => r.individual.metrics.find((m) => m.key === key))
@@ -72,22 +56,15 @@ function metricAverageActual(results: AgentPeriodResult[], key: IndividualMetric
 const MAX_CHART_WEEKS = 12;
 
 // How many days the daily Business Gate Multiplier line looks back — same
-// idea as MAX_CHART_WEEKS, just day-granular. No picker of its own (unlike
-// Individual KPI Trends below); this is meant to sit quietly alongside the
-// weekly number rather than add another control to learn.
+// idea as MAX_CHART_WEEKS, just day-granular. No picker of its own — this
+// is meant to sit quietly alongside the weekly number rather than add
+// another control to learn.
 const GATE_DAILY_TREND_DAYS = 30;
-
-const DAY_RANGE_OPTIONS = [
-  { value: "30", label: "Last 30 days" },
-  { value: "60", label: "Last 60 days" },
-  { value: "90", label: "Last 90 days" },
-  { value: "all", label: "All time" },
-];
 
 export default async function TrendsPage({
   searchParams,
 }: {
-  searchParams: { week?: string; officer?: string; days?: string };
+  searchParams: { week?: string };
 }) {
   const weeks = await listAvailableWeeks(); // most recent first
 
@@ -130,7 +107,7 @@ export default async function TrendsPage({
   ]);
 
   // Same actual/actualDisplay → value/display reshape MetricTrendChart
-  // expects everywhere else on this page (gateWeeklySeries, agentDailySeries
+  // expects everywhere else on this page (gateWeeklySeries, officerScoreTrend
   // below) — a day with no Business Gate report yet reads as a gap, not a
   // fabricated 1.0000×.
   const gateDailyPoints: MetricTrendPoint[] = gateDailyTrend.map((p) => ({
@@ -256,29 +233,31 @@ export default async function TrendsPage({
     };
   });
 
-  // Individual KPI Trends — full roster comes from this week's results
-  // (every agent gets a row there even with no data yet, see query.ts), so
-  // no separate fetch is needed just to populate the officer picker.
-  const officerOptions = results.map((r) => ({ id: r.agent.id, name: r.agent.name })).sort((a, b) => a.name.localeCompare(b.name));
-  const selectedOfficerId =
-    (searchParams.officer && officerOptions.some((o) => o.id === searchParams.officer) ? searchParams.officer : undefined) ??
-    officerOptions[0]?.id;
-  const daysParam = DAY_RANGE_OPTIONS.some((o) => o.value === searchParams.days) ? searchParams.days! : "30";
-  const daysWindow = daysParam === "all" ? null : Number(daysParam);
-
-  // Same actual/actualDisplay → value/display reshape as gateWeeklySeries
-  // above, so MetricTrendChart only ever has to know one point shape.
-  const agentDailySeries = selectedOfficerId
-    ? (await loadAgentDailyTrend(selectedOfficerId, daysWindow)).map((s) => ({
-        key: s.key,
-        name: s.name,
-        unit: s.unit,
-        points: s.points.map(
-          (p): MetricTrendPoint => ({ label: p.label, value: p.actual, display: p.actualDisplay })
-        ),
-      }))
-    : [];
-  const selectedOfficerName = officerOptions.find((o) => o.id === selectedOfficerId)?.name;
+  // Officer Score Trend — each officer's overall finalScore, week over
+  // week, reusing the exact chartWeeks/chartDatasets already loaded above
+  // for the Business Gate Trends charts (no extra fetch). Full roster comes
+  // from this week's results (every agent gets a row there even with no
+  // data yet, see query.ts). A week where the agent had literally no data
+  // at all reads as a gap in their line (never a fabricated 0), same rule
+  // as every other chart on this page; a week with SOME data still shows
+  // its real (if thin/partial) score, same as the Scorecards page's own
+  // noDataYet distinction.
+  const officerScoreTrend = results
+    .map((r) => ({ id: r.agent.id, name: r.agent.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((officer) => ({
+      id: officer.id,
+      name: officer.name,
+      points: chartDatasets.map(({ week, results: weekResults }): MetricTrendPoint => {
+        const r = weekResults.find((x) => x.agent.id === officer.id);
+        const noDataYet = !r || r.individual.effectiveWeight === 0;
+        return {
+          label: formatWeekLabel(week),
+          value: noDataYet ? null : r!.individual.finalScore,
+          display: noDataYet ? "No data yet" : `${r!.individual.finalScore.toFixed(2)} / 3`,
+        };
+      }),
+    }));
 
   return (
     <>
@@ -396,48 +375,25 @@ export default async function TrendsPage({
 
         <Card className="mt-4">
           <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle>Individual KPI Trends</CardTitle>
-                <CardDescription>
-                  {selectedOfficerName
-                    ? `${selectedOfficerName}'s daily numbers, ${daysParam === "all" ? "every day on record" : `the last ${daysParam} days`}.`
-                    : "Pick an officer to see their daily KPI trends."}
-                </CardDescription>
-              </div>
-              {officerOptions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <RangePicker
-                    paramName="officer"
-                    current={selectedOfficerId!}
-                    options={officerOptions.map((o) => ({ value: o.id, label: o.name }))}
-                  />
-                  <RangePicker paramName="days" current={daysParam} options={DAY_RANGE_OPTIONS} />
-                </div>
-              )}
-            </div>
+            <CardTitle>Officer Score Trend</CardTitle>
+            <CardDescription>
+              Each officer&apos;s overall score, week over week, across the last {chartWeeks.length} week
+              {chartWeeks.length === 1 ? "" : "s"} imported. Click a name for their full daily KPI breakdown.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {officerOptions.length === 0 ? (
+            {officerScoreTrend.length === 0 ? (
               <p className="text-sm text-muted-foreground">No officers on the roster yet.</p>
             ) : (
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                {agentDailySeries.map((s) => {
-                  const missing = missingDayLabels(s.points);
-                  return (
-                    <div key={s.key} className="rounded-lg border border-border p-3">
-                      <p className="mb-1 text-xs font-medium text-foreground">
-                        {s.name} <span className="text-muted-foreground/70">({s.unit})</span>
-                      </p>
-                      <MetricTrendChart data={s.points} />
-                      {missing && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground/70">No data (line breaks here):</span> {missing}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+                {officerScoreTrend.map((o) => (
+                  <div key={o.id} className="rounded-lg border border-border p-3">
+                    <Link href={`/scorecards/${o.id}`} className="mb-1 block text-xs font-medium text-foreground hover:underline">
+                      {o.name}
+                    </Link>
+                    <MetricTrendChart data={o.points} />
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
