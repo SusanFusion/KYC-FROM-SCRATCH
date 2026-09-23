@@ -1,0 +1,1 @@
+        description="This removes the audit record permanently. If it was already published, the scorecard's QA Audit % is automatically recalculated from whatever other audits are still published for that agent/period — or cleared if none are."
