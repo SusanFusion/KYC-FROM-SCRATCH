@@ -82,7 +82,7 @@ export default async function DashboardPage() {
             value={teamAverage.toFixed(2)}
             sublabel="out of 3.00 · Individual Scorecard (Layer 2)"
             icon={Gauge}
-            tone={teamAverage >= 2.8 ? "success" : "warning"}
+                       tone={teamAverage >= 2.8 ? "success" : "warning"}
             statusBadge={<Badge variant={teamAverage >= 2.8 ? "success" : "warning"}>{teamAverage >= 2.8 ? "On Target" : "Needs Attention"}</Badge>}
           />
           <KpiCard
