@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { RankMedal } from "@/components/rankings/RankMedal";
+import { gradeTone } from "@/components/dashboard/PerformanceBadge";
 import { SCORE_PASS_THRESHOLD } from "@/lib/scoring/thresholds";
+import type { Grade } from "@/lib/scoring/types";
 import { cn } from "@/lib/utils";
 
 export interface RankingRow {
@@ -41,6 +43,17 @@ export interface RankingRow {
    *  this metric exists and is simply awaiting real numbers, not silently
    *  left out of the scorecard. */
   qaAudit: string;
+  // The 0-3 grade each metric above actually earned against its scoring
+  // scale (thresholds.ts bands) -- same value driving that metric's color
+  // on the individual Scorecard page, shown here as its own column right
+  // next to the raw figure. Null exactly when the raw value above is "—"
+  // (no data yet for that metric this period).
+  appAHTPoint: Grade | null;
+  emailAHTPoint: Grade | null;
+  chatAvgResponsePoint: Grade | null;
+  chatFRTPoint: Grade | null;
+  csatDsatPoint: Grade | null;
+  qaAuditPoint: Grade | null;
 }
 
 type SortKey = "finalScore" | "name";
@@ -66,6 +79,15 @@ function scoreCell(r: RankingRow) {
       <XCircle className="h-3 w-3" /> {r.finalScore.toFixed(2)}
     </Badge>
   );
+}
+
+/** Compact companion cell for a metric's raw-value column -- just the 0-3
+ *  grade itself (not the full "Exceptional"/"On Target" label; that's what
+ *  GradeBadge is for on the Scorecard detail page, which has room for it).
+ *  Same color-by-grade as everywhere else (gradeTone). */
+function pointCell(point: Grade | null) {
+  if (point === null) return <span className="text-muted-foreground">—</span>;
+  return <Badge variant={gradeTone(point) as "primary" | "success" | "warning" | "danger"}>{point}</Badge>;
 }
 
 export function RankingTable({ rows, departments }: { rows: RankingRow[]; departments: string[] }) {
@@ -120,74 +142,47 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
         <span className="text-xs text-muted-foreground">{filteredAll.length} agents</span>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Rank</TableHead>
-            <TableHead>
-              <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
-                Agent <ArrowUpDown className="h-3 w-3" />
-              </button>
-            </TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>App AHT</TableHead>
-            <TableHead>Email AHT</TableHead>
-            <TableHead>Chat Response</TableHead>
-            <TableHead>First Response</TableHead>
-            <TableHead>CSAT</TableHead>
-            <TableHead>QA Audit</TableHead>
-            <TableHead>
-              <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
-                Score <ArrowUpDown className="h-3 w-3" />
-              </button>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {ranked.map((r, i) => {
-            const rank = i + 1;
-            // Only tint/medal the true top-3 when the list is showing its natural,
-            // unfiltered rank order — a search or re-sort shouldn't crown row #1.
-            const showMedal = isDefaultSort && rank <= 3;
-            return (
-              <TableRow key={r.agentId} className={showMedal ? ROW_TINT[rank] : undefined}>
-                <TableCell>{showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}</TableCell>
-                <TableCell>
-                  <Link href={`/scorecards/${r.agentId}`} className={cn("font-medium text-foreground hover:underline", showMedal && "font-semibold")}>
-                    {r.name}
-                  </Link>
-                  {r.hasIncompleteData && (
-                    <Badge variant="outline" className="ml-2">
-                      Incomplete
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{r.department}</TableCell>
-                <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
-                <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
-                <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
-                <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
-                <TableCell>{scoreCell(r)}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-
-      {unranked.length > 0 && (
-        <div className="pt-2">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Not ranked — insufficient data ({unranked.length})
-          </p>
-          <Table>
-            <TableBody>
-              {unranked.map((r) => (
-                <TableRow key={r.agentId} className="opacity-70">
-                  <TableCell className="text-muted-foreground">—</TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Rank</TableHead>
+              <TableHead>
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
+                  Agent <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>App AHT</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>Email AHT</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>Chat Response</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>First Response</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>CSAT</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>QA Audit</TableHead>
+              <TableHead>Point</TableHead>
+              <TableHead>
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
+                  Score <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ranked.map((r, i) => {
+              const rank = i + 1;
+              // Only tint/medal the true top-3 when the list is showing its natural,
+              // unfiltered rank order — a search or re-sort shouldn't crown row #1.
+              const showMedal = isDefaultSort && rank <= 3;
+              return (
+                <TableRow key={r.agentId} className={showMedal ? ROW_TINT[rank] : undefined}>
+                  <TableCell>{showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}</TableCell>
                   <TableCell>
-                    <Link href={`/scorecards/${r.agentId}`} className="font-medium text-foreground hover:underline">
+                    <Link href={`/scorecards/${r.agentId}`} className={cn("font-medium text-foreground hover:underline", showMedal && "font-semibold")}>
                       {r.name}
                     </Link>
                     {r.hasIncompleteData && (
@@ -198,16 +193,65 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                   </TableCell>
                   <TableCell className="text-muted-foreground">{r.department}</TableCell>
                   <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
+                  <TableCell>{pointCell(r.appAHTPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
+                  <TableCell>{pointCell(r.emailAHTPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
+                  <TableCell>{pointCell(r.chatAvgResponsePoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
+                  <TableCell>{pointCell(r.chatFRTPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
+                  <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
+                  <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
                   <TableCell>{scoreCell(r)}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {unranked.length > 0 && (
+        <div className="pt-2">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Not ranked — insufficient data ({unranked.length})
+          </p>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableBody>
+                {unranked.map((r) => (
+                  <TableRow key={r.agentId} className="opacity-70">
+                    <TableCell className="text-muted-foreground">—</TableCell>
+                    <TableCell>
+                      <Link href={`/scorecards/${r.agentId}`} className="font-medium text-foreground hover:underline">
+                        {r.name}
+                      </Link>
+                      {r.hasIncompleteData && (
+                        <Badge variant="outline" className="ml-2">
+                          Incomplete
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{r.department}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.appAHT}</TableCell>
+                    <TableCell>{pointCell(r.appAHTPoint)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.emailAHT}</TableCell>
+                    <TableCell>{pointCell(r.emailAHTPoint)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.chatAvgResponse}</TableCell>
+                    <TableCell>{pointCell(r.chatAvgResponsePoint)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.chatFRT}</TableCell>
+                    <TableCell>{pointCell(r.chatFRTPoint)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.csatDsat}</TableCell>
+                    <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
+                    <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
+                    <TableCell>{scoreCell(r)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </div>
