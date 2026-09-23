@@ -11,7 +11,7 @@
 // route) and passed in, so this module has no data-access concerns of its
 // own and stays trivially testable.
 
-import { INDIVIDUAL_METRICS, GATE_METRICS, hasSufficientDataCoverage } from "../scoring/thresholds";
+import { INDIVIDUAL_METRICS, GATE_METRICS, hasSufficientDataCoverage, MIN_SCORE_COVERAGE_WEEKLY } from "../scoring/thresholds";
 import { formatSeconds, formatMinutesValue } from "../data/time";
 import type { PeriodDataset, AgentPeriodResult } from "../data/query";
 import type { DateRange } from "../data/dateRanges";
@@ -130,15 +130,19 @@ function hasAnyData(r: AgentPeriodResult): boolean {
   return r.individual.metrics.some((m) => !m.excluded);
 }
 
-/** True once this agent has at least MIN_SCORE_COVERAGE of the scorecard's
- *  total weight backed by real data (see thresholds.ts). Below that,
- *  calculateIndividualScore's renormalization can turn a thin, lucky
- *  sample (e.g. 2 of 6 metrics, both "Exceptional") into a misleadingly
- *  perfect score — so those agents are excluded from ranking/rank-movement
- *  here, same as an agent with literally zero data, rather than letting a
- *  thin sample tie or beat someone who reported everything. */
+/** True once this agent has at least MIN_SCORE_COVERAGE_WEEKLY of the
+ *  scorecard's total weight backed by real data (see thresholds.ts) — the
+ *  Weekly Report's own, more forgiving bar: a single week is a much
+ *  narrower window than Month-to-Date, so Chat Avg Response, Chat First
+ *  Response and CSAT often have no data at all yet within just this week
+ *  even though the agent reports them fine across the full month. Below
+ *  that, calculateIndividualScore's renormalization can turn a thin, lucky
+ *  sample into a misleadingly perfect score — so those agents are excluded
+ *  from ranking/rank-movement here, same as an agent with literally zero
+ *  data, rather than letting a thin sample tie or beat someone who
+ *  reported everything. */
 function isRankable(r: AgentPeriodResult): boolean {
-  return hasSufficientDataCoverage(r.individual.effectiveWeight);
+  return hasSufficientDataCoverage(r.individual.effectiveWeight, MIN_SCORE_COVERAGE_WEEKLY);
 }
 
 interface RankedActive {
