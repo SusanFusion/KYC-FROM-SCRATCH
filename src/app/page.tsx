@@ -9,13 +9,19 @@ import { RankMedal } from "@/components/rankings/RankMedal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { loadPeriodDataset } from "@/lib/data/query";
-import { cn } from "@/lib/utils";
+import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
+import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
+import { cn, formatDate } from "@/lib/utils";
+
+// Scores are derived fresh from live data on every request — see
+// rankings/page.tsx for why this must never be served from a cached/stale
+// build snapshot.
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const { period, results, ranked, tieForTop } = await loadPeriodDataset();
+  const months = await listAvailableMonths();
 
-  if (!period) {
+  if (months.length === 0) {
     return (
       <>
         <TopHeader title="Dashboard" description="Overall KYC team performance" />
@@ -26,18 +32,45 @@ export default async function DashboardPage() {
     );
   }
 
+  // Month-to-date, the same aggregated view Rankings/Scorecards already use
+  // (see loadRangeDataset in query.ts) -- this used to call
+  // loadPeriodDataset() with no id, which scoped the whole Dashboard to just
+  // the single most-recently-imported day. That's why "Top Performer" here
+  // and the "Top Rankings" preview below could disagree with the actual
+  // Rankings page: this page was reading one day's snapshot while Rankings
+  // had already been switched to a running month-to-date total.
+  const selectedMonth = months[0]!;
+  const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
+  const { period, results, ranked, tieForTop } = await loadRangeDataset({
+    start: selectedMonth.start,
+    end: selectedMonth.end,
+    label: monthThruLabel,
+    id: `mtd-${selectedMonth.key}`,
+    type: "month-to-date",
+  });
+
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
     : 0;
   const onTarget = results.filter((r) => r.individual.finalScore >= 2.4).length;
-  const topPerformer = ranked[0];
   const incompleteCount = results.filter((r) => r.individual.hasIncompleteData).length;
+
+  // Same "rankable" rule Rankings/RankingTable uses (see isRankable there):
+  // an agent with no data yet, or too thin a sample to renormalize fairly
+  // (MIN_SCORE_COVERAGE, thresholds.ts), never counts as "Top Performer" or
+  // appears in the Top Rankings preview just because an incomplete score
+  // happens to renormalize high -- keeps this card and this preview always
+  // agreeing with whoever the Rankings page itself shows as #1.
+  const rankable = ranked.filter(
+    (r) => r.individual.effectiveWeight > 0 && hasSufficientDataCoverage(r.individual.effectiveWeight)
+  );
+  const topPerformer = rankable[0];
 
   return (
     <>
       <TopHeader
         title="Dashboard"
-        description={`Overview for ${period.label}`}
+        description={`Overview for ${monthThruLabel}`}
         actions={
           <Badge variant="outline">{period.type.replace(/-/g, " ")}</Badge>
         }
@@ -144,7 +177,7 @@ export default async function DashboardPage() {
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Top Rankings</CardTitle>
-              <CardDescription>Highest final scores this period.</CardDescription>
+              <CardDescription>Highest final scores for {monthThruLabel}.</CardDescription>
             </div>
             <Link href="/rankings" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               Full rankings <ArrowRight className="h-3.5 w-3.5" />
@@ -152,7 +185,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              {ranked.slice(0, 5).map((r, i) => (
+              {rankable.slice(0, 5).map((r, i) => (
                 <Link
                   key={r.agent.id}
                   href={`/scorecards/${r.agent.id}`}
