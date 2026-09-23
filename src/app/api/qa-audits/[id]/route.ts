@@ -11,9 +11,11 @@ export const runtime = "nodejs";
 //        then refreshes the scorecard's qaAuditPct for that agent+period so
 //        it never reflects a now-deleted audit — see refreshQaAuditPct.ts.
 //        Deleting a published audit re-blends whatever else is still
-//        published for that agent+period (or clears the score back to null
-//        if nothing else is), deleting an unpublished one is a harmless
-//        no-op recompute (it was never part of the blend to begin with).
+//        published for that agent+period; if nothing else is published,
+//        it reverts to whatever Manual Entry/PDF import last set for that
+//        agent+period (or clears to null if there's genuinely nothing
+//        else). Deleting an unpublished one is a harmless no-op recompute
+//        (it was never part of the blend to begin with).
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const denied = await requireActionAccess();
@@ -40,9 +42,9 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
     await repo.deleteQaAudit(params.id);
 
-    const { qaAuditPct, blendedFrom } = await refreshQaAuditPct(audit.agentId, audit.periodId);
+    const { qaAuditPct, blendedFrom, restoredFromImport } = await refreshQaAuditPct(audit.agentId, audit.periodId);
 
-    return NextResponse.json({ ok: true, qaAuditPct, blendedFrom });
+    return NextResponse.json({ ok: true, qaAuditPct, blendedFrom, restoredFromImport });
   } catch (err) {
     return NextResponse.json({ error: "Unexpected error while deleting the audit.", detail: describeError(err) }, { status: 500 });
   }
