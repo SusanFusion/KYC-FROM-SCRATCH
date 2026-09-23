@@ -206,15 +206,39 @@ export const SCORE_PASS_THRESHOLD = 2.8;
  */
 export const MIN_SCORE_COVERAGE = 0.95;
 
-/** True once at least MIN_SCORE_COVERAGE of the scorecard's total weight is
- *  backed by real data — see that constant's comment for why this matters
- *  separately from hasIncompleteData (which is true for ANY missing metric,
- *  even just QA Audit alone, and stays as-is for the existing "Incomplete"
- *  name badge — nearly every agent has that badge today since QA Audit is
- *  missing app-wide; this check is deliberately stricter). A small epsilon
- *  guards against float rounding on the weight sum. */
-export function hasSufficientDataCoverage(effectiveWeight: number): boolean {
-  return effectiveWeight >= MIN_SCORE_COVERAGE - 0.001;
+/**
+ * Weekly-report-specific counterpart to MIN_SCORE_COVERAGE above (which
+ * stays at 0.95 for Month-to-Date views — Dashboard, Rankings, Overall MTD
+ * — and is untouched by this). A single calendar week is a much narrower
+ * window than Month-to-Date, so a gap that easily gets covered somewhere
+ * across a whole month can land entirely inside one specific week: Chat
+ * Avg Response, Chat First Response, and CSAT/DSAT often have zero data
+ * points within a given week even though the agent reports them fine over
+ * the full month — chat/CSAT depend on whether they worked the chat queue
+ * that day, not a data gap — and QA Audit is entered roughly once a month,
+ * not weekly. Set at 0.60 (= 1 − QA's 5% − Chat Avg's 15% − Chat First's
+ * 10% − CSAT's 10%), this tolerates losing all four of those the same way
+ * MIN_SCORE_COVERAGE already tolerates losing QA Audit alone, so an agent
+ * with a normal App AHT + Email AHT week (0.60 remaining) is still
+ * scored/ranked in the Weekly Report instead of flipping to "Insufficient
+ * data" purely because the week hasn't finished filling in yet, or their
+ * chat volume was light that particular week. Used only by
+ * weeklyReportHtml.ts's own isRankable — every other view keeps using the
+ * stricter MIN_SCORE_COVERAGE above.
+ */
+export const MIN_SCORE_COVERAGE_WEEKLY = 0.6;
+
+/** True once at least `minCoverage` (MIN_SCORE_COVERAGE by default) of the
+ *  scorecard's total weight is backed by real data — see that constant's
+ *  comment for why this matters separately from hasIncompleteData (which
+ *  is true for ANY missing metric, even just QA Audit alone, and stays
+ *  as-is for the existing "Incomplete" name badge — nearly every agent has
+ *  that badge today since QA Audit is missing app-wide; this check is
+ *  deliberately stricter). Pass MIN_SCORE_COVERAGE_WEEKLY explicitly for
+ *  the Weekly Report's more forgiving bar. A small epsilon guards against
+ *  float rounding on the weight sum. */
+export function hasSufficientDataCoverage(effectiveWeight: number, minCoverage: number = MIN_SCORE_COVERAGE): boolean {
+  return effectiveWeight >= minCoverage - 0.001;
 }
 
 /** Individual Bonus Bracket (Department: KYC). */
