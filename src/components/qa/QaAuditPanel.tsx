@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Loader2, Send, Download, Trash2, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Send, Download, Mail, Trash2, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,77 @@ const ANSWER_OPTIONS: { value: QaAnswerValue; label: string }[] = [
 function bandBadgeVariant(band: 0 | 1 | 2 | 3 | null): "primary" | "success" | "warning" | "danger" | "outline" {
   if (band === null) return "outline";
   return band === 3 ? "primary" : band === 2 ? "success" : band === 1 ? "warning" : "danger";
+}
+
+// ── "Email" button — see qa-quality/page.tsx's PasswordGate: everything in
+// this file already sits behind the shared Lead/Manager password, so this
+// stays entirely client-side (no new API route). It downloads the audit's
+// existing PDF (same file the "PDF" button already produces) and, in the
+// same click, opens a pre-filled mailto: draft in the auditor's own email
+// app (Outlook or whatever is set as default) — recipients, subject and
+// body are all auto-populated, but nothing is actually sent until a human
+// reviews the draft and clicks Send there. mailto: links cannot attach a
+// file (a browser/OS restriction, not something any amount of code here can
+// work around), so the body ends with an explicit reminder to attach the
+// PDF that just downloaded before sending.
+//
+// Recipient: per an explicit decision (confirmed after flagging that this
+// overrides the app's own "answers/remarks stay hidden from agents"
+// confidentiality note on QaAuditRecord — see auditDefinitions.ts), this
+// intentionally emails the FULL audit, unfiltered, straight to the audited
+// agent. Cc defaults to every Lead/Manager on the roster (including the
+// auditor) so there's always a leadership paper trail on an email that
+// carries confidential audit content out to the agent it's about.
+function agentEmailFor(agentId: string): string | null {
+  return ROSTER.find((r) => r.role === "agent" && r.agentId === agentId)?.email ?? null;
+}
+
+function defaultCcFor(audit: QaAuditRecord): string[] {
+  const leadEmails = AUDITORS.map((r) => r.email);
+  return Array.from(new Set([audit.auditorEmail, ...leadEmails]));
+}
+
+function buildAuditEmailBody(audit: QaAuditRecord, pdfFilename: string): string {
+  const lines = [
+    `Hi ${audit.agentName},`,
+    "",
+    `Please see the attached QA Audit results for ${audit.periodLabel} (${QA_AUDIT_TYPE_LABELS[audit.auditType]}).`,
+    "",
+    `Score: ${audit.percentage !== null ? `${audit.percentage.toFixed(1)}%` : "No data"} — Band ${audit.band ?? "—"} (${bandLabel(audit.band)})`,
+  ];
+  if (audit.autoFail) lines.push("Note: this audit triggered an Auto-Fail.");
+  if (audit.caseReference) lines.push(`Reference: ${audit.caseReference}`);
+  lines.push(
+    "",
+    `Attachment: "${pdfFilename}" just downloaded to your computer — please attach it here before sending; email links can't attach files automatically.`,
+    "",
+    "Regards,",
+    audit.auditorName
+  );
+  return lines.join("\r\n");
+}
+
+/** Downloads the audit PDF and opens a pre-filled mailto: draft for it.
+ *  Returns an error string if the agent has no roster email on file
+ *  (nothing is downloaded or opened in that case), or null on success. */
+function emailAudit(audit: QaAuditRecord): string | null {
+  const to = agentEmailFor(audit.agentId);
+  if (!to) return `${audit.agentName} has no email on file in the roster — can't address this draft.`;
+
+  const slug = `${audit.auditType}-${audit.agentName}-${audit.auditDate}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const pdfFilename = `qa-audit-${slug}.pdf`;
+
+  window.open(`/api/qa-audits/${audit.id}/pdf`, "_blank");
+
+  const cc = defaultCcFor(audit).join(",");
+  const subject = `QA Audit — ${audit.agentName} — ${QA_AUDIT_TYPE_LABELS[audit.auditType]} (${formatDate(audit.auditDate)})`;
+  const body = buildAuditEmailBody(audit, pdfFilename);
+  const mailto = `mailto:${to}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailto;
+  return null;
 }
 
 function ScorePreview({ answers, auditType }: { answers: Record<string, QaAnswerValue | undefined>; auditType: QaAuditType }) {
@@ -367,6 +438,15 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
     }
   }
 
+  function handleEmail(audit: QaAuditRecord) {
+    const error = emailAudit(audit);
+    if (error) {
+      showToast(error, "error");
+      return;
+    }
+    showToast("PDF downloading, and a draft email just opened in your email app — attach the PDF and review before sending.", "success");
+  }
+
   async function confirmDelete() {
     if (!pendingDelete) return;
     setDeleting(true);
@@ -421,6 +501,9 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
                 <Badge variant={audit.status === "published" ? "success" : "outline"}>{audit.status}</Badge>
                 <Button size="sm" variant="outline" onClick={() => window.open(`/api/qa-audits/${audit.id}/pdf`, "_blank")}>
                   <Download className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleEmail(audit)} title="Download the PDF and open a pre-filled email draft">
+                  <Mail className="h-3.5 w-3.5" /> Email
                 </Button>
                 <Button size="sm" onClick={() => publish(audit)} disabled={publishingId === audit.id}>
                   {publishingId === audit.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : audit.status === "published" ? "Re-publish" : "Publish"}
