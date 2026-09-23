@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, BarChart3, FileSpreadsheet, Download } from "lucide-react";
+import { CalendarDays, BarChart3, FileSpreadsheet, Download, Database } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               ))}
             </Select>
           </div>
-              <a      
+          
             href={mtdMonth ? `/api/reports/export?type=mtd&month=${encodeURIComponent(mtdMonth)}` : undefined}
             download
             aria-disabled={!mtdMonth}
@@ -96,7 +96,7 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
               </p>
             )}
           </div>
-          <a
+          
             href={effectiveWeek ? `/api/reports/export?type=weekly&week=${encodeURIComponent(effectiveWeek)}` : undefined}
             download
             aria-disabled={!effectiveWeek}
@@ -132,6 +132,28 @@ export function ReportExportPicker({ weeks, months }: { weeks: WeekOption[]; mon
             <Badge variant="outline">Coming soon</Badge>
             <span className="text-xs text-muted-foreground">The formatted .xlsx export is still being built.</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="sm:col-span-2 border-border bg-muted/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary-600" /> Full Data Backup
+          </CardTitle>
+          <CardDescription>
+            Every raw record behind this app — agents, teams, daily metrics, Business Gate numbers, penalties, QA
+            audits, and import history — as one JSON file. Not a scored report; a safekeeping copy of the underlying
+            data itself, independent of Supabase.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          
+            href="/api/backup/export"
+            download
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background shadow-sm transition-colors hover:opacity-90 sm:w-auto"
+          >
+            <Download className="h-4 w-4" /> Download Full Backup →
+          </a>
         </CardContent>
       </Card>
     </div>
