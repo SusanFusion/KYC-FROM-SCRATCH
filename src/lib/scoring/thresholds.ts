@@ -179,7 +179,7 @@ export const INDIVIDUAL_MAX_SCORE = 3;
  * (deliberately independent of the per-metric grade bands above, which use
  * their own 3/2/1/0 thresholds for a different purpose).
  */
-export const SCORE_PASS_THRESHOLD = 2.5;
+export const SCORE_PASS_THRESHOLD = 2.8;
 
 /**
  * Minimum share of the individual scorecard's total weight (0-1) that must
