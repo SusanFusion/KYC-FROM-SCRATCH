@@ -7,11 +7,26 @@ import { ManualEntryForm } from "@/components/shared/ManualEntryForm";
 import { ImportHistoryList } from "@/components/shared/ImportHistoryList";
 import { PasswordGate } from "@/components/shared/PasswordGate";
 import { getRepository } from "@/lib/data/repository";
+import { metricFieldLabel } from "@/lib/data/metricLabels";
 
 export default async function ImportPage() {
   const repo = await getRepository();
   const [imports, agents, periods] = await Promise.all([repo.getImports(), repo.getAgents(), repo.getPeriods()]);
   const periodOptions = periods.map((p) => ({ id: p.id, label: p.label, endDate: p.endDate }));
+
+  // Only Manual Entry submissions carry a meaningful "which metrics did you
+  // tick" story — a PDF import's rows are just whatever it managed to parse
+  // off the report, not a deliberate selection. So this only fetches rows
+  // (and only shows the resulting badges in ImportHistoryList) for imports
+  // named "Manual entry", rather than doing it for every row in history.
+  const manualImports = imports.filter((imp) => imp.fileName === "Manual entry");
+  const manualImportRows = await Promise.all(manualImports.map((imp) => repo.getImportRows(imp.id)));
+  const fieldsTouchedByImportId = new Map<string, string[]>(
+    manualImports.map((imp, i) => [
+      imp.id,
+      Array.from(new Set(manualImportRows[i].map((r) => r.metricKey))).map(metricFieldLabel),
+    ])
+  );
 
   return (
     <>
@@ -60,6 +75,7 @@ export default async function ImportPage() {
                   status: imp.status,
                   rowCount: imp.rowCount,
                   periodId: imp.periodId ?? null,
+                  fieldsTouched: fieldsTouchedByImportId.get(imp.id) ?? [],
                 }))}
               />
             </CardContent>
