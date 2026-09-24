@@ -17,6 +17,12 @@ export interface ImportHistoryRow {
   status: "pending_review" | "committed" | "failed";
   rowCount: number;
   periodId: string | null;
+  /** Human-readable labels of the metrics this import actually touched —
+   *  for a Manual Entry submission, this is exactly the set of ticked
+   *  metrics it was saved with (see ManualEntryForm.tsx and the gate-row
+   *  logging in /api/import/manual). Empty for PDF imports and anything
+   *  else that doesn't carry a deliberate per-metric selection. */
+  fieldsTouched: string[];
 }
 
 /** Calls the same single-import delete route the lone Trash2 button always
@@ -216,6 +222,15 @@ export function ImportHistoryList({ imports }: { imports: ImportHistoryRow[] }) 
                   Uploaded {formatDate(imp.uploadedAt)} · {imp.rowCount} rows
                   {imp.periodLabel ? ` · ${imp.periodLabel}` : ""}
                 </p>
+                {imp.fieldsTouched.length > 0 && (
+                  <p className="mt-1 flex flex-wrap gap-1">
+                    {imp.fieldsTouched.map((label) => (
+                      <Badge key={label} variant="outline" className="text-[10px] font-normal">
+                        {label}
+                      </Badge>
+                    ))}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
