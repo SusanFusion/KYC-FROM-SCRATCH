@@ -21,12 +21,11 @@ export default async function ImportPage() {
   // named "Manual entry", rather than doing it for every row in history.
   const manualImports = imports.filter((imp) => imp.fileName === "Manual entry");
   const manualImportRows = await Promise.all(manualImports.map((imp) => repo.getImportRows(imp.id)));
-  const fieldsTouchedByImportId = new Map<string, string[]>(
-    manualImports.map((imp, i) => [
-      imp.id,
-      Array.from(new Set(manualImportRows[i].map((r) => r.metricKey))).map(metricFieldLabel),
-    ])
-  );
+  const fieldsTouchedByImportId = new Map<string, string[]>();
+  manualImports.forEach((imp, i) => {
+    const rows = manualImportRows[i] ?? [];
+    fieldsTouchedByImportId.set(imp.id, Array.from(new Set(rows.map((r) => r.metricKey))).map(metricFieldLabel));
+  });
 
   return (
     <>
