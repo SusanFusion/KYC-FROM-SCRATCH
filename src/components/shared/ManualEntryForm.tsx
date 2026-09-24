@@ -328,7 +328,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
       <Card>
         <CardHeader>
           <CardTitle>What are you entering?</CardTitle>
-          <CardDescription>Pick one to open its section below — you can switch back and forth without losing what you've entered in either.</CardDescription>
+          <CardDescription>Pick one to open its section below — you can switch back and forth without losing what you&apos;ve entered in either.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button type="button" variant={category === "gate" ? "default" : "outline"} onClick={() => setCategory("gate")}>
@@ -345,7 +345,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           <CardHeader>
             <CardTitle>Business Gate (team-level)</CardTitle>
             <CardDescription>
-              Select which metric(s) you're updating — tick a metric to include it in this save; typing a value ticks
+              Select which metric(s) you&apos;re updating — tick a metric to include it in this save; typing a value ticks
               it for you automatically.
             </CardDescription>
           </CardHeader>
