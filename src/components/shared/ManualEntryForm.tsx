@@ -70,6 +70,19 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   const [generatedDate, setGeneratedDate] = React.useState(() => getLocalTodayIso());
   const [gateValues, setGateValues] = React.useState<Record<string, string>>({});
   const [cells, setCells] = React.useState<CellValues>({});
+  // Which METRICS (columns, not individual cells) are being tick-marked as
+  // "this is what I'm manually updating right now" — decoupled from which
+  // boxes merely show a number. Selecting an existing period pre-fills every
+  // box with whatever's already on record (see the load effect below), but
+  // nothing starts ticked: only a field you tick (or type into, which ticks
+  // it for you) is actually sent when you save. This is what stops a save
+  // from silently re-writing every pre-filled field back onto the record —
+  // including stale ones, if something else updated this period after the
+  // form loaded — just because the box wasn't empty. It also means the set
+  // of ticked fields IS the record of what you manually touched this time,
+  // which the manual-entry API now logs so it shows up in Import History.
+  const [selectedIndividualFields, setSelectedIndividualFields] = React.useState<Set<string>>(new Set());
+  const [selectedGateFields, setSelectedGateFields] = React.useState<Set<string>>(new Set());
   const [savedCount, setSavedCount] = React.useState(0);
   const [loadingExisting, setLoadingExisting] = React.useState(false);
   const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
@@ -85,11 +98,14 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   // silently blanking them (this form only ever touches the fields you
   // actually type into — see commitImportRows.ts's merge-safe write).
   // Switching to "+ Start a new period" clears the grid instead, since
-  // there's nothing to load yet.
+  // there's nothing to load yet. Either way, nothing is pre-ticked — see
+  // selectedIndividualFields/selectedGateFields above.
   React.useEffect(() => {
     if (isNewPeriod) {
       setCells({});
       setGateValues({});
+      setSelectedIndividualFields(new Set());
+      setSelectedGateFields(new Set());
       return;
     }
 
@@ -124,6 +140,8 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           }
         }
         setGateValues(nextGate);
+        setSelectedIndividualFields(new Set());
+        setSelectedGateFields(new Set());
         if (!cancelled) setPhase("idle");
       } catch (err) {
         if (!cancelled) {
@@ -143,7 +161,45 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
 
   function setCell(agentId: string, metricKey: string, raw: string) {
     setCells((prev) => ({ ...prev, [agentId]: { ...(prev[agentId] ?? {}), [metricKey]: raw } }));
+    // Typing into any cell in a column ticks that whole metric as "being
+    // manually updated" — you don't have to separately hunt for its
+    // checkbox. Clearing a cell back to blank does NOT untick the column by
+    // itself (another agent's value in that same column may still be a
+    // deliberate edit), so untick manually if you need to exclude it.
+    if (raw.trim() !== "") {
+      setSelectedIndividualFields((prev) => (prev.has(metricKey) ? prev : new Set(prev).add(metricKey)));
+    }
   }
+
+  function toggleIndividualField(metricKey: string) {
+    setSelectedIndividualFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(metricKey)) next.delete(metricKey);
+      else next.add(metricKey);
+      return next;
+    });
+  }
+
+  function setGateValue(key: string, raw: string) {
+    setGateValues((prev) => ({ ...prev, [key]: raw }));
+    if (raw.trim() !== "") {
+      setSelectedGateFields((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+    }
+  }
+
+  function toggleGateField(key: string) {
+    setSelectedGateFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const selectedFieldLabels = [
+    ...GATE_FIELDS.filter((f) => selectedGateFields.has(f.key)).map((f) => f.label),
+    ...INDIVIDUAL_FIELDS.filter((f) => selectedIndividualFields.has(f.key)).map((f) => f.label),
+  ];
 
   async function handleSave() {
     setErrorMsg(null);
@@ -151,6 +207,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
     const entries: { agentId: string; metricKey: string; value: number }[] = [];
     for (const [agentId, byMetric] of Object.entries(cells)) {
       for (const [metricKey, raw] of Object.entries(byMetric)) {
+        if (!selectedIndividualFields.has(metricKey)) continue;
         const trimmed = raw.trim();
         if (trimmed === "") continue;
         const value = Number(trimmed);
@@ -160,6 +217,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
 
     const gate: Record<string, number> = {};
     for (const [key, raw] of Object.entries(gateValues)) {
+      if (!selectedGateFields.has(key)) continue;
       const trimmed = raw.trim();
       if (trimmed === "") continue;
       const value = Number(trimmed);
@@ -167,7 +225,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
     }
 
     if (entries.length === 0 && Object.keys(gate).length === 0) {
-      setErrorMsg("Enter at least one value before saving.");
+      setErrorMsg("Tick at least one metric and enter a value before saving.");
       setPhase("error");
       return;
     }
@@ -213,6 +271,8 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
   function resetForm() {
     setCells({});
     setGateValues({});
+    setSelectedIndividualFields(new Set());
+    setSelectedGateFields(new Set());
     setTargetPeriodId(periods[0]?.endDate === todayIso ? periods[0].id : NEW_PERIOD_VALUE);
     setPhase("idle");
     setErrorMsg(null);
@@ -319,20 +379,29 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           <CardTitle>Business Gate (team-level)</CardTitle>
           <CardDescription>
             Layer 1 — one value per metric for the whole team this period. Fill in only what you have; you can save with
-            just one or two of these and nothing else on the page at all.
+            just one or two of these and nothing else on the page at all. Tick a metric to include it in this save —
+            typing a value ticks it for you automatically. An unticked box is left exactly as it is on record, even if
+            it&apos;s showing a number.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {GATE_FIELDS.map((f) => (
             <div key={f.key}>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={selectedGateFields.has(f.key)}
+                  onChange={() => toggleGateField(f.key)}
+                  aria-label={`Include ${f.label} in this save`}
+                  className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
+                />
                 {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
               </label>
               <Input
                 type="number"
                 inputMode="decimal"
                 value={gateValues[f.key] ?? ""}
-                onChange={(e) => setGateValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                onChange={(e) => setGateValue(f.key, e.target.value)}
               />
             </div>
           ))}
@@ -343,7 +412,8 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
         <CardHeader>
           <CardTitle>Individual metrics (per agent)</CardTitle>
           <CardDescription>
-            Layer 2 — fill in only the columns you have data for; the rest stay unmeasured.
+            Layer 2 — fill in only the columns you have data for; the rest stay unmeasured. Tick a column&apos;s
+            checkbox to include it in this save (typing into any cell in that column ticks it for you).
             {!isNewPeriod && (loadingExisting ? " Loading this period's existing values…" : " Existing values for this period are pre-filled below — edit any cell to correct it.")}
           </CardDescription>
         </CardHeader>
@@ -355,7 +425,18 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
                   <th className="sticky left-0 z-10 min-w-[160px] bg-card p-2">Agent</th>
                   {INDIVIDUAL_FIELDS.map((f) => (
                     <th key={f.key} className="min-w-[110px] p-2 font-medium" title={f.label}>
-                      {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedIndividualFields.has(f.key)}
+                          onChange={() => toggleIndividualField(f.key)}
+                          aria-label={`Include ${f.label} in this save`}
+                          className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
+                        />
+                        <span>
+                          {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
+                        </span>
+                      </label>
                     </th>
                   ))}
                 </tr>
@@ -383,21 +464,28 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={phase === "saving" || loadingExisting}>
-          {phase === "saving" ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Saving…
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" /> Save & apply to dashboard
-            </>
-          )}
-        </Button>
-        <Button variant="outline" onClick={resetForm} disabled={phase === "saving"}>
-          Clear
-        </Button>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          {selectedFieldLabels.length > 0
+            ? `Will save: ${selectedFieldLabels.join(", ")}`
+            : "Nothing ticked yet — tick a metric above (or type a value, which ticks it for you) before saving."}
+        </p>
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={phase === "saving" || loadingExisting}>
+            {phase === "saving" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" /> Save & apply to dashboard
+              </>
+            )}
+          </Button>
+          <Button variant="outline" onClick={resetForm} disabled={phase === "saving"}>
+            Clear
+          </Button>
+        </div>
       </div>
     </div>
   );
