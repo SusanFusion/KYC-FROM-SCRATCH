@@ -66,12 +66,14 @@ export async function POST(request: Request) {
     const agentIds = new Set(agents.map((a) => a.id));
     const validEntries = numericEntries.filter((e) => agentIds.has(e.agentId));
 
-    const gateHasValue = body.gate ? Object.values(body.gate).some((v) => typeof v === "number" && Number.isFinite(v)) : false;
+    const gateEntries = Object.entries(body.gate ?? {}).filter(
+      (pair): pair is [string, number] => typeof pair[1] === "number" && Number.isFinite(pair[1])
+    );
 
     // Gate-only submissions (e.g. just the two Business Gate fields the team
     // has this week, no per-agent data at all) are valid — only reject if
     // NEITHER kind of value was entered anywhere on the form.
-    if (validEntries.length === 0 && !gateHasValue) {
+    if (validEntries.length === 0 && gateEntries.length === 0) {
       return NextResponse.json({ error: "Enter at least one value before saving." }, { status: 422 });
     }
 
@@ -87,15 +89,35 @@ export async function POST(request: Request) {
       };
     });
 
+    // Business Gate values are team-level, not per-agent, so they don't fit
+    // the agent-keyed row shape above — but without a row of their own here,
+    // they were completely invisible in Import History (no way to tell,
+    // after the fact, that a Manual Entry submission ever touched, say,
+    // "Avg Team Processing Time" at all). These rows are audit-trail only:
+    // commitImportRows below still receives the real values through `gate`,
+    // exactly as before, and ignores any row whose matchedAgentId is null
+    // (see its `validRows` filter) — so adding these can't cause a gate
+    // value to also get miswritten as a fake per-agent metric.
+    const gateRowsInput: Omit<ImportRow, "id" | "importId">[] = gateEntries.map(([key, value]) => ({
+      agentNameRaw: "Business Gate (team-level)",
+      matchedAgentId: null,
+      metricKey: key,
+      rawValue: String(value),
+      parsedValue: value,
+      status: "extracted" as const,
+    }));
+
+    const allRowsInput = [...rowsInput, ...gateRowsInput];
+
     const { record, rows } = await repo.createImport(
       {
         fileName: "Manual entry",
         uploadedAt: new Date().toISOString(),
         periodLabel: body.periodLabel ?? null,
         status: "pending_review",
-        rowCount: rowsInput.length,
+        rowCount: allRowsInput.length,
       },
-      rowsInput
+      allRowsInput
     );
 
     const result = await commitImportRows({
