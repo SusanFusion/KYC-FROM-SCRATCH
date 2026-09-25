@@ -3,9 +3,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Loader2, Save, X } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Save, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
@@ -50,6 +51,13 @@ type CellValues = Record<string, Record<string, string>>; // agentId -> metricKe
 type SelectedCells = Record<string, Set<string>>; // agentId -> Set<metricKey>
 type Category = "gate" | "individual";
 
+interface ClearTarget {
+  agentId: string | null; // null for a Business Gate field
+  agentLabel: string;
+  metricKey: string;
+  fieldLabel: string;
+}
+
 export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; periods: PeriodOption[] }) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -88,6 +96,13 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
 
   const [savedCount, setSavedCount] = React.useState(0);
   const isNewPeriod = targetPeriodId === NEW_PERIOD_VALUE;
+
+  // A field that's pending a "clear to no data" confirmation — a separate,
+  // deliberate action from saving a value (see confirmClear below). Only
+  // meaningful for an EXISTING period; a brand-new period has nothing on
+  // record yet to clear, so the Clear control is hidden while isNewPeriod.
+  const [clearTarget, setClearTarget] = React.useState<ClearTarget | null>(null);
+  const [clearing, setClearing] = React.useState(false);
 
   // Manual Entry never reads anything back off the record — not from a PDF
   // import, not from an earlier manual entry. Every box always starts
@@ -149,6 +164,34 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
       updated.delete(metricKey);
       return { ...prev, [agentId]: updated };
     });
+  }
+
+  async function confirmClear() {
+    if (!clearTarget || isNewPeriod) return;
+    setClearing(true);
+    try {
+      const res = await fetch("/api/import/clear-field", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodId: targetPeriodId,
+          metricKey: clearTarget.metricKey,
+          agentId: clearTarget.agentId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.detail ? `${data.error} (${data.detail})` : data.error ?? "Failed to clear.", "error");
+        return;
+      }
+      showToast(`Cleared ${clearTarget.fieldLabel} for ${clearTarget.agentLabel} back to no data.`, "success");
+      setClearTarget(null);
+      router.refresh();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Unexpected error while clearing.", "error");
+    } finally {
+      setClearing(false);
+    }
   }
 
   // What's actually going to be saved, in both sections — this drives the
@@ -345,23 +388,36 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           <CardHeader>
             <CardTitle>Business Gate (team-level)</CardTitle>
             <CardDescription>
-              Select which metric(s) you&apos;re updating — tick a metric to include it in this save; typing a value ticks
-              it for you automatically.
+              Select which metric(s) you&apos;re updating — tick a metric to include it in this save; typing a value
+              ticks it for you automatically.
+              {!isNewPeriod && " Use Clear if a field is stuck showing an old value and this period genuinely has no fresh number for it."}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {GATE_FIELDS.map((f) => (
               <div key={f.key}>
-                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={selectedGateFields.has(f.key)}
-                    onChange={() => toggleGateField(f.key)}
-                    aria-label={`Include ${f.label} in this save`}
-                    className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
-                  />
-                  {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={selectedGateFields.has(f.key)}
+                      onChange={() => toggleGateField(f.key)}
+                      aria-label={`Include ${f.label} in this save`}
+                      className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
+                    />
+                    {f.label} <span className="text-muted-foreground/70">({f.hint})</span>
+                  </label>
+                  {!isNewPeriod && (
+                    <button
+                      type="button"
+                      onClick={() => setClearTarget({ agentId: null, agentLabel: "the whole team", metricKey: f.key, fieldLabel: f.label })}
+                      title={`Clear ${f.label} back to no data for this period`}
+                      className="flex flex-shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-danger/10 hover:text-danger"
+                    >
+                      <Trash2 className="h-3 w-3" /> Clear
+                    </button>
+                  )}
+                </div>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -382,6 +438,7 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
               Select which officer, then which KPI(s) for them, and enter the value(s). Switching officers below keeps
               whatever you already entered for the previous one — nothing is lost, and you can queue up several
               officers before saving.
+              {!isNewPeriod && " Use Clear next to a KPI if it's stuck showing an old value and this officer genuinely has no fresh number for it this period."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -399,27 +456,42 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
 
             {selectedAgentId && (
               <div className="space-y-2 border-t border-border pt-3">
-                {INDIVIDUAL_FIELDS.map((f) => (
-                  <div key={f.key} className="flex flex-wrap items-center gap-3">
-                    <label className="flex w-full items-center gap-1.5 text-sm sm:w-72">
-                      <input
-                        type="checkbox"
-                        checked={selectedCells[selectedAgentId]?.has(f.key) ?? false}
-                        onChange={() => toggleCell(selectedAgentId, f.key)}
-                        aria-label={`Include ${f.label} for this officer`}
-                        className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
+                {INDIVIDUAL_FIELDS.map((f) => {
+                  const selectedAgentName = agents.find((a) => a.id === selectedAgentId)?.name ?? selectedAgentId;
+                  return (
+                    <div key={f.key} className="flex flex-wrap items-center gap-3">
+                      <label className="flex w-full items-center gap-1.5 text-sm sm:w-72">
+                        <input
+                          type="checkbox"
+                          checked={selectedCells[selectedAgentId]?.has(f.key) ?? false}
+                          onChange={() => toggleCell(selectedAgentId, f.key)}
+                          aria-label={`Include ${f.label} for this officer`}
+                          className="h-3.5 w-3.5 flex-shrink-0 rounded border-border accent-primary"
+                        />
+                        {f.label} <span className="text-muted-foreground/70 text-xs">({f.hint})</span>
+                      </label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        className="h-8 w-full sm:w-40"
+                        value={cells[selectedAgentId]?.[f.key] ?? ""}
+                        onChange={(e) => setCell(selectedAgentId, f.key, e.target.value)}
                       />
-                      {f.label} <span className="text-muted-foreground/70 text-xs">({f.hint})</span>
-                    </label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      className="h-8 w-full sm:w-40"
-                      value={cells[selectedAgentId]?.[f.key] ?? ""}
-                      onChange={(e) => setCell(selectedAgentId, f.key, e.target.value)}
-                    />
-                  </div>
-                ))}
+                      {!isNewPeriod && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setClearTarget({ agentId: selectedAgentId, agentLabel: selectedAgentName, metricKey: f.key, fieldLabel: f.label })
+                          }
+                          title={`Clear ${f.label} back to no data for this officer`}
+                          className="flex flex-shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-danger/10 hover:text-danger"
+                        >
+                          <Trash2 className="h-3 w-3" /> Clear
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -482,9 +554,36 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
           )}
         </Button>
         <Button variant="outline" onClick={resetForm} disabled={phase === "saving"}>
-          Clear
+          Clear form
         </Button>
       </div>
+
+      <Dialog
+        open={clearTarget !== null}
+        onOpenChange={(open) => !open && !clearing && setClearTarget(null)}
+        title="Clear this field back to no data?"
+        description={
+          clearTarget
+            ? `This immediately writes "no data" for ${clearTarget.fieldLabel} — ${clearTarget.agentLabel} — on the period selected above, overriding whatever's currently on record (including a stale value left over from something already deleted). It updates the dashboard and scorecards right away. This can't be undone from here — you'd need to enter a new value, or clear it again, to change it further.`
+            : ""
+        }
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setClearTarget(null)} disabled={clearing}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={confirmClear} disabled={clearing}>
+              {clearing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Clearing…
+                </>
+              ) : (
+                "Clear to no data"
+              )}
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }
