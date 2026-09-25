@@ -14,14 +14,14 @@ const TONE_BORDER: Record<Tone, string> = {
 
 // A softer, whole-box tint for pages that want the tier/grade color to read
 // at a glance across the room rather than in a thin top line or the small
-// badge alone. Kept deliberately light (10% fill, ~20% border) so a grid of
-// these next to each other stays calm instead of turning into a wall of
+// badge alone. Kept deliberately light (10-12% fill, ~25% border) so a grid
+// of these next to each other stays calm instead of turning into a wall of
 // solid color.
 const TONE_FILL: Record<Tone, string> = {
-  primary: "border-primary/20 bg-primary-50/70",
-  success: "border-success/20 bg-success/10",
-  warning: "border-warning/20 bg-warning/10",
-  danger: "border-danger/20 bg-danger/10",
+  primary: "border-primary/25 bg-primary-50/70",
+  success: "border-success/25 bg-success/12",
+  warning: "border-warning/25 bg-warning/12",
+  danger: "border-danger/25 bg-danger/12",
   muted: "border-border bg-muted/40",
 };
 
@@ -61,7 +61,7 @@ export function MetricBlockCard({
   return (
     <div
       className={cn(
-        "rounded-lg border p-4 shadow-card transition-shadow hover:shadow-popover/40",
+        "rounded-lg border p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-popover/40",
         emphasized ? TONE_FILL[tone] : cn("border-t-4 border-border bg-card", TONE_BORDER[tone]),
         className
       )}
