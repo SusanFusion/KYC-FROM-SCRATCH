@@ -57,7 +57,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full w-64 flex-col border-r border-border bg-card">
       <div className="flex h-16 items-center gap-2 border-b border-border px-5">
         <span className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-primary-foreground shadow-sm shadow-primary-500/30">
-          <ShieldCheck className="h-4.5 w-4.5" />
+          <ShieldCheck className="h-5 w-5" />
         </span>
         <span className="text-sm font-semibold tracking-tight text-foreground">{APP_NAME}</span>
       </div>
@@ -74,7 +74,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               className={cn(
                 "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all",
                 active
-                  ? "bg-primary-50 text-primary-700"
+                  ? "bg-gradient-to-r from-primary-50 to-primary-100/40 text-primary-700 shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-x-0.5"
               )}
             >
