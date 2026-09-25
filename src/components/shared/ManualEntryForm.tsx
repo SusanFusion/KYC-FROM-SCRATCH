@@ -24,6 +24,10 @@ interface PeriodOption {
 }
 
 const NEW_PERIOD_VALUE = "__new__";
+// Sentinel ClearTarget.agentId value meaning "every agent", for the bulk
+// clear action below — distinct from null, which means a Business Gate
+// (team-level, not per-agent) field.
+const ALL_AGENTS = "__all__";
 
 /** Matches RawAgentMetrics fields exactly (see lib/scoring/types.ts) — this
  *  form fills the same raw inputs a parsed PDF row would. */
@@ -52,7 +56,7 @@ type SelectedCells = Record<string, Set<string>>; // agentId -> Set<metricKey>
 type Category = "gate" | "individual";
 
 interface ClearTarget {
-  agentId: string | null; // null for a Business Gate field
+  agentId: string | null; // null for a Business Gate field, ALL_AGENTS for a bulk clear
   agentLabel: string;
   metricKey: string;
   fieldLabel: string;
@@ -170,13 +174,15 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
     if (!clearTarget || isNewPeriod) return;
     setClearing(true);
     try {
+      const isBulk = clearTarget.agentId === ALL_AGENTS;
       const res = await fetch("/api/import/clear-field", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           periodId: targetPeriodId,
           metricKey: clearTarget.metricKey,
-          agentId: clearTarget.agentId,
+          agentId: isBulk ? null : clearTarget.agentId,
+          allAgents: isBulk,
         }),
       });
       const data = await res.json();
@@ -184,7 +190,12 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
         showToast(data.detail ? `${data.error} (${data.detail})` : data.error ?? "Failed to clear.", "error");
         return;
       }
-      showToast(`Cleared ${clearTarget.fieldLabel} for ${clearTarget.agentLabel} back to no data.`, "success");
+      showToast(
+        isBulk
+          ? `Cleared ${clearTarget.fieldLabel} back to no data for ${data.clearedCount ?? "every"} agent${data.clearedCount === 1 ? "" : "s"}.`
+          : `Cleared ${clearTarget.fieldLabel} for ${clearTarget.agentLabel} back to no data.`,
+        "success"
+      );
       setClearTarget(null);
       router.refresh();
     } catch (err) {
@@ -494,6 +505,30 @@ export function ManualEntryForm({ agents, periods }: { agents: AgentOption[]; pe
                 })}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {category === "individual" && !isNewPeriod && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bulk clear</CardTitle>
+            <CardDescription>
+              Clear one KPI back to no data for every officer on the period selected above, in one go — for when a
+              stale value (like QA Audit) is stuck across the whole roster instead of just one officer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {INDIVIDUAL_FIELDS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setClearTarget({ agentId: ALL_AGENTS, agentLabel: "every agent", metricKey: f.key, fieldLabel: f.label })}
+                className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 className="h-3 w-3" /> Clear {f.label} for everyone
+              </button>
+            ))}
           </CardContent>
         </Card>
       )}
