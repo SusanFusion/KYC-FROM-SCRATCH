@@ -3,48 +3,120 @@
 @tailwind utilities;
 
 :root {
-  --background: 220 20% 98%;
-  --foreground: 222 30% 12%;
+  color-scheme: light;
+
+  --background: 220 25% 97%;
+  --foreground: 224 32% 12%;
 
   --card: 0 0% 100%;
-  --card-foreground: 222 30% 12%;
+  --card-foreground: 224 32% 12%;
 
-  --muted: 220 16% 94%;
-  --muted-foreground: 220 10% 46%;
+  --muted: 220 18% 95%;
+  --muted-foreground: 220 10% 45%;
 
-  --border: 220 14% 90%;
-  --input: 220 14% 88%;
-  --ring: 226 71% 56%;
+  --border: 220 15% 90%;
+  --input: 220 15% 87%;
+  --ring: 228 66% 56%;
 
-  --primary: 226 64% 52%;
+  --primary: 228 66% 56%;
   --primary-foreground: 0 0% 100%;
 
-  --accent: 220 16% 95%;
-  --accent-foreground: 222 30% 12%;
+  /* Primary tint ramp — used for "active"/"selected" treatments (Sidebar's
+     current-page highlight, Badge's "primary" variant, and similar) via
+     plain Tailwind classes like bg-primary-50 / text-primary-700. See the
+     dark-mode block below for why the ramp's DIRECTION flips there. */
+  --primary-50: 228 100% 97%;
+  --primary-100: 228 92% 93%;
+  --primary-200: 228 85% 87%;
+  --primary-300: 228 80% 79%;
+  --primary-400: 228 72% 68%;
+  --primary-500: 228 66% 56%;
+  --primary-600: 228 62% 48%;
+  --primary-700: 228 60% 39%;
 
-  --success: 152 58% 36%;
+  --accent: 220 18% 95%;
+  --accent-foreground: 224 32% 12%;
+
+  --success: 152 60% 36%;
   --success-foreground: 0 0% 100%;
 
   --warning: 32 92% 48%;
   --warning-foreground: 0 0% 100%;
 
-  --danger: 358 70% 50%;
+  --danger: 358 72% 51%;
   --danger-foreground: 0 0% 100%;
 
-  --radius: 0.65rem;
+  --radius: 0.75rem;
+}
+
+/* Dark mode: a real elevated-surface hierarchy (card lighter than the page
+   background, borders a step up from that) rather than a straight
+   inversion of the light values — a flat "invert everything" dark theme
+   tends to look washed out and loses the sense of depth cards are meant
+   to have. Toggled by ThemeToggle adding/removing "dark" on <html> (see
+   theme-toggle.tsx and the anti-flash script in layout.tsx). */
+.dark {
+  color-scheme: dark;
+
+  --background: 224 24% 9%;
+  --foreground: 220 20% 92%;
+
+  --card: 224 21% 13%;
+  --card-foreground: 220 20% 92%;
+
+  --muted: 224 16% 17%;
+  --muted-foreground: 220 10% 63%;
+
+  --border: 224 14% 22%;
+  --input: 224 14% 24%;
+  --ring: 228 72% 64%;
+
+  --primary: 228 70% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Same six steps, opposite direction: 50 is now the DARKEST, most subtle
+     tint (a near-background "selected row" wash) and 700 is now the
+     BRIGHTEST step (legible text sitting on top of that subtle wash) — so
+     bg-primary-50 + text-primary-700 (Sidebar's active nav item, Badge's
+     "primary" variant, etc.) still reads as "a soft blue highlight with
+     bright blue text" in dark mode, the same relationship it has in
+     light mode, instead of flipping into a near-white badge on a dark
+     page. */
+  --primary-50: 228 40% 18%;
+  --primary-100: 228 42% 22%;
+  --primary-200: 228 46% 28%;
+  --primary-300: 228 55% 40%;
+  --primary-400: 228 62% 52%;
+  --primary-500: 228 70% 60%;
+  --primary-600: 228 75% 68%;
+  --primary-700: 228 85% 80%;
+
+  --accent: 224 16% 17%;
+  --accent-foreground: 220 20% 92%;
+
+  --success: 152 50% 46%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 32 85% 55%;
+  --warning-foreground: 0 0% 100%;
+
+  --danger: 358 75% 60%;
+  --danger-foreground: 0 0% 100%;
 }
 
 * {
   border-color: hsl(var(--border));
 }
 
-html {
-  color-scheme: light;
-}
-
+/* color-scheme itself is set on :root / .dark above (so it flips with the
+   theme) — this only needs the actual paint. */
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  /* Smooths the switch between themes — otherwise every recolored surface
+     (page background, cards, borders, text) snaps at once, which reads as
+     a flicker rather than a toggle. */
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
@@ -96,4 +168,13 @@ body {
 }
 .rank-row-bronze {
   background: linear-gradient(90deg, rgba(251, 146, 60, 0.09), transparent 70%);
+}
+.dark .rank-row-gold {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), transparent 70%);
+}
+.dark .rank-row-silver {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.16), transparent 70%);
+}
+.dark .rank-row-bronze {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.16), transparent 70%);
 }
