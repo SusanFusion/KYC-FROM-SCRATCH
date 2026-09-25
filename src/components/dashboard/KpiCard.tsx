@@ -13,11 +13,15 @@ const TONE_BORDER: Record<Tone, string> = {
   muted: "border-t-border",
 };
 
-const TONE_ICON: Record<Tone, string> = {
-  primary: "bg-primary-50 text-primary-600",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger: "bg-danger/10 text-danger",
+// A small solid "chip" for the icon, colored to match the card's tone — a
+// lot more eye-catching than a flat tint, without needing a different icon
+// per tone. Muted stays a plain neutral chip since it has no color of its
+// own to carry.
+const TONE_ICON_CHIP: Record<Tone, string> = {
+  primary: "bg-gradient-to-br from-primary to-primary-600 text-white shadow-md shadow-primary/30",
+  success: "bg-gradient-to-br from-success to-success/70 text-white shadow-md shadow-success/30",
+  warning: "bg-gradient-to-br from-warning to-warning/70 text-white shadow-md shadow-warning/30",
+  danger: "bg-gradient-to-br from-danger to-danger/70 text-white shadow-md shadow-danger/30",
   muted: "bg-muted text-muted-foreground",
 };
 
@@ -52,17 +56,28 @@ export function KpiCard({
 }) {
   const TrendIcon = trend === null || trend === undefined || trend === 0 ? Minus : trend > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <Card className={cn("animate-slide-up overflow-hidden border-t-4 bg-gradient-to-br to-transparent", TONE_BORDER[tone], TONE_WASH[tone])}>
+    <Card
+      className={cn(
+        "group animate-slide-up overflow-hidden border-t-4 bg-gradient-to-br to-transparent",
+        TONE_BORDER[tone],
+        TONE_WASH[tone]
+      )}
+    >
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
           {Icon && (
-            <span className={cn("flex h-8 w-8 items-center justify-center rounded-md transition-transform", TONE_ICON[tone])}>
-              <Icon className="h-4 w-4" />
+            <span
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3",
+                TONE_ICON_CHIP[tone]
+              )}
+            >
+              <Icon className="h-5 w-5" />
             </span>
           )}
         </div>
-        <div className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{value}</div>
+        <div className="mt-3 text-3xl font-bold tracking-tight text-foreground">{value}</div>
         <div className="mt-2 flex items-center gap-2">
           {trend !== undefined && trend !== null && (
             <span
