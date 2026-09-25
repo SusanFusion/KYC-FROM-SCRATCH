@@ -30,13 +30,20 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          50: "#eef4ff",
-          100: "#dbe6fe",
-          300: "#a9bff8",
-          400: "#7690ef",
-          500: "#3b5bdb",
-          600: "#2f4dc7",
-          700: "#2740a3",
+          // Routed through CSS variables (defined per-theme in globals.css)
+          // rather than fixed hex, so every place already using
+          // bg-primary-50, text-primary-700, etc. (Sidebar's active nav
+          // item, Badge's "primary" variant, and ~20 other files) picks up
+          // dark mode automatically — the SAME class names quietly resolve
+          // to different, legible colors, no changes needed in those files.
+          50: "hsl(var(--primary-50))",
+          100: "hsl(var(--primary-100))",
+          200: "hsl(var(--primary-200))",
+          300: "hsl(var(--primary-300))",
+          400: "hsl(var(--primary-400))",
+          500: "hsl(var(--primary-500))",
+          600: "hsl(var(--primary-600))",
+          700: "hsl(var(--primary-700))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",
@@ -61,8 +68,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgb(16 24 40 / 0.05)",
-        popover: "0 4px 24px -4px rgb(16 24 40 / 0.12)",
+        card: "0 1px 3px 0 rgb(16 24 40 / 0.06), 0 1px 2px -1px rgb(16 24 40 / 0.06)",
+        popover: "0 10px 38px -10px rgb(16 24 40 / 0.20), 0 4px 12px -4px rgb(16 24 40 / 0.12)",
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
