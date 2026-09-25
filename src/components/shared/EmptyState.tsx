@@ -18,8 +18,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-16 text-center animate-fade-in">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary-50 to-muted ring-1 ring-primary-100">
-        <Icon className="h-6 w-6 text-primary-500" />
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-50 shadow-inner ring-1 ring-primary-200">
+        <Icon className="h-7 w-7 text-primary-600" />
       </div>
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       {description && <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">{description}</p>}
