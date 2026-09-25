@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { MobileNav } from "./MobileNav";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export function TopHeader({
   title,
@@ -21,7 +22,15 @@ export function TopHeader({
             {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        <div className="flex flex-wrap items-center gap-2">
+          <ThemeToggle />
+          {actions && (
+            <>
+              <div className="h-5 w-px bg-border" />
+              <div className="flex flex-wrap items-center gap-2">{actions}</div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
