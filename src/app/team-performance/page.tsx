@@ -3,6 +3,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TierBadge, tierTone, type Tone } from "@/components/dashboard/PerformanceBadge";
 import { ScoreRing } from "@/components/dashboard/ScoreRing";
+import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { Progress } from "@/components/ui/progress";
@@ -10,7 +11,7 @@ import { RangePicker } from "@/components/shared/RangePicker";
 import { loadRangeDataset, listAvailableWeeks } from "@/lib/data/query";
 import { buildGateScaleTable } from "@/lib/scoring/display";
 import { GATE_TIER_SCORES, GATE_MULTIPLIER_MAX } from "@/lib/scoring/thresholds";
-import type { GateTier, GateMetricBreakdown } from "@/lib/scoring/types";
+import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { cn } from "@/lib/utils";
 
@@ -25,52 +26,26 @@ const GATE_TIER_DESCRIPTION: Record<GateTier, string> = {
   Red: "significantly missing",
 };
 
-// Same soft whole-tile tint used for the Business Gate ring tiles on the
-// Dashboard (the GateMetricRing pattern in src/app/page.tsx) — kept in sync
-// so a metric's tone reads identically on both pages.
-const GATE_TILE_TONE: Record<Tone, string> = {
-  primary: "border-primary/25 bg-primary-50/70",
-  success: "border-success/25 bg-success/12",
-  warning: "border-warning/25 bg-warning/12",
-  danger: "border-danger/25 bg-danger/12",
-  muted: "border-border bg-muted/40",
+// A soft corner-lit gradient wash plus a matching colored ambient shadow,
+// layered ON TOP of MetricBlockCard's own flat tone tint (emphasized=true) —
+// passed in via `className` rather than editing the shared component, so
+// this stays local to Team Performance and doesn't change how the same
+// component looks on the Dashboard or Individual Scorecard pages. Kept as
+// its own map (not exported) since nothing else needs this exact "elegant"
+// treatment yet.
+const TONE_GLOW: Record<Tone, string> = {
+  primary:
+    "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--primary)/0.50)] hover:shadow-[0_16px_36px_-10px_hsl(var(--primary)/0.55)]",
+  success:
+    "bg-gradient-to-br from-success/20 via-success/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--success)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--success)/0.50)]",
+  warning:
+    "bg-gradient-to-br from-warning/20 via-warning/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--warning)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--warning)/0.50)]",
+  danger:
+    "bg-gradient-to-br from-danger/20 via-danger/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--danger)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--danger)/0.50)]",
+  // "No data" tier — a quiet neutral wash, no colored glow (nothing to
+  // highlight).
+  muted: "bg-gradient-to-br from-muted/30 via-muted/10 to-transparent",
 };
-
-/**
- * One Business Gate KPI as a color-coded ring tile — mirrors the
- * GateMetricRing pattern already live on the Dashboard. Duplicated locally
- * here (rather than shared) since this page's tiles also show the
- * weight/contribution line the Dashboard's don't.
- */
-function GateMetricRing({ metric }: { metric: GateMetricBreakdown }) {
-  const tone = tierTone(metric.tier);
-  const ringTone = tone === "muted" ? "primary" : tone;
-  const bufferLabel = metric.tierScore === null ? "Not available this week — excluded, not scored as 0" : metric.bufferLabel;
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-4 rounded-lg border p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-popover/40",
-        GATE_TILE_TONE[tone]
-      )}
-    >
-      <ScoreRing value={metric.tierScore ?? 0} max={GATE_MULTIPLIER_MAX} size={88} strokeWidth={8} tone={ringTone} label={metric.tier ?? "No Data"} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{metric.name}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <span className="text-lg font-semibold text-foreground">{metric.actualDisplay}</span>
-          <TierBadge tier={metric.tier} />
-        </div>
-        {bufferLabel && (
-          <p className={cn("mt-1.5 text-xs", metric.bufferGood === false ? "text-danger" : "text-muted-foreground")}>{bufferLabel}</p>
-        )}
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Weight {(metric.weight * 100).toFixed(0)}%
-          {metric.tierScore !== null && ` · contributes ${metric.weightedContribution?.toFixed(4)}`}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 export default async function TeamPerformancePage({ searchParams }: { searchParams: { week?: string } }) {
   const weeks = await listAvailableWeeks();
@@ -127,8 +102,7 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
   // ScoreRing's tone prop only accepts the 4 "has a color" tones -- tierTone
   // returns the 5-way Tone union (it also covers "muted", for a null tier,
   // which can't happen here since gate.overallTier is always a real
-  // GateTier) -- same downgrade GateMetricRing above does before handing
-  // its own tone to ScoreRing.
+  // GateTier).
   const multiplierToneRaw = tierTone(gate.overallTier);
   const multiplierTone = multiplierToneRaw === "muted" ? "primary" : multiplierToneRaw;
 
@@ -142,21 +116,51 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
             <CardDescription>Averaged across every day imported this week, against the scoring scale below.</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Same MetricBlockCard tiles the Dashboard's own Business Gate
+                card uses, with an extra gradient wash + tone-colored ambient
+                shadow layered on top via className (see TONE_GLOW above) --
+                purely a local, elegant finish for this page rather than a
+                change to the shared component's default look elsewhere. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {gate.metrics.map((m) => (
-                <GateMetricRing key={m.key} metric={m} />
+                <MetricBlockCard
+                  key={m.key}
+                  label={m.name}
+                  value={m.actualDisplay}
+                  tone={tierTone(m.tier)}
+                  badge={<TierBadge tier={m.tier} />}
+                  bufferLabel={m.tierScore === null ? "Not available this week — excluded, not scored as 0" : m.bufferLabel}
+                  bufferGood={m.bufferGood}
+                  weightLabel={
+                    m.tierScore !== null
+                      ? `Weight ${(m.weight * 100).toFixed(0)}% · contributes ${m.weightedContribution?.toFixed(4)}`
+                      : `Weight ${(m.weight * 100).toFixed(0)}%`
+                  }
+                  tooltip="Distance to the Amber threshold (the Green tier's boundary) — how much room is left before this metric needs attention."
+                  emphasized
+                  className={TONE_GLOW[tierTone(m.tier)]}
+                />
               ))}
             </div>
-            <div className="mt-5 flex flex-col items-center gap-4 rounded-lg border border-border bg-primary-50/60 p-5 sm:flex-row sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Gate Multiplier</p>
-                <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+
+            {/* The one number that earns a hero ring -- same treatment the
+                Dashboard gives its team average, scaled down to fit inside
+                this card. Same gradient + colored-shadow finish as the
+                tiles above, tinted to the gate's own overall tier. */}
+            <div
+              className={cn(
+                "mt-5 flex flex-col items-center gap-5 rounded-xl border p-5 transition-all duration-200 sm:flex-row sm:justify-center sm:gap-8",
+                tierTone(gate.overallTier) === "muted" ? "border-border" : "border-primary/20",
+                TONE_GLOW[multiplierToneRaw]
+              )}
+            >
+              <ScoreRing value={gate.gateMultiplier} max={GATE_MULTIPLIER_MAX} size={104} strokeWidth={9} tone={multiplierTone} label={gate.overallTier} />
+              <div className="text-center sm:text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
+                <p className="mt-1 text-3xl font-bold text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
+                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
                   Weighted average of the four tier scores above — applied to every agent&apos;s bonus this week.
                 </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <ScoreRing value={gate.gateMultiplier} max={GATE_MULTIPLIER_MAX} size={120} strokeWidth={10} tone={multiplierTone} label={gate.overallTier} />
-                <span className="text-lg font-semibold text-foreground">{gate.gateMultiplier.toFixed(4)}×</span>
               </div>
             </div>
             <GateCalculationDetails gate={gate} />
