@@ -2,7 +2,7 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
-import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { Progress } from "@/components/ui/progress";
@@ -13,7 +13,7 @@ import { buildGateScaleTable } from "@/lib/scoring/display";
 import { GATE_TIER_SCORES, hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
 import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 // Scores are derived fresh from live data on every request — see rankings/page.tsx
 // for why this must never be served from a cached/stale build snapshot.
@@ -84,6 +84,7 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     ? scoredResults.reduce((sum, r) => sum + r.individual.finalScore, 0) / scoredResults.length
     : 0;
   const { columns, rows } = buildGateScaleTable();
+  const multiplierToneRaw = tierTone(gate.overallTier);
 
     const rankingRows: RankingRow[] = ranked.map((r) => ({
     agentId: r.agent.id,
@@ -146,9 +147,22 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
                 />
               ))}
             </div>
-            <div className="mt-5 flex items-center justify-between rounded-lg bg-primary-50 px-4 py-3">
-              <span className="text-sm font-medium text-primary-700">Gate Multiplier</span>
-              <span className="text-lg font-semibold text-primary-700">{gate.gateMultiplier.toFixed(4)}×</span>
+            {/* Same numeric-focused hero block as Team Performance's Gate
+                Multiplier -- tinted with the shared TONE_GRADIENT finish
+                instead of always-primary, so it reflects this month's
+                actual overall tier at a glance. */}
+            <div
+              className={cn(
+                "mt-5 flex flex-col items-center gap-2 rounded-xl border p-6 text-center transition-all duration-200",
+                TONE_GRADIENT[multiplierToneRaw]
+              )}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
+              <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
+              <TierBadge tier={gate.overallTier} />
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                Weighted average of the four tier scores above — applied to every agent&apos;s bonus this month.
+              </p>
             </div>
             <GateCalculationDetails gate={gate} />
           </CardContent>
