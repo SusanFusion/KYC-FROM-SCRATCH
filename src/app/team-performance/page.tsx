@@ -2,7 +2,6 @@ import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TierBadge, tierTone, type Tone } from "@/components/dashboard/PerformanceBadge";
-import { ScoreRing } from "@/components/dashboard/ScoreRing";
 import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
@@ -10,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { RangePicker } from "@/components/shared/RangePicker";
 import { loadRangeDataset, listAvailableWeeks } from "@/lib/data/query";
 import { buildGateScaleTable } from "@/lib/scoring/display";
-import { GATE_TIER_SCORES, GATE_MULTIPLIER_MAX } from "@/lib/scoring/thresholds";
+import { GATE_TIER_SCORES } from "@/lib/scoring/thresholds";
 import type { GateTier } from "@/lib/scoring/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { cn } from "@/lib/utils";
@@ -99,12 +98,7 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
     ? scoredResults.reduce((sum, r) => sum + r.individual.finalScore, 0) / scoredResults.length
     : 0;
   const { columns, rows } = buildGateScaleTable();
-  // ScoreRing's tone prop only accepts the 4 "has a color" tones -- tierTone
-  // returns the 5-way Tone union (it also covers "muted", for a null tier,
-  // which can't happen here since gate.overallTier is always a real
-  // GateTier).
   const multiplierToneRaw = tierTone(gate.overallTier);
-  const multiplierTone = multiplierToneRaw === "muted" ? "primary" : multiplierToneRaw;
 
   return (
     <>
@@ -143,25 +137,23 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
               ))}
             </div>
 
-            {/* The one number that earns a hero ring -- same treatment the
-                Dashboard gives its team average, scaled down to fit inside
-                this card. Same gradient + colored-shadow finish as the
-                tiles above, tinted to the gate's own overall tier. */}
+            {/* No ring here -- Susan wants this focused on the number
+                itself. Same gradient + colored-shadow finish as the tiles
+                above, tinted to the gate's own overall tier, just built
+                around one big figure instead of a ring + side text. */}
             <div
               className={cn(
-                "mt-5 flex flex-col items-center gap-5 rounded-xl border p-5 transition-all duration-200 sm:flex-row sm:justify-center sm:gap-8",
+                "mt-5 flex flex-col items-center gap-2 rounded-xl border p-6 text-center transition-all duration-200",
                 tierTone(gate.overallTier) === "muted" ? "border-border" : "border-primary/20",
                 TONE_GLOW[multiplierToneRaw]
               )}
             >
-              <ScoreRing value={gate.gateMultiplier} max={GATE_MULTIPLIER_MAX} size={104} strokeWidth={9} tone={multiplierTone} label={gate.overallTier} />
-              <div className="text-center sm:text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
-                <p className="mt-1 text-3xl font-bold text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
-                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  Weighted average of the four tier scores above — applied to every agent&apos;s bonus this week.
-                </p>
-              </div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
+              <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
+              <TierBadge tier={gate.overallTier} />
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                Weighted average of the four tier scores above — applied to every agent&apos;s bonus this week.
+              </p>
             </div>
             <GateCalculationDetails gate={gate} />
           </CardContent>
