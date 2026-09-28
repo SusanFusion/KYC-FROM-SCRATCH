@@ -11,8 +11,13 @@
 // route) and passed in, so this module has no data-access concerns of its
 // own and stays trivially testable.
 
-import { INDIVIDUAL_METRICS, GATE_METRICS, hasSufficientDataCoverage, MIN_SCORE_COVERAGE_WEEKLY } from "../scoring/thresholds";
-import { formatSeconds, formatMinutesValue } from "../data/time";
+import {
+  INDIVIDUAL_METRICS,
+  GATE_METRICS,
+  hasSufficientDataCoverage,
+  MIN_SCORE_COVERAGE_WEEKLY,
+  SCORE_PASS_THRESHOLD,
+} from "../scoring/thresholds";import { formatSeconds, formatMinutesValue } from "../data/time";
 import type { PeriodDataset, AgentPeriodResult } from "../data/query";
 import type { DateRange } from "../data/dateRanges";
 import type { GateMetricKey, GateTier, IndividualMetricKey } from "../scoring/types";
@@ -506,10 +511,20 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
       ${neverReported.length > 0 ? `
         <p style="margin:18px 0 6px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:${COLOR.muted};">No data yet (no import on record)</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tbody>${neverReportedRows}</tbody>
-        </table>
-      ` : ""}
-    </div>`;
+   // ── Coach Watch ──────────────────────────────────────────────────────
+  // "Star" requires BOTH: no individual KPI graded below On Target, AND the
+  // final score (after penalties) still clears the same 2.80 "On Target"
+  // bar used everywhere else in the app (Scorecards, Dashboard). Without
+  // the finalScore check, an agent with every KPI at exactly "On Target"
+  // (grade 2, not "Exceptional") — or one who cleared every KPI but then
+  // took a penalty — could weight/penalty their way down to a final score
+  // under 2.80 and still show up here as a "star", which read as
+  // inconsistent with the 2.80 line used everywhere else.
+  const stars = thisActive.filter(
+    ({ result }) =>
+      result.individual.finalScore >= SCORE_PASS_THRESHOLD &&
+      result.individual.metrics.every((m) => m.excluded || (m.grade !== null && m.grade >= 2))
+  );
 
   // ── Coach Watch ──────────────────────────────────────────────────────
   const stars = thisActive.filter(({ result }) =>
