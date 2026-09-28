@@ -52,13 +52,17 @@ function pointCell(point: Grade | null) {
   return <Badge variant={gradeTone(point) as "primary" | "success" | "warning" | "danger"}>{point}</Badge>;
 }
 
-// Same light-tint formula as Team Performance's "emphasized" metric tiles
-// (see MetricBlockCard's TONE_FILL) — a soft, whole-row wash rather than a
-// loud solid color, so a full table of these stays easy on the eyes.
-const ROW_TONE = {
-  pass: "bg-success/10",
-  fail: "bg-danger/10",
-  noData: "bg-muted/40",
+// The same elegant, tone-tinted look used everywhere else color-coding
+// appears (see MetricBlockCard's TONE_GRADIENT), adapted for a full-width
+// table row: a left-to-right gradient wash instead of a corner-lit tile,
+// and no ambient shadow -- rows sit flush against each other with no room
+// for one to read cleanly, and a stack of shadowed rows would just look
+// muddy. Kept as its own map since these three states (pass/fail/no data)
+// aren't literally Tone values the way MetricBlockCard's tiles are.
+const ROW_GRADIENT = {
+  pass: "bg-gradient-to-r from-success/20 via-success/5 to-transparent",
+  fail: "bg-gradient-to-r from-danger/20 via-danger/5 to-transparent",
+  noData: "bg-gradient-to-r from-muted/40 via-muted/10 to-transparent",
 };
 
 export default async function ScorecardsPage({
@@ -213,7 +217,7 @@ export default async function ScorecardsPage({
                     const noDataYet = r.individual.effectiveWeight === 0;
 
                     return (
-                      <TableRow key={r.agent.id} className={noDataYet ? ROW_TONE.noData : passing ? ROW_TONE.pass : ROW_TONE.fail}>
+                      <TableRow key={r.agent.id} className={noDataYet ? ROW_GRADIENT.noData : passing ? ROW_GRADIENT.pass : ROW_GRADIENT.fail}>
                         <TableCell>
                           <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
                             {r.agent.name}
@@ -253,7 +257,7 @@ export default async function ScorecardsPage({
                         <TableCell className="text-right">
                           {noDataYet ? (
                             // Plain text here, not a pill — the row itself is
-                            // already tinted (ROW_TONE.noData), so a second
+                            // already tinted (ROW_GRADIENT.noData), so a second
                             // background on top of that would just look muddy.
                             <span className="text-xs font-medium text-muted-foreground">No data yet</span>
                           ) : (
