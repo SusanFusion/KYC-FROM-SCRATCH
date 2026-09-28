@@ -124,7 +124,13 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
     ? scoredResults.reduce((sum, r) => sum + r.individual.finalScore, 0) / scoredResults.length
     : 0;
   const { columns, rows } = buildGateScaleTable();
-  const multiplierTone = tierTone(gate.overallTier);
+  // ScoreRing's tone prop only accepts the 4 "has a color" tones -- tierTone
+  // returns the 5-way Tone union (it also covers "muted", for a null tier,
+  // which can't happen here since gate.overallTier is always a real
+  // GateTier) -- same downgrade GateMetricRing above does before handing
+  // its own tone to ScoreRing.
+  const multiplierToneRaw = tierTone(gate.overallTier);
+  const multiplierTone = multiplierToneRaw === "muted" ? "primary" : multiplierToneRaw;
 
   return (
     <>
