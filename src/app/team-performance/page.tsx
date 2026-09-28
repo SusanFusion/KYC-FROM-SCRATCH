@@ -1,8 +1,8 @@
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { TierBadge, tierTone, type Tone } from "@/components/dashboard/PerformanceBadge";
-import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
+import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { Progress } from "@/components/ui/progress";
@@ -23,27 +23,6 @@ const GATE_TIER_DESCRIPTION: Record<GateTier, string> = {
   Green: "hitting target",
   Amber: "below target",
   Red: "significantly missing",
-};
-
-// A soft corner-lit gradient wash plus a matching colored ambient shadow,
-// layered ON TOP of MetricBlockCard's own flat tone tint (emphasized=true) —
-// passed in via `className` rather than editing the shared component, so
-// this stays local to Team Performance and doesn't change how the same
-// component looks on the Dashboard or Individual Scorecard pages. Kept as
-// its own map (not exported) since nothing else needs this exact "elegant"
-// treatment yet.
-const TONE_GLOW: Record<Tone, string> = {
-  primary:
-    "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--primary)/0.50)] hover:shadow-[0_16px_36px_-10px_hsl(var(--primary)/0.55)]",
-  success:
-    "bg-gradient-to-br from-success/20 via-success/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--success)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--success)/0.50)]",
-  warning:
-    "bg-gradient-to-br from-warning/20 via-warning/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--warning)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--warning)/0.50)]",
-  danger:
-    "bg-gradient-to-br from-danger/20 via-danger/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--danger)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--danger)/0.50)]",
-  // "No data" tier — a quiet neutral wash, no colored glow (nothing to
-  // highlight).
-  muted: "bg-gradient-to-br from-muted/30 via-muted/10 to-transparent",
 };
 
 export default async function TeamPerformancePage({ searchParams }: { searchParams: { week?: string } }) {
@@ -110,11 +89,11 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
             <CardDescription>Averaged across every day imported this week, against the scoring scale below.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Same MetricBlockCard tiles the Dashboard's own Business Gate
-                card uses, with an extra gradient wash + tone-colored ambient
-                shadow layered on top via className (see TONE_GLOW above) --
-                purely a local, elegant finish for this page rather than a
-                change to the shared component's default look elsewhere. */}
+            {/* Same MetricBlockCard tiles the Dashboard's and Overall MTD's
+                Business Gate cards use -- the gradient wash + tone-colored
+                ambient shadow is now MetricBlockCard's own "emphasized"
+                look (see TONE_GRADIENT there), so every page that opts in
+                gets the exact same finish for free. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {gate.metrics.map((m) => (
                 <MetricBlockCard
@@ -132,20 +111,19 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
                   }
                   tooltip="Distance to the Amber threshold (the Green tier's boundary) — how much room is left before this metric needs attention."
                   emphasized
-                  className={TONE_GLOW[tierTone(m.tier)]}
                 />
               ))}
             </div>
 
             {/* No ring here -- Susan wants this focused on the number
-                itself. Same gradient + colored-shadow finish as the tiles
-                above, tinted to the gate's own overall tier, just built
-                around one big figure instead of a ring + side text. */}
+                itself. Same TONE_GRADIENT finish as the tiles above (now
+                shared from MetricBlockCard.tsx rather than duplicated),
+                tinted to the gate's own overall tier, built around one big
+                figure instead of a ring + side text. */}
             <div
               className={cn(
                 "mt-5 flex flex-col items-center gap-2 rounded-xl border p-6 text-center transition-all duration-200",
-                tierTone(gate.overallTier) === "muted" ? "border-border" : "border-primary/20",
-                TONE_GLOW[multiplierToneRaw]
+                TONE_GRADIENT[multiplierToneRaw]
               )}
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
