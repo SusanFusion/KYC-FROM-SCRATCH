@@ -165,6 +165,7 @@ export default async function AgentScorecardPage({
                   bufferGood={m.bufferGood}
                   weightLabel={m.excluded ? `Weight ${(m.weight * 100).toFixed(0)}%` : `Weight ${(m.weight * 100).toFixed(0)}% · ${m.weightedPoints?.toFixed(2)} pts`}
                   tooltip={`Target: ${m.target}. Distance shown is to the On Target / Below Target boundary.`}
+                  emphasized
                 />
               ))}
             </div>
