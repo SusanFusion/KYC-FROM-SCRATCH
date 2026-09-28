@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -5,8 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AgentSearch } from "@/components/scorecard/AgentSearch";
+import { RangePicker } from "@/components/shared/RangePicker";
+import { DateRangePicker } from "@/components/shared/DateRangePicker";
 import { gradeTone } from "@/components/dashboard/PerformanceBadge";
-import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
+import { loadRangeDataset, listAvailableMonths, listAvailableWeeks, type RangeSpec } from "@/lib/data/query";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import type { Grade, IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
 import { cn, formatDate } from "@/lib/utils";
@@ -21,6 +24,15 @@ export const dynamic = "force-dynamic";
 // per-metric grade bands (3/2/1/0): this is a single pass/fail line across
 // the final 0–3 score, per explicit instruction.
 const SCORE_PASS_THRESHOLD = 2.8;
+
+// The three period modes this page can be viewed in — same RangePicker
+// component used for the mode switch itself as for the mtd/week presets it
+// switches between.
+const MODE_OPTIONS = [
+  { value: "mtd", label: "Month to Date" },
+  { value: "week", label: "Week" },
+  { value: "range", label: "Date Range" },
+];
 
 function metricValue(metrics: MetricScoreBreakdown[], key: IndividualMetricKey) {
   return metrics.find((m) => m.key === key)?.actualDisplay ?? "—";
@@ -49,8 +61,15 @@ const ROW_TONE = {
   noData: "bg-muted/40",
 };
 
-export default async function ScorecardsPage() {
-  const months = await listAvailableMonths();
+export default async function ScorecardsPage({
+  searchParams,
+}: {
+  searchParams: { mode?: string; month?: string; week?: string; start?: string; end?: string };
+}) {
+  // Both lists come from the exact same underlying daily imports (see
+  // listAvailableMonths/listAvailableWeeks in query.ts), so months being
+  // non-empty guarantees weeks is too -- one guard below covers both.
+  const [months, weeks] = await Promise.all([listAvailableMonths(), listAvailableWeeks()]);
 
   if (months.length === 0) {
     return (
@@ -63,25 +82,80 @@ export default async function ScorecardsPage() {
     );
   }
 
-  // Month-to-date rather than a single imported day — same reason Rankings
-  // moved to loadRangeDataset (see rankings/page.tsx): a single day's import
-  // can legitimately be missing a field most of the roster only has from a
-  // different day's import (e.g. chat metrics land from a separate import
-  // step than the main KYC report), which used to make most of the roster
-  // read as "No data" here even though Rankings, aggregating the same
-  // month, had it.
-  const selectedMonth = months[0]!;
-  const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
-  const [{ ranked }, user] = await Promise.all([
-    loadRangeDataset({
+  const mode = searchParams.mode === "week" || searchParams.mode === "range" ? searchParams.mode : "mtd";
+
+  // The full span of days actually on record -- months is sorted
+  // most-recent-first, so the earliest month with data is the last entry;
+  // its "start" is that calendar month's first day. Used only to bound the
+  // Date Range picker's native min/max, not to change any scoring.
+  const earliestStart = months[months.length - 1]!.start;
+  const latestEnd = months[0]!.end;
+
+  let rangeSpec: RangeSpec;
+  let periodLabel: string;
+  let secondaryPicker: ReactNode;
+
+  if (mode === "week") {
+    // Same weekly view Team Performance uses — defaults to the most
+    // recently imported week, with older weeks reachable via the picker.
+    const selectedWeek = weeks.find((w) => w.start === searchParams.week) ?? weeks[0]!;
+    periodLabel = `Week of ${selectedWeek.label}`;
+    rangeSpec = {
+      start: selectedWeek.start,
+      end: selectedWeek.end,
+      label: periodLabel,
+      id: `week-${selectedWeek.start}`,
+      type: "weekly",
+    };
+    secondaryPicker = (
+      <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
+    );
+  } else if (mode === "range") {
+    // Free-form date range, clamped to the span of days actually on record
+    // (a date outside that span, or an end before start, silently falls
+    // back rather than sending loadRangeDataset a window with no data).
+    const requestedStart =
+      searchParams.start && searchParams.start >= earliestStart && searchParams.start <= latestEnd
+        ? searchParams.start
+        : earliestStart;
+    const requestedEnd =
+      searchParams.end && searchParams.end >= requestedStart && searchParams.end <= latestEnd
+        ? searchParams.end
+        : latestEnd;
+    periodLabel = `${formatDate(requestedStart)} – ${formatDate(requestedEnd)}`;
+    rangeSpec = {
+      start: requestedStart,
+      end: requestedEnd,
+      label: periodLabel,
+      id: `range-${requestedStart}-${requestedEnd}`,
+      type: "custom",
+    };
+    secondaryPicker = (
+      <DateRangePicker currentStart={requestedStart} currentEnd={requestedEnd} min={earliestStart} max={latestEnd} />
+    );
+  } else {
+    // Month-to-date rather than a single imported day — same reason Rankings
+    // moved to loadRangeDataset (see rankings/page.tsx): a single day's import
+    // can legitimately be missing a field most of the roster only has from a
+    // different day's import (e.g. chat metrics land from a separate import
+    // step than the main KYC report), which used to make most of the roster
+    // read as "No data" here even though Rankings, aggregating the same
+    // month, had it.
+    const selectedMonth = months.find((m) => m.key === searchParams.month) ?? months[0]!;
+    periodLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
+    rangeSpec = {
       start: selectedMonth.start,
       end: selectedMonth.end,
-      label: monthThruLabel,
+      label: periodLabel,
       id: `mtd-${selectedMonth.key}`,
       type: "month-to-date",
-    }),
-    getCurrentUser(),
-  ]);
+    };
+    secondaryPicker = (
+      <RangePicker paramName="month" current={selectedMonth.key} options={months.map((m) => ({ value: m.key, label: m.label }))} />
+    );
+  }
+
+  const [{ ranked }, user] = await Promise.all([loadRangeDataset(rangeSpec), getCurrentUser()]);
 
   // Alphabetical by name rather than by rank — this page is a roster to
   // look someone up in, not a leaderboard (that's what Rankings is for).
@@ -91,8 +165,14 @@ export default async function ScorecardsPage() {
     <>
       <TopHeader
         title="Individual Scorecards"
-        description={`${ranked.length} agents · ${monthThruLabel}`}
-        actions={<AgentSearch agents={ranked.map((r) => ({ id: r.agent.id, name: r.agent.name }))} />}
+        description={`${ranked.length} agents · ${periodLabel}`}
+        actions={
+          <>
+            <AgentSearch agents={ranked.map((r) => ({ id: r.agent.id, name: r.agent.name }))} />
+            <RangePicker paramName="mode" current={mode} options={MODE_OPTIONS} />
+            {secondaryPicker}
+          </>
+        }
       />
       <PageShell>
         <Card>
