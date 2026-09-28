@@ -12,17 +12,26 @@ const TONE_BORDER: Record<Tone, string> = {
   muted: "border-t-border",
 };
 
-// A softer, whole-box tint for pages that want the tier/grade color to read
-// at a glance across the room rather than in a thin top line or the small
-// badge alone. Kept deliberately light (10-12% fill, ~25% border) so a grid
-// of these next to each other stays calm instead of turning into a wall of
-// solid color.
-const TONE_FILL: Record<Tone, string> = {
-  primary: "border-primary/25 bg-primary-50/70",
-  success: "border-success/25 bg-success/12",
-  warning: "border-warning/25 bg-warning/12",
-  danger: "border-danger/25 bg-danger/12",
-  muted: "border-border bg-muted/40",
+// A soft corner-lit gradient wash plus a matching colored ambient shadow —
+// the "emphasized" whole-tile look, elegant enough to read at a glance
+// across the room without turning a grid of these into a wall of solid
+// color (first shipped on Team Performance, then rolled out everywhere
+// color-coded tiles appear, per Susan's request). Exported so a page that
+// builds its own color-coded block OUTSIDE MetricBlockCard -- e.g. Team
+// Performance's and Overall MTD's Gate Multiplier hero band, which isn't a
+// metric tile -- can match the exact same finish instead of duplicating it.
+export const TONE_GRADIENT: Record<Tone, string> = {
+  primary:
+    "border-primary/25 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--primary)/0.50)] hover:shadow-[0_16px_36px_-10px_hsl(var(--primary)/0.55)]",
+  success:
+    "border-success/25 bg-gradient-to-br from-success/20 via-success/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--success)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--success)/0.50)]",
+  warning:
+    "border-warning/25 bg-gradient-to-br from-warning/20 via-warning/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--warning)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--warning)/0.50)]",
+  danger:
+    "border-danger/25 bg-gradient-to-br from-danger/20 via-danger/5 to-transparent shadow-[0_10px_28px_-12px_hsl(var(--danger)/0.45)] hover:shadow-[0_16px_36px_-10px_hsl(var(--danger)/0.50)]",
+  // "No data" tone — a quiet neutral wash, no colored glow (nothing to
+  // highlight).
+  muted: "border-border bg-gradient-to-br from-muted/30 via-muted/10 to-transparent",
 };
 
 /**
@@ -53,16 +62,17 @@ export function MetricBlockCard({
   bufferGood?: boolean | null;
   tooltip?: string;
   className?: string;
-  /** true = tint the whole tile with the tone color (a calmer, wider signal
-   *  than the default thin top-border accent). Off by default so existing
-   *  pages (Individual Scorecard, dashboard) keep their current look. */
+  /** true = tint the whole tile with the tone-colored gradient + ambient
+   *  shadow (see TONE_GRADIENT) — a calmer, wider signal than the default
+   *  thin top-border accent. Off by default so a page that hasn't opted in
+   *  keeps its current look. */
   emphasized?: boolean;
 }) {
   return (
     <div
       className={cn(
         "rounded-lg border p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-popover/40",
-        emphasized ? TONE_FILL[tone] : cn("border-t-4 border-border bg-card", TONE_BORDER[tone]),
+        emphasized ? TONE_GRADIENT[tone] : cn("border-t-4 border-border bg-card", TONE_BORDER[tone]),
         className
       )}
     >
