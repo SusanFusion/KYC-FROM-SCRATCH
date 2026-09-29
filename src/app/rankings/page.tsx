@@ -3,11 +3,29 @@ import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { RankingTable, type RankingRow } from "@/components/rankings/RankingTable";
 import { TopPerformersSpotlight } from "@/components/rankings/TopPerformersSpotlight";
-import { EncouragementBand } from "@/components/rankings/EncouragementBand";
+import { EncouragementBand, type WeakMetric } from "@/components/rankings/EncouragementBand";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
 import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
+import type { Grade, MetricScoreBreakdown } from "@/lib/scoring/types";
 import { formatDate } from "@/lib/utils";
+
+// The metrics behind "Room to Grow"'s specific "Focus on" chips -- Below
+// Target (1) or Failing (0) only; On Target/Exceptional metrics aren't a
+// "focus area". Worst grade first, and among ties the more heavily-weighted
+// metric first (that's the one actually moving the score most). Capped at
+// `max` so a card with several weak metrics still stays readable -- the
+// count of anything left over is reported separately so it isn't just
+// silently dropped.
+function weakestMetrics(metrics: MetricScoreBreakdown[], max = 2): { shown: WeakMetric[]; extraCount: number } {
+  const weak = metrics
+    .filter((m) => m.grade !== null && m.grade <= 1)
+    .sort((a, b) => (a.grade as Grade) - (b.grade as Grade) || b.weight - a.weight);
+  return {
+    shown: weak.slice(0, max).map((m) => ({ key: m.key, name: m.name, grade: m.grade as Grade })),
+    extraCount: Math.max(0, weak.length - max),
+  };
+}
 
 // Scores are derived fresh from live data on every request — this page must
 // never be served from a cached/stale build snapshot (Vercel/Next can
@@ -101,7 +119,16 @@ export default async function RankingsPage() {
   const toSpotlightAgent = (r: RankingRow) => ({ agentId: r.agentId, name: r.name, department: r.department, score: r.finalScore });
   const topThree = scoredRows.slice(0, 3).map(toSpotlightAgent);
   const growCount = Math.min(3, Math.max(0, scoredRows.length - 3));
-  const roomToGrow = (growCount > 0 ? scoredRows.slice(-growCount) : []).map(toSpotlightAgent);
+  // Full per-metric breakdown, keyed by agent, so Room to Grow's cards can
+  // point at each agent's own specific weak KPI(s) rather than just their
+  // final score -- the flattened RankingRow above only keeps the display
+  // string and point per metric, not enough to rank metrics against each
+  // other by grade and weight.
+  const metricsByAgent = new Map(ranked.map((r) => [r.agent.id, r.individual.metrics]));
+  const roomToGrow = (growCount > 0 ? scoredRows.slice(-growCount) : []).map((r) => {
+    const { shown, extraCount } = weakestMetrics(metricsByAgent.get(r.agentId) ?? []);
+    return { ...toSpotlightAgent(r), weakMetrics: shown, weakMetricsExtraCount: extraCount };
+  });
 
   return (
     <>
