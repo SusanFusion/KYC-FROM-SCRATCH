@@ -30,18 +30,27 @@ function pickPhrase(agentId: string): string {
 
 /**
  * A gentle, encouraging callout for this period's 3 lowest scores — placed
- * at the very bottom of the Rankings page, after the full table. Uses cool,
- * light blues rather than a "danger" red so it reads as supportive, not
- * punitive; no bottom-3 label or rank number is shown, just the person,
- * their score, and a rotating motivational line.
+ * at the very bottom of the Rankings page, after the full table. Uses cool
+ * blues rather than a "danger" red so it reads as supportive, not punitive;
+ * no bottom-3 label or rank number is shown, just the person, their score,
+ * and a rotating motivational line.
+ *
+ * Colors are routed through the theme's own `primary` tokens (same blue
+ * family the fixed "sky-*" Tailwind palette this used to hardcode was
+ * standing in for) rather than literal colors -- `bg-white/70` in
+ * particular stayed near-white in dark mode while `text-foreground` turned
+ * near-white too, washing the whole band out to the point of being
+ * unreadable. `bg-card`/`primary-50`/`primary-100` all flip to legible
+ * dark-mode values automatically, the same way every other card in the app
+ * already does.
  */
 export function EncouragementBand({ agents }: { agents: EncouragementAgent[] }) {
   if (agents.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-sky-100 bg-gradient-to-b from-sky-50/70 to-transparent p-5 shadow-card sm:p-6">
+    <section className="rounded-xl border border-primary-100 bg-gradient-to-b from-primary-50/70 to-transparent p-5 shadow-card sm:p-6">
       <div className="mb-1 flex items-center gap-2">
-        <Sprout className="h-4 w-4 text-sky-600" />
+        <Sprout className="h-4 w-4 text-primary-600" />
         <h2 className="text-sm font-semibold text-foreground">Room to Grow</h2>
       </div>
       <p className="mb-5 text-xs text-muted-foreground">
@@ -52,14 +61,14 @@ export function EncouragementBand({ agents }: { agents: EncouragementAgent[] }) 
           <Link
             key={a.agentId}
             href={`/scorecards/${a.agentId}`}
-            className="flex flex-col rounded-lg border border-sky-100 bg-white/70 p-4 shadow-card transition-transform hover:-translate-y-0.5"
+            className="flex flex-col rounded-lg border border-primary-100 bg-card/70 p-4 shadow-card transition-transform hover:-translate-y-0.5"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-sm font-semibold text-foreground">{a.name}</span>
-              <span className="text-sm font-semibold text-sky-700">{a.score.toFixed(2)}</span>
+              <span className="text-sm font-semibold text-primary-700">{a.score.toFixed(2)}</span>
             </div>
             <p className="text-xs text-muted-foreground">{a.department}</p>
-            <p className="mt-2 text-xs italic leading-relaxed text-sky-800/80">&ldquo;{pickPhrase(a.agentId)}&rdquo;</p>
+            <p className="mt-2 text-xs italic leading-relaxed text-primary-700/80">&ldquo;{pickPhrase(a.agentId)}&rdquo;</p>
           </Link>
         ))}
       </div>
