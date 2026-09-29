@@ -1,11 +1,30 @@
 import Link from "next/link";
 import { Sprout } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { gradeTone } from "@/components/dashboard/PerformanceBadge";
+import type { Grade } from "@/lib/scoring/types";
+
+/** One metric dragging this agent's score down — just the KPI name and its
+ *  grade, not a full breakdown (that's what the linked scorecard is for).
+ *  See weakestMetrics() in rankings/page.tsx for how these are picked. */
+export interface WeakMetric {
+  key: string;
+  name: string;
+  grade: Grade;
+}
 
 export interface EncouragementAgent {
   agentId: string;
   name: string;
   department: string;
   score: number;
+  /** Up to a couple of this agent's lowest-graded metrics this period --
+   *  their specific focus areas. Empty when every metric is On Target or
+   *  better (the low overall score came from penalties instead). */
+  weakMetrics: WeakMetric[];
+  /** How many MORE metrics beyond weakMetrics also graded Below Target or
+   *  worse, so a "+N more" hint doesn't silently disappear the rest. */
+  weakMetricsExtraCount: number;
 }
 
 // Deliberately not phrased around "last place" or "worst" — these three
@@ -68,6 +87,26 @@ export function EncouragementBand({ agents }: { agents: EncouragementAgent[] }) 
               <span className="text-sm font-semibold text-primary-700">{a.score.toFixed(2)}</span>
             </div>
             <p className="text-xs text-muted-foreground">{a.department}</p>
+            {/* The specific KPIs behind the score -- solid Badge pills (the
+                same warning/danger tone every grade indicator in the app
+                uses) rather than plain text, so the metric that actually
+                needs work is the most visually emphasized thing on this
+                card, more noticeable than the score or the quote below it. */}
+            {a.weakMetrics.length > 0 && (
+              <div className="mt-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Focus on</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {a.weakMetrics.map((m) => (
+                    <Badge key={m.key} variant={gradeTone(m.grade) as "warning" | "danger"}>
+                      {m.name}
+                    </Badge>
+                  ))}
+                  {a.weakMetricsExtraCount > 0 && (
+                    <span className="text-[11px] text-muted-foreground">+{a.weakMetricsExtraCount} more</span>
+                  )}
+                </div>
+              </div>
+            )}
             <p className="mt-2 text-xs italic leading-relaxed text-primary-700/80">&ldquo;{pickPhrase(a.agentId)}&rdquo;</p>
           </Link>
         ))}
