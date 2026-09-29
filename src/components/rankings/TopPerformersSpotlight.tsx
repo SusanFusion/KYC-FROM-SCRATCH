@@ -10,13 +10,21 @@ export interface SpotlightAgent {
   score: number;
 }
 
-// Soft, low-opacity washes that echo RankMedal's gold/silver/bronze palette
-// (see globals.css .rank-row-*) rather than solid color — meant to read as
-// a light recognition card, not a loud banner.
+// The same gold/silver/bronze row wash RankingTable and the Dashboard's own
+// top-3 rows use (see globals.css .rank-row-*, and RankingTable.tsx's
+// ROW_TINT) rather than the literal amber-50/slate-50/orange-50 Tailwind
+// colors this used to hardcode. Those stayed pale in dark mode while
+// text-foreground/text-muted-foreground correctly turned near-white,
+// washing every card out to the point of being unreadable. .rank-row-* is
+// an rgba wash with its own .dark override (turning the opacity UP rather
+// than flipping a fixed light color), so it stays a faint, on-brand tint in
+// both themes -- the border is the plain theme-adaptive border-border
+// instead of a matching tinted border, since the medal icon above already
+// carries the gold/silver/bronze distinction.
 const CARD_STYLE: Record<1 | 2 | 3, string> = {
-  1: "border-amber-200/70 bg-gradient-to-b from-amber-50 to-amber-50/30",
-  2: "border-slate-200/70 bg-gradient-to-b from-slate-50 to-slate-50/30",
-  3: "border-orange-200/70 bg-gradient-to-b from-orange-50 to-orange-50/30",
+  1: "rank-row-gold",
+  2: "rank-row-silver",
+  3: "rank-row-bronze",
 };
 
 const TAGLINE: Record<1 | 2 | 3, string> = {
@@ -57,7 +65,7 @@ export function TopPerformersSpotlight({ agents }: { agents: SpotlightAgent[] })
               key={a.agentId}
               href={`/scorecards/${a.agentId}`}
               className={cn(
-                "flex flex-1 flex-col items-center rounded-lg border p-5 text-center shadow-card transition-transform hover:-translate-y-0.5 sm:max-w-[220px]",
+                "flex flex-1 flex-col items-center rounded-lg border border-border p-5 text-center shadow-card transition-transform hover:-translate-y-0.5 sm:max-w-[220px]",
                 CARD_STYLE[rank],
                 PODIUM_ORDER[rank],
                 rank === 1 && "sm:pb-7 sm:pt-6"
