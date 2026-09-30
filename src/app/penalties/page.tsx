@@ -16,6 +16,7 @@ import type { PenaltyDefinition } from "@/lib/scoring/types";
 import { loadPeriodDataset } from "@/lib/data/query";
 import { getRepository } from "@/lib/data/repository";
 import { calculateAllPenalties } from "@/lib/scoring/penalties";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 /** columnLabel switches this between the two disciplinary/attendance tables
  *  (a plain numeric "Deduction" column, every row here) and the employment
@@ -73,6 +74,15 @@ export default async function PenaltiesPage() {
     .flatMap((a) => calculateAllPenalties(a.id, allPenalties).map((p) => ({ ...p, agent: a.name, agentId: a.id })))
     .filter((p) => p.count > 0);
 
+  // The disciplinary/attendance reference tables and the "Record a penalty"
+  // form above stay visible to everyone (recording is already its own
+  // password-gated action) -- only the actual log of WHO was penalized and
+  // WHY, below, is restricted. Same !user-fails-open convention as
+  // canSeeQaAudit elsewhere (e.g. scorecards/[agentId]/page.tsx) for when
+  // there's no session to read.
+  const user = await getCurrentUser();
+  const canSeePenaltyLog = !user || user.role === "lead";
+
   return (
     <>
       <TopHeader title="Penalties" description="Disciplinary Penalty System & Attendance Penalty — replaces the old Progressive Sanction KPI" />
@@ -112,13 +122,24 @@ export default async function PenaltiesPage() {
         <Card className="mt-4">
           <CardHeader>
             <CardTitle>Recorded this period</CardTitle>
+            {!canSeePenaltyLog && <CardDescription>Visible to Leads/Managers only.</CardDescription>}
           </CardHeader>
           <CardContent>
-            <PenaltyRecordsTable
-              records={recorded}
-              agents={agents.map((a) => ({ id: a.id, name: a.name }))}
-              periodLabel={period?.label ?? "this period"}
-            />
+            {canSeePenaltyLog ? (
+              // Same shared Lead/Manager password as "Record a penalty"
+              // above -- Leads still have to unlock this browser before the
+              // log itself is shown, on top of the role check that already
+              // keeps agents out entirely.
+              <PasswordGate description="Enter the shared Lead/Manager password to view recorded penalties.">
+                <PenaltyRecordsTable
+                  records={recorded}
+                  agents={agents.map((a) => ({ id: a.id, name: a.name }))}
+                  periodLabel={period?.label ?? "this period"}
+                />
+              </PasswordGate>
+            ) : (
+              <p className="text-sm text-muted-foreground">Penalty records are visible to Leads/Managers only.</p>
+            )}
           </CardContent>
         </Card>
       </PageShell>
