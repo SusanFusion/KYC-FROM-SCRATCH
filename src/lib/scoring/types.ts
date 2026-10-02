@@ -86,6 +86,13 @@ export interface RawAgentMetrics {
   emailTicketCount: number | null;
 }
 
+/** Every RawAgentMetrics field that's a single per-agent KPI number (i.e.
+ *  everything except the agentId/periodId identifiers) -- the set a single
+ *  field can be targeted by for a clear/null-out action (see
+ *  DataRepository.clearIndividualMetricField). Stays in sync automatically
+ *  if RawAgentMetrics itself ever gains or loses a field. */
+export type RawIndividualMetricKey = keyof Omit<RawAgentMetrics, "agentId" | "periodId">;
+
 /** Raw team-level (Business Gate) inputs for one reporting period. */
 export interface RawGateMetrics {
   periodId: string;
