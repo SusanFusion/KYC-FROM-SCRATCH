@@ -63,17 +63,66 @@ function monthlyGraceShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[
   return 0; // unreachable -- entry is always a member of sameCodeThisAgent
 }
 
+/**
+ * For a consecutiveRun-flagged code (e.g. "Absence with documentation"): a
+ * run of entries on consecutive calendar days is ONE absence event, worth
+ * one flat deduction -- not one deduction per day. A 3-day documented
+ * absence (Mon, Tue, Wed all recorded) deducts -0.30 once, the same as a
+ * single one-day absence would. Separate, non-consecutive dates are
+ * untouched -- each one is its own run and still deducts on its own, same
+ * as before this existed.
+ *
+ * Mirrors monthlyGraceShare just above: walks the agent's FULL history for
+ * this code (same reason as there -- a run can span whichever single
+ * date/period happens to be in view right now), groups it into maximal
+ * consecutive-day runs, and returns this one entry's *share* of its run's
+ * flat deduction -- the earliest entry in each run carries the whole
+ * deduction, every other entry in that run carries 0, so the total shown
+ * across the log always adds up to exactly one deduction per run (the
+ * table already renders a 0-deduction entry as a plain dash, same as a free
+ * monthlyGrace occurrence -- see PenaltyRecordsTable).
+ *
+ * A run only merges entries whose occurredOn dates are back-to-back
+ * calendar days (a gap of exactly 1 day, including two entries landing on
+ * the very same date) -- any bigger gap (a weekend with no entries logged
+ * in between, or any other gap) starts a new run. This treats "consecutive"
+ * as literal calendar days; if it's meant to skip scheduled days off, that
+ * would need each agent's working-day calendar, which isn't modeled
+ * anywhere in this app today.
+ */
+function consecutiveRunShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[], flatDeduction: number): number {
+  const sorted = chronological(sameCodeThisAgent);
+
+  let runStart = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) {
+      const prevDay = Date.parse(`${sorted[i - 1].occurredOn}T00:00:00Z`);
+      const curDay = Date.parse(`${sorted[i].occurredOn}T00:00:00Z`);
+      const dayGap = Math.round((curDay - prevDay) / 86_400_000);
+      if (dayGap > 1) runStart = i;
+    }
+    if (sorted[i].id === entry.id) {
+      return i === runStart ? flatDeduction : 0;
+    }
+  }
+  return 0; // unreachable -- entry is always a member of sameCodeThisAgent
+}
+
 /** Resolves one penalty entry against the Disciplinary + Attendance Penalty
- *  tables and works out its deduction (per-occurrence deduction × count, or
- *  the monthly-grace share for a metered code like Late Onsite <15min -- see
- *  monthlyGraceShare). Shared by calculatePenalty (period/range-scoped) and
- *  calculateAllPenalties (every entry, no period scoping) below -- both need
- *  the exact same per-entry math, just over a different slice of entries. */
+ *  tables and works out its deduction (per-occurrence deduction × count, the
+ *  monthly-grace share for a metered code like Late Onsite <15min -- see
+ *  monthlyGraceShare -- or the consecutive-run share for a code like
+ *  Absence with documentation -- see consecutiveRunShare). Shared by
+ *  calculatePenalty (period/range-scoped) and calculateAllPenalties (every
+ *  entry, no period scoping) below -- both need the exact same per-entry
+ *  math, just over a different slice of entries. */
 function resolveEntry(p: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[]): AppliedPenalty {
   const def = ALL_PENALTIES.find((d) => d.code === p.code);
   const deduction = def?.monthlyGrace
     ? monthlyGraceShare(p, sameCodeThisAgent, def.monthlyGrace)
-    : (def?.deduction ?? 0) * p.count;
+    : def?.consecutiveRun
+      ? consecutiveRunShare(p, sameCodeThisAgent, def.deduction)
+      : (def?.deduction ?? 0) * p.count;
   return {
     id: p.id,
     code: p.code,
