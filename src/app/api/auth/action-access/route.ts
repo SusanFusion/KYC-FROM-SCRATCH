@@ -43,3 +43,13 @@ export async function POST(request: Request) {
   });
   return res;
 }
+
+/** Manually re-locks this browser ahead of the normal 12h expiry -- e.g. a
+ *  "Log out as Lead/Auditor" control in the sidebar. Clearing the cookie is
+ *  enough: every PasswordGate re-checks GET /api/auth/action-access on its
+ *  own next mount and will show the password prompt again. */
+export async function DELETE() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(ACTION_ACCESS_COOKIE_NAME, "", { path: "/", maxAge: 0 });
+  return res;
+}
