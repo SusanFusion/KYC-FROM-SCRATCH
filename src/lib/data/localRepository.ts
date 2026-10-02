@@ -153,6 +153,15 @@ export class LocalRepository implements DataRepository {
     for (const id of orphanedImportIds) store.importRows.delete(id);
   }
 
+  async deleteRawMetric(agentId: string, periodId: string) {
+    const rows = store.rawMetricsByPeriod.get(periodId);
+    if (!rows) return;
+    store.rawMetricsByPeriod.set(
+      periodId,
+      rows.filter((m) => m.agentId !== agentId)
+    );
+  }
+
   async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }) {
     let rows = [...store.qaAudits];
     if (filter?.auditType) rows = rows.filter((a) => a.auditType === filter.auditType);
