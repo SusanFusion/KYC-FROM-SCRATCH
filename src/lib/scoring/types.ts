@@ -151,6 +151,13 @@ export interface PenaltyDefinition {
   example: string;
   status?: PenaltyStatus;
   monthlyGrace?: PenaltyMonthlyGrace;
+  /** When true, a run of this code recorded on consecutive calendar days is
+   *  treated as ONE event -- e.g. a single doctor's note covering 3 days out
+   *  deducts the flat `deduction` amount once, not once per day. Entries of
+   *  this code on non-consecutive dates are unaffected and still deduct
+   *  individually, same as any ordinary code. See calculatePenalty's
+   *  consecutiveRunShare for the actual math. */
+  consecutiveRun?: boolean;
 }
 
 export interface PenaltyEntry {
