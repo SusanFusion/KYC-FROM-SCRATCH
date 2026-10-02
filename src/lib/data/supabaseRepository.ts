@@ -307,8 +307,14 @@ export class SupabaseRepository implements DataRepository {
     const { error: importsError } = await this.writeClient.from("imports").delete().eq("period_id", periodId);
     if (importsError) throw importsError;
 
-    const { error: periodError } = await this.writeClient.from("periods").delete().eq("id", periodId);
-    if (periodError) throw periodError;
+    
+  async deleteRawMetric(agentId: string, periodId: string): Promise<void> {
+    const { error } = await this.writeClient
+      .from("performance_entries")
+      .delete()
+      .eq("agent_id", agentId)
+      .eq("period_id", periodId);
+    if (error) throw error;
   }
 
   async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }): Promise<QaAuditRecord[]> {
