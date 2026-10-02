@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  Lock,
 } from "lucide-react";
 import { NAV_ITEMS, APP_NAME } from "@/lib/appConfig";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const user = useCurrentUser();
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [actionUnlocked, setActionUnlocked] = React.useState(false);
+  const [leadLoggingOut, setLeadLoggingOut] = React.useState(false);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -49,6 +52,40 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     } finally {
       onNavigate?.();
       router.replace("/login");
+      router.refresh();
+    }
+  }
+
+  // Separate from handleLogout above: this is the shared Lead/Manager
+  // password unlock (Import, Reports, Record-a-penalty, Penalty records --
+  // see PasswordGate), not the signed-in identity. Checked once on mount so
+  // the control only shows up for someone who's actually unlocked it in
+  // this browser; there's no session to log out of here, so this doesn't
+  // touch /login -- just re-locks and refreshes so every PasswordGate on
+  // the current page re-checks and shows its prompt again.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/action-access")
+      .then((res) => res.json())
+      .then((data: { unlocked?: boolean }) => {
+        if (!cancelled) setActionUnlocked(Boolean(data.unlocked));
+      })
+      .catch(() => {
+        if (!cancelled) setActionUnlocked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleLeadLogout() {
+    setLeadLoggingOut(true);
+    try {
+      await fetch("/api/auth/action-access", { method: "DELETE" });
+    } finally {
+      setActionUnlocked(false);
+      setLeadLoggingOut(false);
+      onNavigate?.();
       router.refresh();
     }
   }
@@ -107,6 +144,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               {loggingOut ? "…" : "Log out"}
             </button>
           </div>
+        )}
+        {actionUnlocked && (
+          <button
+            type="button"
+            onClick={handleLeadLogout}
+            disabled={leadLoggingOut}
+            className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            {leadLoggingOut ? "Locking…" : "Log out as Lead/Auditor"}
+          </button>
         )}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Scores derived from the KYC KPI Realignment Framework. See Settings → Data Notes for assumptions.
