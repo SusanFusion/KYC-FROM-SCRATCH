@@ -93,17 +93,22 @@ function monthlyGraceShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[
 function consecutiveRunShare(entry: PenaltyEntry, sameCodeThisAgent: PenaltyEntry[], flatDeduction: number): number {
   const sorted = chronological(sameCodeThisAgent);
 
-  let runStart = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    if (i > 0) {
-      const prevDay = Date.parse(`${sorted[i - 1].occurredOn}T00:00:00Z`);
-      const curDay = Date.parse(`${sorted[i].occurredOn}T00:00:00Z`);
+  // Walked with for...of (not index access) deliberately -- this project's
+  // tsconfig has noUncheckedIndexedAccess on, so sorted[i] would type-check
+  // as "possibly undefined" even though i is always in range here.
+  let prevOccurredOn: string | null = null;
+  let isRunStart = true;
+  for (const current of sorted) {
+    if (prevOccurredOn !== null) {
+      const prevDay = Date.parse(`${prevOccurredOn}T00:00:00Z`);
+      const curDay = Date.parse(`${current.occurredOn}T00:00:00Z`);
       const dayGap = Math.round((curDay - prevDay) / 86_400_000);
-      if (dayGap > 1) runStart = i;
+      isRunStart = dayGap > 1;
     }
-    if (sorted[i].id === entry.id) {
-      return i === runStart ? flatDeduction : 0;
+    if (current.id === entry.id) {
+      return isRunStart ? flatDeduction : 0;
     }
+    prevOccurredOn = current.occurredOn;
   }
   return 0; // unreachable -- entry is always a member of sameCodeThisAgent
 }
