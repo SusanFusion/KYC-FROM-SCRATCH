@@ -172,6 +172,13 @@ export interface PenaltyEntry {
    *  form) -- there's no per-user login in this app (see actionAccess.ts),
    *  just a shared password, so this is the only record of who logged it. */
   recordedBy: string;
+  /** When this entry was actually submitted (ISO timestamp, server/DB-set --
+   *  never typed on the form) -- distinct from `occurredOn`, which is the
+   *  date the infraction itself happened on and can be backdated. Used to
+   *  sort the Penalties page's "Recorded this period" log by submission
+   *  order (newest first) rather than by whichever order agents/codes
+   *  happen to iterate in. */
+  createdAt: string;
 }
 
 export interface BonusBracket {
