@@ -41,6 +41,15 @@ export interface DataRepository {
    *  periodId at all (never committed, or committed before that link
    *  existed). See deletePeriod for the "wipe this whole day" case. */
   deleteImport(importId: string): Promise<void>;
+  
+  /** Removes exactly one agent's single performance_entries row for one
+   *  period — the Data Import page's per-record delete, scoped to just
+   *  that agent+period pair rather than the whole day (see deletePeriod
+   *  for that). (agentId, periodId) uniquely identifies the row (see the
+   *  `unique (agent_id, period_id)` constraint in supabase/schema.sql), so
+   *  no separate id needs to be threaded through RawAgentMetrics just for
+   *  this to work. */
+  deleteRawMetric(agentId: string, periodId: string): Promise<void>;
 
   /** Removes a period and everything stored against it — its raw
    *  individual metrics, its Business Gate metrics, any penalties logged
