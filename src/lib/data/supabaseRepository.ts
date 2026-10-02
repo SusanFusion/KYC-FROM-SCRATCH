@@ -1,8 +1,25 @@
 import type { DataRepository } from "./repository";
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
-import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics, RawIndividualMetricKey } from "@/lib/scoring/types";
 import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 import { getSupabaseClient, getSupabaseServiceClient } from "./supabaseClient";
+
+// Maps each RawIndividualMetricKey to its actual performance_entries column
+// name -- needed here (and only here) because clearIndividualMetricField
+// takes the field to null out as a dynamic parameter, unlike every other
+// method in this file where each column is written out by hand.
+const INDIVIDUAL_FIELD_COLUMN: Record<RawIndividualMetricKey, string> = {
+  totalChatConversations: "total_chat_conversations",
+  avgFirstResponseTimeSec: "avg_first_response_time_sec",
+  avgResponseTimeSec: "avg_response_time_sec",
+  emailAHTSec: "email_aht_sec",
+  appAHTSec: "app_aht_sec",
+  totalChats: "total_chats",
+  csatCount: "csat_count",
+  dsatCount: "dsat_count",
+  qaAuditPct: "qa_audit_pct",
+  emailTicketCount: "email_ticket_count",
+};
 
 /**
  * Supabase-backed repository. Mirrors LocalRepository's contract exactly so
@@ -318,6 +335,19 @@ export class SupabaseRepository implements DataRepository {
       .eq("agent_id", agentId)
       .eq("period_id", periodId);
     if (error) throw error;
+  }
+
+  async clearIndividualMetricField(agentId: string, periodIds: string[], field: RawIndividualMetricKey): Promise<number> {
+    if (periodIds.length === 0) return 0;
+    const column = INDIVIDUAL_FIELD_COLUMN[field];
+    const { data, error } = await this.writeClient
+      .from("performance_entries")
+      .update({ [column]: null })
+      .eq("agent_id", agentId)
+      .in("period_id", periodIds)
+      .select("period_id");
+    if (error) throw error;
+    return (data ?? []).length;
   }
 
   async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }): Promise<QaAuditRecord[]> {
