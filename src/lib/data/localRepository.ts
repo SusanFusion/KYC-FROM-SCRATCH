@@ -1,6 +1,6 @@
 import type { DataRepository } from "./repository";
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
-import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics, RawIndividualMetricKey } from "@/lib/scoring/types";
 import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 import { SEED_AGENTS } from "./seed/agents";
 import { SEED_TEAMS } from "./seed/teams";
@@ -160,6 +160,25 @@ export class LocalRepository implements DataRepository {
       periodId,
       rows.filter((m) => m.agentId !== agentId)
     );
+  }
+
+  async clearIndividualMetricField(agentId: string, periodIds: string[], field: RawIndividualMetricKey) {
+    let cleared = 0;
+    for (const periodId of periodIds) {
+      const rows = store.rawMetricsByPeriod.get(periodId);
+      if (!rows) continue;
+      const idx = rows.findIndex((m) => m.agentId === agentId);
+      if (idx === -1) continue;
+      const existing = rows[idx];
+      if (!existing) continue;
+      const nextRow: RawAgentMetrics = { ...existing };
+      (nextRow as unknown as Record<string, number | null>)[field] = null;
+      const nextRows = [...rows];
+      nextRows[idx] = nextRow;
+      store.rawMetricsByPeriod.set(periodId, nextRows);
+      cleared += 1;
+    }
+    return cleared;
   }
 
   async getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }) {
