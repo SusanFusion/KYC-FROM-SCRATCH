@@ -76,8 +76,10 @@ export class LocalRepository implements DataRepository {
     return periodId ? store.penalties.filter((p) => p.periodId === periodId) : store.penalties;
   }
 
-  async addPenalty(entry: Omit<PenaltyEntry, "id">) {
-    const full: PenaltyEntry = { ...entry, id: store.nextId("pen") };
+    async addPenalty(entry: Omit<PenaltyEntry, "id" | "createdAt">) {
+    // No real DB default now() here (see supabaseRepository.ts) -- this
+    // in-memory store has to set the submission timestamp itself.
+    const full: PenaltyEntry = { ...entry, id: store.nextId("pen"), createdAt: new Date().toISOString() };
     store.penalties.push(full);
     return full;
   }
