@@ -5,14 +5,53 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ImportWorkflow } from "@/components/shared/ImportWorkflow";
 import { ManualEntryForm } from "@/components/shared/ManualEntryForm";
 import { ImportHistoryList } from "@/components/shared/ImportHistoryList";
+import { RawMetricRecordsManager } from "@/components/shared/RawMetricRecordsManager";
 import { PasswordGate } from "@/components/shared/PasswordGate";
 import { getRepository } from "@/lib/data/repository";
 import { metricFieldLabel } from "@/lib/data/metricLabels";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+
+// Matches RawAgentMetrics's own fields (see lib/scoring/types.ts), minus
+// agentId/periodId -- used only to tell which of a record's individual
+// fields actually carry a value, for the per-record badges below.
+const INDIVIDUAL_FIELD_KEYS = [
+  "totalChatConversations",
+  "avgFirstResponseTimeSec",
+  "avgResponseTimeSec",
+  "emailAHTSec",
+  "appAHTSec",
+  "totalChats",
+  "csatCount",
+  "dsatCount",
+  "qaAuditPct",
+  "emailTicketCount",
+] as const;
 
 export default async function ImportPage() {
   const repo = await getRepository();
-  const [imports, agents, periods] = await Promise.all([repo.getImports(), repo.getAgents(), repo.getPeriods()]);
+  const [imports, agents, periods, rawMetrics, user] = await Promise.all([
+    repo.getImports(),
+    repo.getAgents(),
+    repo.getPeriods(),
+    repo.getRawMetrics(),
+    getCurrentUser(),
+  ]);
   const periodOptions = periods.map((p) => ({ id: p.id, label: p.label, endDate: p.endDate }));
+
+  // Same fail-open convention as the Penalties page's canSeePenaltyLog --
+  // there's no session at all for most visits (login is optional, see
+  // getCurrentUser.ts), so this only HIDES the control for someone signed
+  // in as a plain agent; the real enforcement is the Lead/Manager password
+  // this whole page is already behind (see deleteRawMetricAction).
+  const canDeleteRawMetric = !user || user.role === "lead";
+
+  const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
+  const rawMetricRecords = rawMetrics.map((m) => ({
+    agentId: m.agentId,
+    agentName: agentNameById.get(m.agentId) ?? m.agentId,
+    periodId: m.periodId,
+    fieldsTouched: INDIVIDUAL_FIELD_KEYS.filter((key) => m[key] !== null && m[key] !== undefined).map(metricFieldLabel),
+  }));
 
   // Only Manual Entry submissions carry a meaningful "which metrics did you
   // tick" story — a PDF import's rows are just whatever it managed to parse
@@ -79,6 +118,22 @@ export default async function ImportPage() {
               />
             </CardContent>
           </Card>
+
+          {canDeleteRawMetric && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Delete a KPI record</CardTitle>
+                <CardDescription>
+                  Removes one agent&apos;s individual KPI record for one period — not the whole day&apos;s import. This
+                  immediately updates that agent&apos;s score, Scorecard, and Rankings position. Visible to Leads/Auditors
+                  only.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RawMetricRecordsManager records={rawMetricRecords} periods={periodOptions.map((p) => ({ id: p.id, label: p.label }))} />
+              </CardContent>
+            </Card>
+          )}
         </PasswordGate>
       </PageShell>
     </>
