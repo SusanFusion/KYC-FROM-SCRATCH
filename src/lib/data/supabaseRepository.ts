@@ -100,10 +100,10 @@ export class SupabaseRepository implements DataRepository {
       // Rows recorded before this column existed read back null -- "Unknown"
       // rather than a blank cell, so old records aren't mistaken for a bug.
       recordedBy: (row.recorded_by as string | null) ?? "Unknown",
+            createdAt: row.created_at as string,
     }));
   }
-
-  async addPenalty(entry: Omit<PenaltyEntry, "id">): Promise<PenaltyEntry> {
+  async addPenalty(entry: Omit<PenaltyEntry, "id" | "createdAt">): Promise<PenaltyEntry> {
     const { data, error } = await this.writeClient
       .from("penalties")
       .insert({
@@ -127,6 +127,7 @@ export class SupabaseRepository implements DataRepository {
       note: data.note ?? undefined,
       occurredOn: data.occurred_on,
       recordedBy: data.recorded_by ?? "Unknown",
+            createdAt: data.created_at,
     };
   }
 
