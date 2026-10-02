@@ -7,7 +7,7 @@
 // — never persisted — so changing a scoring rule instantly re-scores every
 // period without a data migration.
 import type { Agent, ImportRecord, ImportRow, Period, Team } from "@/types/domain";
-import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
+import type { PenaltyEntry, RawAgentMetrics, RawGateMetrics, RawIndividualMetricKey } from "@/lib/scoring/types";
 import type { NewQaAuditInput, QaAuditRecord, QaAuditStatus, QaAuditType } from "@/lib/qa/auditDefinitions";
 
 export interface DataRepository {
@@ -50,6 +50,19 @@ export interface DataRepository {
    *  no separate id needs to be threaded through RawAgentMetrics just for
    *  this to work. */
   deleteRawMetric(agentId: string, periodId: string): Promise<void>;
+
+  /** Nulls one individual-metric field, for one agent, across every one of
+   *  the given periods that currently has a row for them -- the Data
+   *  Import page's "clear a KPI field across a month" action (see
+   *  clearIndividualMetricFieldAction in app/import/actions.ts). Distinct
+   *  from deleteRawMetric: this leaves the row (and every OTHER field on
+   *  it) in place for each day, only blanking the one chosen field, across
+   *  potentially many days in one call instead of one day at a time. A
+   *  periodId with no existing row for this agent is simply skipped (no
+   *  row means no value for any field already, so there's nothing to
+   *  clear). Returns how many of the given periods actually had a row that
+   *  got cleared. */
+  clearIndividualMetricField(agentId: string, periodIds: string[], field: RawIndividualMetricKey): Promise<number>;
 
   /** Removes a period and everything stored against it — its raw
    *  individual metrics, its Business Gate metrics, any penalties logged
