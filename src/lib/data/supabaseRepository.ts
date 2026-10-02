@@ -307,7 +307,10 @@ export class SupabaseRepository implements DataRepository {
     const { error: importsError } = await this.writeClient.from("imports").delete().eq("period_id", periodId);
     if (importsError) throw importsError;
 
-    
+    const { error: periodError } = await this.writeClient.from("periods").delete().eq("id", periodId);
+    if (periodError) throw periodError;
+  }
+
   async deleteRawMetric(agentId: string, periodId: string): Promise<void> {
     const { error } = await this.writeClient
       .from("performance_entries")
