@@ -18,7 +18,10 @@ export interface DataRepository {
   getGateMetrics(periodId: string): Promise<RawGateMetrics | null>;
   getAllGateMetrics(): Promise<RawGateMetrics[]>;
   getPenalties(periodId?: string): Promise<PenaltyEntry[]>;
-  addPenalty(entry: Omit<PenaltyEntry, "id">): Promise<PenaltyEntry>;
+  // createdAt is set by the store itself on insert (DB default / server
+  // clock) -- never something the "Record a penalty" form supplies -- so
+  // it's excluded here the same way "id" already is.
+  addPenalty(entry: Omit<PenaltyEntry, "id" | "createdAt">): Promise<PenaltyEntry>;
   deletePenalty(id: string): Promise<void>;
 
   getImports(): Promise<ImportRecord[]>;
