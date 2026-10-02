@@ -41,7 +41,7 @@ export interface DataRepository {
    *  periodId at all (never committed, or committed before that link
    *  existed). See deletePeriod for the "wipe this whole day" case. */
   deleteImport(importId: string): Promise<void>;
-  
+
   /** Removes exactly one agent's single performance_entries row for one
    *  period — the Data Import page's per-record delete, scoped to just
    *  that agent+period pair rather than the whole day (see deletePeriod
