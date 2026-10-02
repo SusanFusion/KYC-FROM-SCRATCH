@@ -54,6 +54,14 @@ export interface RankingRow {
   chatFRTPoint: Grade | null;
   csatDsatPoint: Grade | null;
   qaAuditPoint: Grade | null;
+  /** Total points deducted from this agent's score by every penalty applied
+   *  this period/range (see IndividualScoreResult.penaltyTotal) -- a
+   *  positive number, same convention as the Penalties page's own deduction
+   *  values (subtracted from, never added to, the final score). Optional:
+   *  only shown when this table's `showDeductionColumn` prop is on, and
+   *  only the Overall MTD page passes that today -- Dashboard and Rankings
+   *  leave both this field and the prop unset, so nothing changes there. */
+  penaltyTotal?: number;
 }
 
 type SortKey = "finalScore" | "name";
@@ -90,7 +98,29 @@ function pointCell(point: Grade | null) {
   return <Badge variant={gradeTone(point) as "primary" | "success" | "warning" | "danger"}>{point}</Badge>;
 }
 
-export function RankingTable({ rows, departments }: { rows: RankingRow[]; departments: string[] }) {
+/** Mirrors PenaltyRecordsTable's 0-deduction treatment: a real deduction
+ *  reads as "-X.XX" in danger red, same as everywhere else penalties are
+ *  shown; an agent with nothing deducted this period/range reads as a
+ *  plain dash rather than a literal "-0.00", which would misleadingly look
+ *  like a real (if tiny) deduction. */
+function deductionCell(penaltyTotal: number | undefined) {
+  const total = penaltyTotal ?? 0;
+  if (total === 0) return <span className="text-muted-foreground">—</span>;
+  return <span className="text-danger">-{total.toFixed(2)}</span>;
+}
+
+export function RankingTable({
+  rows,
+  departments,
+  showDeductionColumn = false,
+}: {
+  rows: RankingRow[];
+  departments: string[];
+  /** Adds a "Total Deduction" column right before Score -- off by default so
+   *  Dashboard and Rankings (which also render this table) are unaffected;
+   *  only the Overall MTD page turns it on. */
+  showDeductionColumn?: boolean;
+}) {
   const [query, setQuery] = React.useState("");
   const [department, setDepartment] = React.useState("all");
   const [sortKey, setSortKey] = React.useState<SortKey>("finalScore");
@@ -165,6 +195,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
               <TableHead>Point</TableHead>
               <TableHead>QA Audit</TableHead>
               <TableHead>Point</TableHead>
+              {showDeductionColumn && <TableHead>Total Deduction</TableHead>}
               <TableHead>
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
                   Score <ArrowUpDown className="h-3 w-3" />
@@ -204,6 +235,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                   <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                   <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
+                  {showDeductionColumn && <TableCell>{deductionCell(r.penaltyTotal)}</TableCell>}
                   <TableCell>{scoreCell(r)}</TableCell>
                 </TableRow>
               );
@@ -246,6 +278,7 @@ export function RankingTable({ rows, departments }: { rows: RankingRow[]; depart
                     <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
                     <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                     <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
+                    {showDeductionColumn && <TableCell>{deductionCell(r.penaltyTotal)}</TableCell>}
                     <TableCell>{scoreCell(r)}</TableCell>
                   </TableRow>
                 ))}
