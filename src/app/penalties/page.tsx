@@ -102,46 +102,49 @@ export default async function PenaltiesPage() {
 
         <p className="mt-3 text-xs text-muted-foreground">{PENALTY_NOTE_DEDUCTION_TIMING}</p>
 
-        {period && (
+        {/* One shared unlock for both "Record a penalty" and "Recorded this
+            period" below -- entering the password once used to only unlock
+            whichever of the two you typed it into (each had its own
+            PasswordGate, and each one's unlock state lives in that
+            component's own client-side state), so you'd get asked again for
+            the other. Wrapping both cards in a single PasswordGate instance
+            means there's exactly one prompt and one unlock for the whole
+            section. The Lead-only role check on the records table
+            underneath is unchanged and independent of this -- an agent who
+            knows the password can still open "Record a penalty" (unchanged
+            from before), but the records table stays role-gated regardless
+            of whether the password was entered. */}
+        <PasswordGate description="Enter the shared Lead/Manager password to record or view penalties.">
+          {period && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Record a penalty</CardTitle>
+                <CardDescription>Applies to {period.label}. Deductions apply immediately to the agent&apos;s individual score.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PenaltyForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} periodId={period.id} />
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle>Record a penalty</CardTitle>
-              <CardDescription>Applies to {period.label}. Deductions apply immediately to the agent&apos;s individual score.</CardDescription>
+              <CardTitle>Recorded this period</CardTitle>
+              {!canSeePenaltyLog && <CardDescription>Visible to Leads/Managers only.</CardDescription>}
             </CardHeader>
             <CardContent>
-              {/* Same shared Lead/Manager password as Data Import -- the
-                  real enforcement is server-side in addPenaltyAction (see
-                  actions.ts), this is just the matching prompt. */}
-              <PasswordGate description="Enter the shared Lead/Manager password to record a penalty.">
-                <PenaltyForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} periodId={period.id} />
-              </PasswordGate>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Recorded this period</CardTitle>
-            {!canSeePenaltyLog && <CardDescription>Visible to Leads/Managers only.</CardDescription>}
-          </CardHeader>
-          <CardContent>
-            {canSeePenaltyLog ? (
-              // Same shared Lead/Manager password as "Record a penalty"
-              // above -- Leads still have to unlock this browser before the
-              // log itself is shown, on top of the role check that already
-              // keeps agents out entirely.
-              <PasswordGate description="Enter the shared Lead/Manager password to view recorded penalties.">
+              {canSeePenaltyLog ? (
                 <PenaltyRecordsTable
                   records={recorded}
                   agents={agents.map((a) => ({ id: a.id, name: a.name }))}
                   periodLabel={period?.label ?? "this period"}
                 />
-              </PasswordGate>
-            ) : (
-              <p className="text-sm text-muted-foreground">Penalty records are visible to Leads/Managers only.</p>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <p className="text-sm text-muted-foreground">Penalty records are visible to Leads/Managers only.</p>
+              )}
+            </CardContent>
+          </Card>
+        </PasswordGate>
       </PageShell>
     </>
   );
