@@ -6,8 +6,10 @@ import { ImportWorkflow } from "@/components/shared/ImportWorkflow";
 import { ManualEntryForm } from "@/components/shared/ManualEntryForm";
 import { ImportHistoryList } from "@/components/shared/ImportHistoryList";
 import { RawMetricRecordsManager } from "@/components/shared/RawMetricRecordsManager";
+import { ClearMetricFieldForm } from "@/components/shared/ClearMetricFieldForm";
 import { PasswordGate } from "@/components/shared/PasswordGate";
 import { getRepository } from "@/lib/data/repository";
+import { listAvailableMonths } from "@/lib/data/query";
 import { metricFieldLabel } from "@/lib/data/metricLabels";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
@@ -29,21 +31,23 @@ const INDIVIDUAL_FIELD_KEYS = [
 
 export default async function ImportPage() {
   const repo = await getRepository();
-  const [imports, agents, periods, rawMetrics, user] = await Promise.all([
+  const [imports, agents, periods, rawMetrics, user, months] = await Promise.all([
     repo.getImports(),
     repo.getAgents(),
     repo.getPeriods(),
     repo.getRawMetrics(),
     getCurrentUser(),
+    listAvailableMonths(),
   ]);
   const periodOptions = periods.map((p) => ({ id: p.id, label: p.label, endDate: p.endDate }));
 
   // Same fail-open convention as the Penalties page's canSeePenaltyLog --
   // there's no session at all for most visits (login is optional, see
-  // getCurrentUser.ts), so this only HIDES the control for someone signed
-  // in as a plain agent; the real enforcement is the Lead/Manager password
-  // this whole page is already behind (see deleteRawMetricAction).
-  const canDeleteRawMetric = !user || user.role === "lead";
+  // getCurrentUser.ts), so this only HIDES these controls for someone
+  // signed in as a plain agent; the real enforcement is the Lead/Manager
+  // password this whole page is already behind (see deleteRawMetricAction
+  // and clearIndividualMetricFieldAction).
+  const canManageRawMetrics = !user || user.role === "lead";
 
   const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
   const rawMetricRecords = rawMetrics.map((m) => ({
@@ -52,6 +56,8 @@ export default async function ImportPage() {
     periodId: m.periodId,
     fieldsTouched: INDIVIDUAL_FIELD_KEYS.filter((key) => m[key] !== null && m[key] !== undefined).map(metricFieldLabel),
   }));
+  const metricFieldOptions = INDIVIDUAL_FIELD_KEYS.map((key) => ({ key, label: metricFieldLabel(key) }));
+  const monthOptions = months.map((m) => ({ key: m.key, label: m.label }));
 
   // Only Manual Entry submissions carry a meaningful "which metrics did you
   // tick" story — a PDF import's rows are just whatever it managed to parse
@@ -119,7 +125,7 @@ export default async function ImportPage() {
             </CardContent>
           </Card>
 
-          {canDeleteRawMetric && (
+          {canManageRawMetrics && (
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle>Delete a KPI record</CardTitle>
@@ -131,6 +137,26 @@ export default async function ImportPage() {
               </CardHeader>
               <CardContent>
                 <RawMetricRecordsManager records={rawMetricRecords} periods={periodOptions.map((p) => ({ id: p.id, label: p.label }))} />
+              </CardContent>
+            </Card>
+          )}
+
+          {canManageRawMetrics && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Clear a KPI field across a month</CardTitle>
+                <CardDescription>
+                  Nulls out one chosen KPI for one agent across every day already imported in a selected month — e.g. to
+                  wipe a bad QA Audit % for their whole month-to-date without touching any other field or any other day.
+                  Visible to Leads/Auditors only.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ClearMetricFieldForm
+                  agents={agents.map((a) => ({ id: a.id, name: a.name }))}
+                  months={monthOptions}
+                  fields={metricFieldOptions}
+                />
               </CardContent>
             </Card>
           )}
