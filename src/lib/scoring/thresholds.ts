@@ -362,7 +362,9 @@ export const ATTENDANCE_PENALTIES: PenaltyDefinition[] = [
     category: "attendance",
     label: "Absence with documentation",
     deduction: 0.3,
-    example: "—",
+    example:
+      "A run of consecutive days off (e.g. 3 days in a row, one doctor's note) deducts -0.30 once for the whole run, not per day. Separate, non-consecutive dates still deduct -0.30 each.",
+    consecutiveRun: true,
   },
 ];
 
