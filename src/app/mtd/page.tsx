@@ -115,6 +115,10 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     chatFRTPoint: r.individual.metrics.find((m) => m.key === "chatFRT")?.grade ?? null,
     csatDsatPoint: r.individual.metrics.find((m) => m.key === "csatDsat")?.grade ?? null,
     qaAuditPoint: r.individual.metrics.find((m) => m.key === "qaAudit")?.grade ?? null,
+    // Total points deducted from this agent's score by every penalty applied
+    // across the month so far -- shown as its own "Total Deduction" column
+    // via RankingTable's showDeductionColumn prop below (Overall MTD only).
+    penaltyTotal: r.individual.penaltyTotal,
   }));
 
   return (
@@ -191,7 +195,7 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
             <CardDescription>Every agent&apos;s score averaged across each day imported so far this month.</CardDescription>
           </CardHeader>
           <CardContent className="p-5">
-            <RankingTable rows={rankingRows} departments={teams.map((t) => t.name)} />
+            <RankingTable rows={rankingRows} departments={teams.map((t) => t.name)} showDeductionColumn />
           </CardContent>
         </Card>
 
