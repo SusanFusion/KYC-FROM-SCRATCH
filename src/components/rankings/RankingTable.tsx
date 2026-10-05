@@ -68,6 +68,17 @@ type SortKey = "finalScore" | "name";
 
 const ROW_TINT: Record<number, string> = { 1: "rank-row-gold", 2: "rank-row-silver", 3: "rank-row-bronze" };
 
+// Frozen Rank + Agent columns, so scrolling the table sideways never loses
+// track of whose scores you're reading. A sticky cell needs a SOLID
+// background (otherwise the columns scrolling underneath show through), set
+// inline as a background-COLOR so it layers under -- rather than replacing --
+// each row's own tint gradient (a background-image), which still shows.
+const STICKY_RANK_W = "w-[72px] min-w-[72px] max-w-[72px]";
+const STICKY_RANK = cn("sticky left-0 z-[1]", STICKY_RANK_W);
+const STICKY_AGENT = "sticky left-[72px] z-[1] min-w-[200px] border-r border-border";
+const STICKY_BODY_BG: React.CSSProperties = { backgroundColor: "hsl(var(--card))" };
+const STICKY_HEAD_BG: React.CSSProperties = { backgroundColor: "hsl(var(--muted))" };
+
 /** Agents without enough real data to produce a comparable score — they
  *  still show up in the table (never silently dropped), but never occupy a
  *  ranked position ahead of someone with a genuinely comparable score. */
@@ -176,8 +187,10 @@ export function RankingTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Rank</TableHead>
-              <TableHead>
+              <TableHead className={STICKY_RANK} style={STICKY_HEAD_BG}>
+                Rank
+              </TableHead>
+              <TableHead className={STICKY_AGENT} style={STICKY_HEAD_BG}>
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
                   Agent <ArrowUpDown className="h-3 w-3" />
                 </button>
@@ -211,8 +224,10 @@ export function RankingTable({
               const showMedal = isDefaultSort && rank <= 3;
               return (
                 <TableRow key={r.agentId} className={showMedal ? ROW_TINT[rank] : undefined}>
-                  <TableCell>{showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}</TableCell>
-                  <TableCell>
+                  <TableCell className={cn(STICKY_RANK, showMedal && ROW_TINT[rank])} style={STICKY_BODY_BG}>
+                    {showMedal ? <RankMedal rank={rank} /> : <RankMedal rank={rank} size="sm" />}
+                  </TableCell>
+                  <TableCell className={cn(STICKY_AGENT, showMedal && ROW_TINT[rank])} style={STICKY_BODY_BG}>
                     <Link href={`/scorecards/${r.agentId}`} className={cn("font-medium text-foreground hover:underline", showMedal && "font-semibold")}>
                       {r.name}
                     </Link>
@@ -254,8 +269,10 @@ export function RankingTable({
               <TableBody>
                 {unranked.map((r) => (
                   <TableRow key={r.agentId} className="opacity-70">
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell>
+                    <TableCell className={cn(STICKY_RANK, "text-muted-foreground")} style={STICKY_BODY_BG}>
+                      —
+                    </TableCell>
+                    <TableCell className={STICKY_AGENT} style={STICKY_BODY_BG}>
                       <Link href={`/scorecards/${r.agentId}`} className="font-medium text-foreground hover:underline">
                         {r.name}
                       </Link>
