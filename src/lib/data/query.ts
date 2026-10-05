@@ -281,6 +281,52 @@ function aggregateGate(
   return result;
 }
 
+/** Collapses every period imported for the SAME calendar day into one set of
+ *  per-agent rows. Each import mints its own period (see commitImportRows.ts),
+ *  so a day that was imported twice -- e.g. the chat report re-uploaded after a
+ *  correction -- has two daily periods. Averaging across periods would count
+ *  that one day twice (and sum its chat/CSAT counts twice). Instead, for each
+ *  agent and field the MOST RECENT import that has a value wins, which still
+ *  lets a later import fill in fields an earlier one didn't have (e.g. the KYC
+ *  report one day, the chat report another) without ever double-counting.
+ *  `sets` is ordered oldest import first. */
+function collapseDayRaw(sets: RawAgentMetrics[][], periodId: string): RawAgentMetrics[] {
+  if (sets.length === 1) return sets[0] ?? [];
+  const byAgent = new Map<string, RawAgentMetrics>();
+  for (const rows of sets) {
+    for (const row of rows) {
+      const merged = byAgent.get(row.agentId) ?? emptyRawMetrics(row.agentId, periodId);
+      for (const field of [...AVERAGE_FIELDS, ...SUM_FIELDS]) {
+        const value = row[field];
+        if (value !== null) merged[field] = value;
+      }
+      byAgent.set(row.agentId, merged);
+    }
+  }
+  return [...byAgent.values()];
+}
+
+/** Same idea as collapseDayRaw, for the team-level Business Gate fields. */
+function collapseDayGate(gates: (RawGateMetrics | null)[]): RawGateMetrics | null {
+  if (gates.length === 1) return gates[0] ?? null;
+  let merged: RawGateMetrics | null = null;
+  for (const gate of gates) {
+    if (!gate) continue;
+    merged = merged ?? {
+      periodId: gate.periodId,
+      clientAvgWaitTimeMin: null,
+      teamProcessingTimeMin: null,
+      chatTeamAvgResponseSec: null,
+      teamTicketAHTMin: null,
+    };
+    for (const field of GATE_FIELDS) {
+      const value = gate[field];
+      if (value !== null) merged[field] = value;
+    }
+  }
+  return merged;
+}
+
 /** Every imported period whose start and end date are the same day. */
 export function getDailyPeriods(allPeriods: Period[]): Period[] {
   return allPeriods.filter((p) => p.startDate === p.endDate).sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
@@ -308,11 +354,41 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
 
   const period: Period = { id: spec.id, label: spec.label, type: spec.type, startDate: spec.start, endDate: spec.end, generatedAt: spec.end };
 
-  const [perDayRaw, perDayGate, allPenalties] = await Promise.all([
+  const [perPeriodRaw, perPeriodGate, allPenalties, imports] = await Promise.all([
     Promise.all(dayPeriods.map((p) => repo.getRawMetrics(p.id))),
     Promise.all(dayPeriods.map((p) => repo.getGateMetrics(p.id))),
     repo.getPenalties(),
+    repo.getImports(),
   ]);
+
+  // One entry per calendar DAY, not per imported period -- a day imported
+  // more than once must still count as a single day in every average (see
+  // collapseDayRaw). Within a day, imports are ordered oldest -> newest by
+  // when each was committed, so the newest value for a field wins.
+  const importedAtByPeriod = new Map<string, string>();
+  for (const imp of imports) {
+    if (!imp.periodId) continue;
+    const stamp = imp.committedAt ?? imp.uploadedAt;
+    const prev = importedAtByPeriod.get(imp.periodId);
+    if (!prev || stamp > prev) importedAtByPeriod.set(imp.periodId, stamp);
+  }
+  const periodIndexesByDate = new Map<string, number[]>();
+  dayPeriods.forEach((p, i) => {
+    const list = periodIndexesByDate.get(p.startDate);
+    if (list) list.push(i);
+    else periodIndexesByDate.set(p.startDate, [i]);
+  });
+  const perDayRaw: RawAgentMetrics[][] = [];
+  const perDayGate: (RawGateMetrics | null)[] = [];
+  for (const date of [...periodIndexesByDate.keys()].sort()) {
+    const indexes = [...(periodIndexesByDate.get(date) ?? [])].sort((a, b) => {
+      const stampA = importedAtByPeriod.get(dayPeriods[a]!.id) ?? "";
+      const stampB = importedAtByPeriod.get(dayPeriods[b]!.id) ?? "";
+      return stampA < stampB ? -1 : stampA > stampB ? 1 : 0;
+    });
+    perDayRaw.push(collapseDayRaw(indexes.map((i) => perPeriodRaw[i] ?? []), spec.id));
+    perDayGate.push(collapseDayGate(indexes.map((i) => perPeriodGate[i] ?? null)));
+  }
 
   const rawMetrics = agents.map((agent) => {
     const rows = perDayRaw.flatMap((dayRows) => dayRows.filter((r) => r.agentId === agent.id));
