@@ -79,9 +79,27 @@ describe("calculateIndividualScore", () => {
       const r = calculateIndividualScore(raw({ avgResponseTimeSec: 25 }), []);
       expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(2);
     });
-    it("grades 30.01 sec as Failing (0)", () => {
+    it("grades 25.4 sec as On Target (2) — scale is in whole seconds, so it rounds to 25", () => {
+      const r = calculateIndividualScore(raw({ avgResponseTimeSec: 25.4 }), []);
+      expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(2);
+    });
+    it("grades 25.5 sec and 26 sec as Below Target (1)", () => {
+      for (const v of [25.5, 26]) {
+        const r = calculateIndividualScore(raw({ avgResponseTimeSec: v }), []);
+        expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(1);
+      }
+    });
+    it("grades 30.4 sec as Below Target (1) and 30.5 / 31 sec as Failing (0)", () => {
+      const low = calculateIndividualScore(raw({ avgResponseTimeSec: 30.4 }), []);
+      expect(low.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(1);
+      for (const v of [30.5, 31]) {
+        const r = calculateIndividualScore(raw({ avgResponseTimeSec: v }), []);
+        expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(0);
+      }
+    });
+    it("grades 30.01 sec as Below Target (1) — rounds to 30", () => {
       const r = calculateIndividualScore(raw({ avgResponseTimeSec: 30.01 }), []);
-      expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(0);
+      expect(r.metrics.find((m) => m.key === "chatAvgResponse")!.grade).toBe(1);
     });
   });
 
