@@ -187,10 +187,16 @@ export async function loadAgentRangeResult(agentId: string, spec: RangeSpec): Pr
 // can never compute a score by different rules than a single day does.
 //
 // The two kinds of raw fields aggregate differently:
-//   - AHT / response-time / QA Audit % are plain averages with no paired
+//   - App/Email AHT and QA Audit % are plain averages with no paired
 //     "count of things averaged" field in the data (see notes.ts and the
 //     Trends delta-precision fix) — the only honest way to combine several
 //     days of them is an unweighted mean across the days that have data.
+//   - Chat First Response and Chat Avg Response ARE averages over that day's
+//     chats, and each day's chat count IS in the data (totalChatConversations),
+//     so they combine as a chat-weighted mean -- exactly how the source
+//     Freshdesk report computes its own month-to-date figure (total across
+//     every chat / number of chats), which a plain mean of daily averages
+//     does NOT reproduce when an agent's chat volume varies a lot by day.
 //   - Total chats/conversations and CSAT/DSAT counts are true counts, so
 //     they SUM across days; CSAT/DSAT % is then re-derived from those
 //     summed counts (never averaged as a percentage), which is exact.
@@ -211,11 +217,41 @@ function sum(values: number[]): number | null {
   return values.length ? values.reduce((s, v) => s + v, 0) : null;
 }
 
+/** Month/week average of a per-chat average (Chat First Response / Chat Avg
+ *  Response), weighted by how many chats each day's figure is an average OF.
+ *  A day explicitly reporting 0 chats has nothing to contribute and is left
+ *  out; a day with a value but no chat count at all (an older import) is
+ *  imputed the average chat count of the days that do have one, so it isn't
+ *  silently dropped. With no usable chat counts anywhere this is the plain
+ *  mean of the days that have a value. */
+function chatWeightedMean(dayRows: RawAgentMetrics[], field: "avgFirstResponseTimeSec" | "avgResponseTimeSec"): number | null {
+  const present: { value: number; chats: number | null }[] = [];
+  for (const row of dayRows) {
+    const value = row[field];
+    if (value === null) continue;
+    present.push({ value, chats: row.totalChatConversations });
+  }
+  if (present.length === 0) return null;
+
+  const counted = present.filter((p) => p.chats !== 0);
+  if (counted.length === 0) return mean(present.map((p) => p.value));
+
+  const knownChats = counted.map((p) => p.chats).filter((c): c is number => c !== null && c > 0);
+  const fallbackChats = knownChats.length > 0 ? mean(knownChats)! : 1;
+  const weightOf = (chats: number | null) => (chats !== null && chats > 0 ? chats : fallbackChats);
+
+  const totalWeight = counted.reduce((s, p) => s + weightOf(p.chats), 0);
+  return counted.reduce((s, p) => s + p.value * weightOf(p.chats), 0) / totalWeight;
+}
+
 function aggregateAgentRaw(agentId: string, periodId: string, dayRows: RawAgentMetrics[]): RawAgentMetrics {
   if (dayRows.length === 0) return emptyRawMetrics(agentId, periodId);
   const result = emptyRawMetrics(agentId, periodId);
   for (const field of AVERAGE_FIELDS) {
-    result[field] = mean(dayRows.map((r) => r[field]).filter((v): v is number => v !== null));
+    result[field] =
+      field === "avgFirstResponseTimeSec" || field === "avgResponseTimeSec"
+        ? chatWeightedMean(dayRows, field)
+        : mean(dayRows.map((r) => r[field]).filter((v): v is number => v !== null));
   }
   for (const field of SUM_FIELDS) {
     result[field] = sum(dayRows.map((r) => r[field]).filter((v): v is number => v !== null));
@@ -255,6 +291,7 @@ function weightedOrPlainMean(values: (number | null)[], weights: number[]): numb
 function aggregateGate(
   dayGates: (RawGateMetrics | null)[],
   periodId: string,
+  chatVolumeByDay: number[] = [],
   ticketVolumeByDay: number[] = []
 ): RawGateMetrics {
   const result: RawGateMetrics = {
@@ -265,11 +302,14 @@ function aggregateGate(
     teamTicketAHTMin: null,
   };
   for (const field of GATE_FIELDS) {
-    // Chat Team Avg Response is a plain average of each day's reported
-    // figure -- deliberately NOT weighted by that day's chat count (matches
-    // the team's manual run). Team Ticket AHT, below, is still weighted by
-    // that day's ticket volume.
-    if (field === "teamTicketAHTMin") {
+    // Weighted by that day's actual volume (already imported per-agent as
+    // totalChatConversations / emailTicketCount) instead of a plain
+    // day-average -- an equal-weighted average treats a 5-chat day and a
+    // 50-chat day the same, which is why these used to drift from the
+    // source report's own weekly figure (a true volume-weighted average).
+    if (field === "chatTeamAvgResponseSec") {
+      result.chatTeamAvgResponseSec = weightedOrPlainMean(dayGates.map((g) => g?.chatTeamAvgResponseSec ?? null), chatVolumeByDay);
+    } else if (field === "teamTicketAHTMin") {
       // Volume here is email + KYB ticket count only (confirmed with
       // Susan) -- Team Ticket AHT does not include application tickets,
       // so this is the correct full weighting basis, not a partial proxy.
@@ -395,16 +435,24 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
     return aggregateAgentRaw(agent.id, spec.id, rows);
   });
 
-  // teamTicketAHTMin is weighted by each day's total email + KYB ticket
+  // Each day's total chat volume (summed across every agent's own
+  // totalChatConversations for that day) -- used to weight
+  // chatTeamAvgResponseSec by actual volume instead of averaging days
+  // equally. Same order/length as perDayGate (both built per calendar day
+  // above), so index i always lines up with the same calendar day.
+  const chatVolumeByDay = perDayRaw.map((dayRows) =>
+    dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
+  );
+
+  // Same idea for teamTicketAHTMin -- each day's total email + KYB ticket
   // volume (from the "Agent KYC Email Ave Volume" report table, only
   // present in more recent imports; older days simply sum to 0 and
   // aggregateGate falls back to a plain mean for those).
-  
   const ticketVolumeByDay = perDayRaw.map((dayRows) =>
     dayRows.reduce((total, r) => total + (r.emailTicketCount ?? 0), 0)
   );
 
-  const gateInput = aggregateGate(perDayGate, spec.id, ticketVolumeByDay);
+  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay, ticketVolumeByDay);
     // Penalties carry their own occurredOn date (independent of which period
   // they were logged against), so a range view re-tags every penalty whose
   // date falls in the window with this range's synthetic period id —
