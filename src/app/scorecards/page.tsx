@@ -185,7 +185,12 @@ export default async function ScorecardsPage({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Agent</TableHead>
+                    <TableHead
+                      className="sticky left-0 z-[1] min-w-[200px] border-r border-border"
+                      style={{ backgroundColor: "hsl(var(--muted))" }}
+                    >
+                      Agent
+                    </TableHead>
                     <TableHead>App AHT</TableHead>
                     <TableHead>Point</TableHead>
                     <TableHead>Email AHT</TableHead>
@@ -218,7 +223,13 @@ export default async function ScorecardsPage({
 
                     return (
                       <TableRow key={r.agent.id} className={noDataYet ? ROW_GRADIENT.noData : passing ? ROW_GRADIENT.pass : ROW_GRADIENT.fail}>
-                        <TableCell>
+                        <TableCell
+                          className={cn(
+                            "sticky left-0 z-[1] min-w-[200px] border-r border-border",
+                            noDataYet ? ROW_GRADIENT.noData : passing ? ROW_GRADIENT.pass : ROW_GRADIENT.fail
+                          )}
+                          style={{ backgroundColor: "hsl(var(--card))" }}
+                        >
                           <Link href={`/scorecards/${r.agent.id}`} className="font-medium text-foreground hover:underline">
                             {r.agent.name}
                           </Link>
