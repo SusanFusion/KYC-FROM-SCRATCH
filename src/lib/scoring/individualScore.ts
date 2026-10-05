@@ -86,7 +86,15 @@ export function calculateIndividualScore(
         bufferGood: null,
       };
     }
-    const band = gradeIndividualMetric(value, def.bands, def.direction);
+    // Chat Avg Response's published scale is written in WHOLE seconds
+    // (3 = <=19, 2 = 20-25, 1 = 26-30, 0 = 31+), so a fractional average
+    // like 25.4s would otherwise fall into the gap between "25" and "26"
+    // and tip into Below Target even though it reads as 25s. Grading the
+    // value rounded to the nearest whole second matches the table exactly
+    // at every whole number (25 -> 2, 26 -> 1, 31 -> 0); the unrounded
+    // value is still what's displayed and stored.
+    const gradingValue = def.key === "chatAvgResponse" ? Math.round(value) : value;
+    const band = gradeIndividualMetric(gradingValue, def.bands, def.direction);
     const grade = band ? band.grade : 0;
     const safeBand = def.bands.find((b) => b.label === "On Target");
     const buffer = computeBuffer(value, safeBand, def.unit, def.direction);
