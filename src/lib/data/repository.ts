@@ -86,6 +86,12 @@ export interface DataRepository {
   getQaAudits(filter?: { auditType?: QaAuditType; periodId?: string; agentId?: string }): Promise<QaAuditRecord[]>;
   getQaAuditById(id: string): Promise<QaAuditRecord | null>;
   createQaAudit(input: NewQaAuditInput & { applicablePoints: number; totalPoints: number; percentage: number | null; autoFail: boolean; band: 0 | 1 | 2 | 3 | null }): Promise<QaAuditRecord>;
+  /** Rewrites an existing audit in place (answers, remarks, dates, auditor,
+   *  agent, period, and the score recomputed from them) while keeping its id,
+   *  status ("submitted"/"published") and createdAt untouched -- see the PUT
+   *  handler in api/qa-audits/[id]/route.ts, which is what recomputes the
+   *  scorecard's QA Audit % afterwards when the audit is published. */
+  updateQaAudit(id: string, input: NewQaAuditInput & { applicablePoints: number; totalPoints: number; percentage: number | null; autoFail: boolean; band: 0 | 1 | 2 | 3 | null }): Promise<QaAuditRecord>;
   setQaAuditStatus(id: string, status: QaAuditStatus): Promise<QaAuditRecord>;
   deleteQaAudit(id: string): Promise<void>;
 }
