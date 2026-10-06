@@ -75,7 +75,17 @@ export default async function PenaltiesPage() {
   const allPenalties = await repo.getPenalties();
   const recorded = agents
     .flatMap((a) => calculateAllPenalties(a.id, allPenalties).map((p) => ({ ...p, agent: a.name, agentId: a.id })))
-    .filter((p) => p.count > 0);
+    .filter((p) => p.count > 0)
+    // Newest submission first (when each entry was actually logged, not the
+    // date of the infraction), so the log reads latest -> oldest instead of
+    // grouped alphabetically by agent. Same-moment entries (e.g. several
+    // logged back-to-back) fall back to the infraction date, then id, so
+    // the order is always stable.
+    .sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+      if (a.occurredOn !== b.occurredOn) return a.occurredOn < b.occurredOn ? 1 : -1;
+      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    });
 
   // Who has already hit the Repeated Offenses rule (the same Disciplinary
   // penalty 3+ times) in the quarter of the current period -- the matching
