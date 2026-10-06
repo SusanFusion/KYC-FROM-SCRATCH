@@ -409,6 +409,46 @@ export class SupabaseRepository implements DataRepository {
     return mapQaAuditRow(data);
   }
 
+  async updateQaAudit(
+    id: string,
+    input: NewQaAuditInput & {
+      applicablePoints: number;
+      totalPoints: number;
+      percentage: number | null;
+      autoFail: boolean;
+      band: 0 | 1 | 2 | 3 | null;
+    }
+  ): Promise<QaAuditRecord> {
+    // status and created_at are deliberately NOT part of this update -- an
+    // edit never changes whether an audit is published, only its contents.
+    const { data, error } = await this.writeClient
+      .from("qa_audits")
+      .update({
+        audit_type: input.auditType,
+        agent_id: input.agentId,
+        agent_name: input.agentName,
+        period_id: input.periodId,
+        period_label: input.periodLabel,
+        auditor_email: input.auditorEmail,
+        auditor_name: input.auditorName,
+        case_reference: input.caseReference,
+        audit_date: input.auditDate,
+        answers: input.answers,
+        overall_remarks: input.overallRemarks,
+        applicable_points: input.applicablePoints,
+        total_points: input.totalPoints,
+        percentage: input.percentage,
+        auto_fail: input.autoFail,
+        band: input.band,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapQaAuditRow(data);
+  }
+
   async setQaAuditStatus(id: string, status: QaAuditStatus): Promise<QaAuditRecord> {
     const { data, error } = await this.writeClient
       .from("qa_audits")
