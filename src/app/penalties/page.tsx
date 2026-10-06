@@ -11,11 +11,14 @@ import {
   ATTENDANCE_PENALTIES,
   EMPLOYMENT_ACTIONS,
   PENALTY_NOTE_DEDUCTION_TIMING,
+  REPEATED_OFFENSE_THRESHOLD,
 } from "@/lib/scoring";
 import type { PenaltyDefinition } from "@/lib/scoring/types";
 import { loadPeriodDataset } from "@/lib/data/query";
 import { getRepository } from "@/lib/data/repository";
-import { calculateAllPenalties } from "@/lib/scoring/penalties";
+import { calculateAllPenalties, findRepeatedOffenses } from "@/lib/scoring/penalties";
+import { quarterRange, formatQuarterLabel } from "@/lib/data/dateRanges";
+import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 /** columnLabel switches this between the two disciplinary/attendance tables
@@ -72,7 +75,26 @@ export default async function PenaltiesPage() {
   const allPenalties = await repo.getPenalties();
   const recorded = agents
     .flatMap((a) => calculateAllPenalties(a.id, allPenalties).map((p) => ({ ...p, agent: a.name, agentId: a.id })))
-    .filter((p) => p.count > 0);
+    .filter((p) => p.count > 0)
+    // Newest submission first (when each entry was actually logged, not the
+    // date of the infraction), so the log reads latest -> oldest instead of
+    // grouped alphabetically by agent. Same-moment entries (e.g. several
+    // logged back-to-back) fall back to the infraction date, then id, so
+    // the order is always stable.
+    .sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+      if (a.occurredOn !== b.occurredOn) return a.occurredOn < b.occurredOn ? 1 : -1;
+      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    });
+
+  // Who has already hit the Repeated Offenses rule (the same Disciplinary
+  // penalty 3+ times) in the quarter of the current period -- the matching
+  // -0.50 shows up in that quarter's score on the Quarter page.
+  const quarterAnchor = period?.startDate ?? new Date().toISOString().slice(0, 10);
+  const quarterWindow = quarterRange(quarterAnchor);
+  const quarterLabel = formatQuarterLabel(quarterAnchor);
+  const repeatedOffenders = findRepeatedOffenses(allPenalties, quarterWindow.start, quarterWindow.end);
+  const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
 
   // The disciplinary/attendance reference tables and the "Record a penalty"
   // form above stay visible to everyone (recording is already its own
@@ -123,6 +145,50 @@ export default async function PenaltiesPage() {
               </CardHeader>
               <CardContent>
                 <PenaltyForm agents={agents.map((a) => ({ id: a.id, name: a.name }))} periodId={period.id} />
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeePenaltyLog && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Repeated Offenses — {quarterLabel}</CardTitle>
+                <CardDescription>
+                  Agents recorded for the same Disciplinary penalty {REPEATED_OFFENSE_THRESHOLD} or more times this quarter. Each takes
+                  an automatic -0.50 off their score on the Quarter page (once per quarter).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {repeatedOffenders.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No agent has reached {REPEATED_OFFENSE_THRESHOLD} of the same penalty this quarter.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Agent</TableHead>
+                        <TableHead>Repeated penalty (times in quarter)</TableHead>
+                        <TableHead>Hit on</TableHead>
+                        <TableHead>Deduction</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {repeatedOffenders.map((o) => (
+                        <TableRow key={o.agentId}>
+                          <TableCell className="font-medium text-foreground">{agentNameById.get(o.agentId) ?? o.agentId}</TableCell>
+                          <TableCell className="whitespace-normal">{o.codes.map((c) => `${c.label} ×${c.count}`).join(", ")}</TableCell>
+                          <TableCell>{formatDate(o.triggeredOn)}</TableCell>
+                          <TableCell>
+                            {o.alreadyRecorded ? (
+                              <Badge variant="outline">Already recorded by hand</Badge>
+                            ) : (
+                              <Badge variant="danger">-{o.deduction.toFixed(2)}</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           )}
