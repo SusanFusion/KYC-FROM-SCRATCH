@@ -13,7 +13,7 @@ export interface Agent {
   createdAt: string;
 }
 
-export type PeriodType = "daily" | "weekly" | "monthly" | "month-to-date" | "custom";
+export type PeriodType = "daily" | "weekly" | "monthly" | "month-to-date" | "quarter-to-date" | "custom";
 
 export interface Period {
   id: string;
