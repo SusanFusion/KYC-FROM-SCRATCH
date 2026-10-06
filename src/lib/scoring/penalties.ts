@@ -1,4 +1,4 @@
-import { ALL_PENALTIES } from "./thresholds";
+import { ALL_PENALTIES, DISCIPLINARY_PENALTIES } from "./thresholds";
 import type { PenaltyEntry, PenaltyCategory, PenaltyStatus, PenaltyMonthlyGrace } from "./types";
 
 export interface AppliedPenalty {
@@ -187,4 +187,119 @@ export function calculateAllPenalties(agentId: string, penalties: PenaltyEntry[]
 
 export function totalPenaltyDeduction(applied: AppliedPenalty[]): number {
   return applied.reduce((sum, p) => sum + p.deduction, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Repeated Offenses (3+ in a quarter)
+//
+// When an agent is recorded for the SAME Disciplinary penalty 3 or more
+// times inside one calendar quarter, the quarter score takes one extra
+// Repeated Offenses deduction (-0.50 -- see the "repeated_offenses" row in
+// DISCIPLINARY_PENALTIES). It is applied ONCE per agent per quarter, no
+// matter how many different codes reach 3 or how far past 3 any of them go.
+//
+// Only Disciplinary codes count (Coaching Opportunity, Major Quality Defect,
+// Brand Misuse, Invalid Approval, Invalid Rejection) -- never Attendance
+// codes, employment track-record actions, or Repeated Offenses itself. The
+// count is the sum of each entry's `count` (one entry can log several
+// occurrences at once) for entries whose occurredOn falls inside the quarter.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** How many times the SAME Disciplinary penalty must be recorded inside one
+ *  calendar quarter before the Repeated Offenses deduction kicks in. */
+export const REPEATED_OFFENSE_THRESHOLD = 3;
+
+export interface RepeatedOffenseCode {
+  code: PenaltyEntry["code"];
+  label: string;
+  /** Total occurrences of this code inside the quarter. */
+  count: number;
+}
+
+export interface RepeatedOffenseSummary {
+  agentId: string;
+  /** Every Disciplinary code that reached the threshold this quarter, most-recorded first. */
+  codes: RepeatedOffenseCode[];
+  /** The date the threshold was first crossed (the 3rd occurrence of whichever code got there first). */
+  triggeredOn: string;
+  /** True when someone already recorded a Repeated Offenses entry by hand inside this quarter -- the automatic deduction is then skipped so it can't count twice. */
+  alreadyRecorded: boolean;
+  /** The deduction automatically added to the quarter score (0 when alreadyRecorded). */
+  deduction: number;
+}
+
+const REPEATED_OFFENSES_DEFINITION = DISCIPLINARY_PENALTIES.find((d) => d.code === "repeated_offenses");
+const COUNTED_DISCIPLINARY_CODES = new Set<PenaltyEntry["code"]>(
+  DISCIPLINARY_PENALTIES.filter((d) => d.code !== "repeated_offenses").map((d) => d.code)
+);
+
+/**
+ * Finds every agent who hit the Repeated Offenses rule between `start` and
+ * `end` (inclusive YYYY-MM-DD -- pass a calendar quarter's first and last
+ * day). `penalties` can be the full, unfiltered list for every agent.
+ */
+export function findRepeatedOffenses(penalties: PenaltyEntry[], start: string, end: string): RepeatedOffenseSummary[] {
+  const inWindow = penalties.filter((p) => p.occurredOn >= start && p.occurredOn <= end && p.count > 0);
+
+  const byAgent = new Map<string, PenaltyEntry[]>();
+  for (const p of inWindow) {
+    const list = byAgent.get(p.agentId);
+    if (list) list.push(p);
+    else byAgent.set(p.agentId, [p]);
+  }
+
+  const summaries: RepeatedOffenseSummary[] = [];
+  for (const [agentId, entries] of byAgent) {
+    const alreadyRecorded = entries.some((e) => e.code === "repeated_offenses");
+
+    const codes: RepeatedOffenseCode[] = [];
+    let triggeredOn: string | null = null;
+    for (const code of COUNTED_DISCIPLINARY_CODES) {
+      const sameCode = chronological(entries.filter((e) => e.code === code));
+      let running = 0;
+      let crossedOn: string | null = null;
+      for (const e of sameCode) {
+        running += e.count;
+        if (crossedOn === null && running >= REPEATED_OFFENSE_THRESHOLD) crossedOn = e.occurredOn;
+      }
+      if (crossedOn === null) continue;
+      codes.push({ code, label: ALL_PENALTIES.find((d) => d.code === code)?.label ?? code, count: running });
+      if (triggeredOn === null || crossedOn < triggeredOn) triggeredOn = crossedOn;
+    }
+
+    if (codes.length === 0 || triggeredOn === null) continue;
+    codes.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1));
+    summaries.push({
+      agentId,
+      codes,
+      triggeredOn,
+      alreadyRecorded,
+      deduction: alreadyRecorded ? 0 : (REPEATED_OFFENSES_DEFINITION?.deduction ?? 0),
+    });
+  }
+
+  return summaries.sort((a, b) => (a.agentId < b.agentId ? -1 : a.agentId > b.agentId ? 1 : 0));
+}
+
+/**
+ * Turns the summaries from findRepeatedOffenses into ordinary penalty
+ * entries tagged with `periodId`, so they flow through calculatePenalty /
+ * calculateIndividualScore exactly like a hand-recorded Repeated Offenses
+ * entry would (score, "Total Deduction", penalty breakdown) -- no separate
+ * scoring path. Summaries that were already recorded by hand are skipped.
+ */
+export function repeatedOffenseEntries(summaries: RepeatedOffenseSummary[], periodId: string): PenaltyEntry[] {
+  return summaries
+    .filter((s) => !s.alreadyRecorded)
+    .map((s) => ({
+      id: `auto-repeated-offenses-${s.agentId}-${periodId}`,
+      agentId: s.agentId,
+      periodId,
+      code: "repeated_offenses" as const,
+      count: 1,
+      note: `Automatic: ${s.codes.map((c) => `${c.label} x${c.count}`).join(", ")}`,
+      occurredOn: s.triggeredOn,
+      recordedBy: "Automatic (Repeated Offenses rule)",
+      createdAt: `${s.triggeredOn}T00:00:00.000Z`,
+    }));
 }
