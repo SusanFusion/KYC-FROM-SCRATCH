@@ -208,6 +208,24 @@ export class LocalRepository implements DataRepository {
     return record;
   }
 
+  async updateQaAudit(
+    id: string,
+    input: NewQaAuditInput & {
+      applicablePoints: number;
+      totalPoints: number;
+      percentage: number | null;
+      autoFail: boolean;
+      band: 0 | 1 | 2 | 3 | null;
+    }
+  ) {
+    const record = store.qaAudits.find((a) => a.id === id);
+    if (!record) throw new Error("Audit not found.");
+    // id, status and createdAt are kept as they were -- an edit only
+    // rewrites the audit's contents.
+    Object.assign(record, input, { updatedAt: new Date().toISOString() });
+    return record;
+  }
+
   async setQaAuditStatus(id: string, status: QaAuditStatus) {
     const record = store.qaAudits.find((a) => a.id === id);
     if (!record) throw new Error("Audit not found.");
