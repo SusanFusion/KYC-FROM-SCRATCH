@@ -58,6 +58,28 @@ export function monthRange(iso: string): DateRange {
   return { start, end: `${y}-${pad(m)}-${pad(lastDay)}` };
 }
 
+/** The calendar quarter (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec) containing `iso`. */
+export function quarterRange(iso: string): DateRange {
+  const { y, m } = parseIso(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const firstMonth = Math.floor((m - 1) / 3) * 3 + 1;
+  const lastMonth = firstMonth + 2;
+  const lastDay = new Date(Date.UTC(y, lastMonth, 0)).getUTCDate();
+  return { start: `${y}-${pad(firstMonth)}-01`, end: `${y}-${pad(lastMonth)}-${pad(lastDay)}` };
+}
+
+/** "YYYY-Qn" grouping key for a date, e.g. "2026-Q3". */
+export function quarterKey(iso: string): string {
+  const { y, m } = parseIso(iso);
+  return `${y}-Q${Math.floor((m - 1) / 3) + 1}`;
+}
+
+/** "Q3 2026" for a date within that quarter. */
+export function formatQuarterLabel(iso: string): string {
+  const { y, m } = parseIso(iso);
+  return `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
+}
+
 /** "YYYY-MM" grouping key for a date, used to bucket daily periods by month. */
 export function monthKey(iso: string): string {
   return iso.slice(0, 7);
