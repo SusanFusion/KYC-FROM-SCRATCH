@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Loader2, Send, Download, Mail, Trash2, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Send, Download, Mail, Trash2, ChevronDown, ChevronUp, ShieldAlert, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -124,26 +124,59 @@ function ScorePreview({ answers, auditType }: { answers: Record<string, QaAnswer
   );
 }
 
+/** This one form does double duty: with no `editing` it submits a brand-new
+ *  audit (POST), and with `editing` set it opens that already-submitted
+ *  audit pre-filled and saves changes to it in place (PUT) -- same fields,
+ *  same validation, same live score preview either way. */
 function SubmitAuditForm({
   auditType,
   agents,
   periods,
   onSubmitted,
+  editing = null,
+  onCancel,
 }: {
   auditType: QaAuditType;
   agents: AgentOption[];
   periods: PeriodOption[];
-  onSubmitted: () => void;
+  onSubmitted: () => void | Promise<void>;
+  editing?: QaAuditRecord | null;
+  onCancel?: () => void;
 }) {
   const { showToast } = useToast();
   const definition = getAuditDefinition(auditType);
-  const [agentId, setAgentId] = React.useState(agents[0]?.id ?? "");
-  const [periodId, setPeriodId] = React.useState(periods[0]?.id ?? "");
-  const [auditorEmail, setAuditorEmail] = React.useState(AUDITORS[0]?.email ?? "");
-  const [caseReference, setCaseReference] = React.useState("");
-  const [auditDate, setAuditDate] = React.useState(() => getLocalTodayIso());
-  const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => buildDefaultAnswers(definition));
-  const [overallRemarks, setOverallRemarks] = React.useState("");
+  const [agentId, setAgentId] = React.useState(editing?.agentId ?? agents[0]?.id ?? "");
+  const [periodId, setPeriodId] = React.useState(editing?.periodId ?? periods[0]?.id ?? "");
+  const [auditorEmail, setAuditorEmail] = React.useState(editing?.auditorEmail ?? AUDITORS[0]?.email ?? "");
+  const [caseReference, setCaseReference] = React.useState(editing?.caseReference ?? "");
+  const [auditDate, setAuditDate] = React.useState(() => editing?.auditDate ?? getLocalTodayIso());
+  const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => {
+    const base: Record<string, QaAnswerValue | undefined> = buildDefaultAnswers(definition);
+    if (editing) {
+      for (const a of editing.answers) base[a.questionKey] = a.value;
+    }
+    return base;
+  });
+  const [overallRemarks, setOverallRemarks] = React.useState(editing?.overallRemarks ?? "");
+
+  // The pickers only list active agents / existing periods, so an audit
+  // whose agent has since been deactivated (or whose period is gone) would
+  // otherwise open with a blank-looking dropdown. Keep its current value
+  // selectable so editing something else on it still works.
+  const agentChoices = React.useMemo(
+    () =>
+      editing && !agents.some((a) => a.id === editing.agentId)
+        ? [{ id: editing.agentId, name: `${editing.agentName} (inactive)` }, ...agents]
+        : agents,
+    [agents, editing]
+  );
+  const periodChoices = React.useMemo(
+    () =>
+      editing && !periods.some((p) => p.id === editing.periodId)
+        ? [{ id: editing.periodId, label: `${editing.periodLabel} (no longer available)`, endDate: "" }, ...periods]
+        : periods,
+    [periods, editing]
+  );
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   // A plain ref, not state: it's set synchronously the instant handleSubmit
@@ -175,8 +208,8 @@ function SubmitAuditForm({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/qa-audits", {
-        method: "POST",
+      const res = await fetch(editing ? `/api/qa-audits/${editing.id}` : "/api/qa-audits", {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           auditType,
@@ -194,9 +227,23 @@ function SubmitAuditForm({
         setError(data.error ?? "Failed to save the audit.");
         return;
       }
-      showToast("Audit submitted. Publish it from the History tab to reflect its score on the scorecard.", "success");
-      resetForm();
-      onSubmitted();
+      if (editing) {
+        if (data.republished) {
+          showToast(
+            data.qaAuditPct !== null && data.qaAuditPct !== undefined
+              ? `Audit updated — the scorecard's QA Audit % was recalculated to ${data.qaAuditPct}%.`
+              : "Audit updated — the scorecard's QA Audit % was recalculated (no published audit with a score remains for that agent/period).",
+            "success"
+          );
+        } else {
+          showToast("Audit updated. It isn't published, so no scorecard number changed.", "success");
+        }
+        await onSubmitted();
+      } else {
+        showToast("Audit submitted. Publish it from the History tab to reflect its score on the scorecard.", "success");
+        resetForm();
+        await onSubmitted();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
@@ -207,6 +254,22 @@ function SubmitAuditForm({
 
   return (
     <div className="space-y-4">
+      {editing && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary-500/30 bg-primary-50 p-4">
+          <Pencil className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary-700" />
+          <div className="text-sm text-foreground">
+            <p className="font-medium">
+              Editing the {QA_AUDIT_TYPE_LABELS[editing.auditType].toLowerCase()} audit for {editing.agentName} · {editing.periodLabel}
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              {editing.status === "published"
+                ? "This audit is published — saving recalculates the agent's QA Audit % on the scorecard straight away."
+                : "This audit isn't published, so saving won't change any scorecard number."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 p-4">
           <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger" />
@@ -223,7 +286,7 @@ function SubmitAuditForm({
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Agent</label>
             <Select value={agentId} onChange={(e) => setAgentId(e.target.value)} className="w-full">
-              {agents.map((a) => (
+              {agentChoices.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
@@ -233,7 +296,7 @@ function SubmitAuditForm({
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Counts toward period</label>
             <Select value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="w-full">
-              {periods.map((p) => (
+              {periodChoices.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
                 </option>
@@ -331,17 +394,28 @@ function SubmitAuditForm({
         </CardContent>
       </Card>
 
-      <Button onClick={handleSubmit} disabled={submitting}>
-        {submitting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" /> Submitting…
-          </>
-        ) : (
-          <>
-            <Send className="h-4 w-4" /> Submit audit
-          </>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={handleSubmit} disabled={submitting}>
+          {submitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> {editing ? "Saving…" : "Submitting…"}
+            </>
+          ) : editing ? (
+            <>
+              <Save className="h-4 w-4" /> Save changes
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4" /> Submit audit
+            </>
+          )}
+        </Button>
+        {editing && onCancel && (
+          <Button variant="outline" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
         )}
-      </Button>
+      </div>
     </div>
   );
 }
@@ -384,10 +458,11 @@ function AuditDetail({ audit }: { audit: QaAuditRecord }) {
   );
 }
 
-function AuditHistory({ auditType }: { auditType: QaAuditType }) {
+function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; agents: AgentOption[]; periods: PeriodOption[] }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [audits, setAudits] = React.useState<QaAuditRecord[] | null>(null);
+  const [editing, setEditing] = React.useState<QaAuditRecord | null>(null);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [publishingId, setPublishingId] = React.useState<string | null>(null);
   const [unpublishingId, setUnpublishingId] = React.useState<string | null>(null);
@@ -495,6 +570,26 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
     }
   }
 
+  // Editing swaps the list for the same form used to submit a new audit,
+  // pre-filled with this one. Saving (or Cancel) puts the list back.
+  if (editing) {
+    return (
+      <SubmitAuditForm
+        key={editing.id}
+        auditType={auditType}
+        agents={agents}
+        periods={periods}
+        editing={editing}
+        onCancel={() => setEditing(null)}
+        onSubmitted={async () => {
+          setEditing(null);
+          await load();
+          router.refresh();
+        }}
+      />
+    );
+  }
+
   if (audits === null) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -547,6 +642,9 @@ function AuditHistory({ auditType }: { auditType: QaAuditType }) {
                     {unpublishingId === audit.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Unpublish"}
                   </Button>
                 )}
+                <Button size="sm" variant="outline" onClick={() => setEditing(audit)} title="Edit this audit's answers, remarks, date, auditor, agent or period">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
                 <button
                   type="button"
                   onClick={() => setPendingDelete(audit)}
@@ -618,7 +716,7 @@ export function QaAuditPanel({ auditType, agents, periods }: { auditType: QaAudi
         <SubmitAuditForm auditType={auditType} agents={agents} periods={periods} onSubmitted={() => setTab("history")} />
       </TabsContent>
       <TabsContent value="history" className="mt-4">
-        <AuditHistory auditType={auditType} />
+        <AuditHistory auditType={auditType} agents={agents} periods={periods} />
       </TabsContent>
     </Tabs>
   );
