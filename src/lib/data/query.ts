@@ -7,7 +7,19 @@ import {
   GATE_METRICS,
   type FullAgentPeriodResult,
 } from "@/lib/scoring";
-import { startOfWeek, weekRange, monthRange, monthKey, formatWeekLabel, formatMonthLabel, formatDayLabel } from "./dateRanges";
+import {
+  startOfWeek,
+  weekRange,
+  monthRange,
+  monthKey,
+  quarterRange,
+  quarterKey,
+  formatWeekLabel,
+  formatMonthLabel,
+  formatQuarterLabel,
+  formatDayLabel,
+} from "./dateRanges";
+import { findRepeatedOffenses, repeatedOffenseEntries, type RepeatedOffenseSummary } from "@/lib/scoring/penalties";
 import type { Agent, Period, PeriodType, Team } from "@/types/domain";
 import type { IndividualMetricKey, PenaltyEntry, RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
 
@@ -48,6 +60,10 @@ export interface PeriodDataset {
   /** Results sorted by final score, descending — index 0 is the Top 1 agent for this period. */
   ranked: AgentPeriodResult[];
   tieForTop: boolean;
+  /** Only set for a quarter-to-date dataset: every agent who hit the
+   *  Repeated Offenses rule (the same Disciplinary penalty 3+ times in the
+   *  quarter) -- see findRepeatedOffenses in scoring/penalties.ts. */
+  repeatedOffenses?: RepeatedOffenseSummary[];
 }
 
 /**
@@ -479,17 +495,29 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
   // therefore includes every penalty in the same calendar month as
   // spec.start, regardless of spec.end; a week range keeps the exact
   // [start, end] bound as before.
+  //
+  // A quarter-to-date range works the same way as month-to-date: it covers
+  // the WHOLE calendar quarter regardless of how far imports have got, and
+  // additionally gets the automatic Repeated Offenses deduction (the same
+  // Disciplinary penalty recorded 3+ times in the quarter -- see
+  // findRepeatedOffenses), added below as one ordinary penalty entry per
+  // affected agent so it flows through the normal scoring path.
+  const quarterWindow = spec.type === "quarter-to-date" ? quarterRange(spec.start) : null;
   const inPenaltyWindow = (occurredOn: string) =>
-    spec.type === "month-to-date"
-      ? occurredOn.slice(0, 7) === spec.start.slice(0, 7)
-      : occurredOn >= spec.start && occurredOn <= spec.end;
+    quarterWindow
+      ? occurredOn >= quarterWindow.start && occurredOn <= quarterWindow.end
+      : spec.type === "month-to-date"
+        ? occurredOn.slice(0, 7) === spec.start.slice(0, 7)
+        : occurredOn >= spec.start && occurredOn <= spec.end;
   const penalties = allPenalties.map((p) =>
     inPenaltyWindow(p.occurredOn) ? { ...p, periodId: spec.id } : p
   );
+  const repeatedOffenses = quarterWindow ? findRepeatedOffenses(allPenalties, quarterWindow.start, quarterWindow.end) : undefined;
+  if (repeatedOffenses) penalties.push(...repeatedOffenseEntries(repeatedOffenses, spec.id));
 
   const { results, ranked, tieForTop } = computeResults(agents, rawMetrics, gateInput, penalties);
 
-  return { period, periods: allPeriods, teams, agents, gate: gateInput, results, ranked, tieForTop };
+  return { period, periods: allPeriods, teams, agents, gate: gateInput, results, ranked, tieForTop, repeatedOffenses };
 }
 
 export interface WeekOption {
@@ -534,6 +562,30 @@ export async function listAvailableMonths(): Promise<MonthOption[]> {
   return [...latestByMonth.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
     .map(([key, latestDay]) => ({ key, start: monthRange(latestDay).start, end: latestDay, label: formatMonthLabel(latestDay) }));
+}
+
+export interface QuarterOption {
+  /** "YYYY-Qn" — the value used for the quarter's ?quarter= param. */
+  key: string;
+  start: string;
+  /** The latest daily import actually on record this quarter. */
+  end: string;
+  label: string;
+}
+
+/** Every calendar quarter that contains at least one daily import, most recent first — same idea as listAvailableMonths. */
+export async function listAvailableQuarters(): Promise<QuarterOption[]> {
+  const repo = await getRepository();
+  const dayPeriods = getDailyPeriods(await repo.getPeriods());
+  const latestByQuarter = new Map<string, string>();
+  for (const p of dayPeriods) {
+    const key = quarterKey(p.startDate);
+    const prev = latestByQuarter.get(key);
+    if (!prev || p.startDate > prev) latestByQuarter.set(key, p.startDate);
+  }
+  return [...latestByQuarter.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([key, latestDay]) => ({ key, start: quarterRange(latestDay).start, end: latestDay, label: formatQuarterLabel(latestDay) }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
