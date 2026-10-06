@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Loader2, Send, Download, Mail, Trash2, ChevronDown, ChevronUp, ShieldAlert, Pencil, Save } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Send, Download, Mail, Trash2, ChevronDown, ChevronUp, ShieldAlert, Pencil, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -394,7 +394,13 @@ function SubmitAuditForm({
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className={
+          editing
+            ? "sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center gap-2 border-t border-border bg-card px-5 py-3"
+            : "flex flex-wrap items-center gap-2"
+        }
+      >
         <Button onClick={handleSubmit} disabled={submitting}>
           {submitting ? (
             <>
@@ -417,6 +423,41 @@ function SubmitAuditForm({
         )}
       </div>
     </div>
+  );
+}
+
+/** Pop-up wrapper for editing an audit. Built on the native <dialog> element
+ *  (focus trap + Esc come free). It is mounted only while an audit is being
+ *  edited and opens itself on mount. Clicking the backdrop does NOT close it,
+ *  so a stray click can't throw away a half-edited audit. */
+function EditAuditModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDialogElement>(null);
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (el && !el.open) el.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onCancel={onClose}
+      className="m-auto max-h-[92vh] w-[min(900px,95vw)] overflow-y-auto rounded-xl border border-border bg-card p-0 text-card-foreground shadow-popover backdrop:bg-foreground/40 open:animate-slide-up"
+    >
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-card px-5 py-3">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="p-5">{children}</div>
+    </dialog>
   );
 }
 
@@ -570,26 +611,6 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
     }
   }
 
-  // Editing swaps the list for the same form used to submit a new audit,
-  // pre-filled with this one. Saving (or Cancel) puts the list back.
-  if (editing) {
-    return (
-      <SubmitAuditForm
-        key={editing.id}
-        auditType={auditType}
-        agents={agents}
-        periods={periods}
-        editing={editing}
-        onCancel={() => setEditing(null)}
-        onSubmitted={async () => {
-          setEditing(null);
-          await load();
-          router.refresh();
-        }}
-      />
-    );
-  }
-
   if (audits === null) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -668,6 +689,24 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
           </li>
         ))}
       </ul>
+
+      {editing && (
+        <EditAuditModal title="Edit audit" onClose={() => setEditing(null)}>
+          <SubmitAuditForm
+            key={editing.id}
+            auditType={auditType}
+            agents={agents}
+            periods={periods}
+            editing={editing}
+            onCancel={() => setEditing(null)}
+            onSubmitted={async () => {
+              setEditing(null);
+              await load();
+              router.refresh();
+            }}
+          />
+        </EditAuditModal>
+      )}
 
       <Dialog
         open={pendingDelete !== null}
