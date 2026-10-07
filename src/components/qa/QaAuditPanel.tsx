@@ -105,21 +105,62 @@ function emailAudit(audit: QaAuditRecord): string | null {
   return null;
 }
 
-function ScorePreview({ answers, auditType }: { answers: Record<string, QaAnswerValue | undefined>; auditType: QaAuditType }) {
+function bandBarClass(band: 0 | 1 | 2 | 3 | null): string {
+  if (band === null) return "bg-muted-foreground/40";
+  return band === 3 ? "bg-primary-500" : band === 2 ? "bg-success" : band === 1 ? "bg-warning" : "bg-danger";
+}
+
+/** The live score for the audit being filled in or edited. Deliberately the
+ *  loudest thing on the form: big percentage, big points tally, band, and a
+ *  bar. While editing (inside the pop-up) it also sticks just under the
+ *  pop-up's header so it stays visible as the answers are changed. */
+function ScorePreview({
+  answers,
+  auditType,
+  sticky = false,
+}: {
+  answers: Record<string, QaAnswerValue | undefined>;
+  auditType: QaAuditType;
+  sticky?: boolean;
+}) {
   const definition = getAuditDefinition(auditType);
   const score = computeAuditScore(answers, definition);
+  const pct = score.percentage;
+  const barWidth = pct === null ? 0 : Math.max(0, Math.min(100, pct));
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
-      <span className="font-medium text-foreground">
-        {score.totalPoints}/{score.applicablePoints} points
-        {score.percentage !== null ? ` · ${score.percentage.toFixed(1)}%` : ""}
-      </span>
-      <Badge variant={bandBadgeVariant(score.band)}>{score.band !== null ? `Band ${score.band} — ${bandLabel(score.band)}` : "No data"}</Badge>
-      {score.autoFail && (
-        <Badge variant="danger" className="gap-1">
-          <ShieldAlert className="h-3 w-3" /> Auto-Fail triggered
-        </Badge>
-      )}
+    <div
+      className={
+        "rounded-xl border-2 bg-card p-4 shadow-sm " +
+        (score.autoFail ? "border-danger/60" : "border-primary-500/40") +
+        (sticky ? " sticky top-[3.25rem] z-10" : "")
+      }
+    >
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Audit score</p>
+          <p className="text-4xl font-bold leading-none tabular-nums text-foreground">{pct !== null ? `${pct.toFixed(1)}%` : "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Points</p>
+          <p className="text-3xl font-bold leading-none tabular-nums text-foreground">
+            {score.totalPoints}
+            <span className="text-xl font-semibold text-muted-foreground"> / {score.applicablePoints}</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pb-0.5">
+          <Badge variant={bandBadgeVariant(score.band)} className="px-3 py-1 text-sm">
+            {score.band !== null ? `Band ${score.band} — ${bandLabel(score.band)}` : "No data"}
+          </Badge>
+          {score.autoFail && (
+            <Badge variant="danger" className="gap-1 px-3 py-1 text-sm">
+              <ShieldAlert className="h-3.5 w-3.5" /> Auto-Fail triggered
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted" role="presentation">
+        <div className={"h-full rounded-full transition-all " + bandBarClass(score.band)} style={{ width: `${barWidth}%` }} />
+      </div>
     </div>
   );
 }
@@ -329,7 +370,7 @@ function SubmitAuditForm({
         </CardContent>
       </Card>
 
-      <ScorePreview answers={answers} auditType={auditType} />
+      <ScorePreview answers={answers} auditType={auditType} sticky={editing !== null} />
 
       {definition.sections.map((section) => (
         <Card key={section.key} className={section.autoFail ? "border-danger/40" : undefined}>
@@ -638,9 +679,15 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
                 </p>
               </div>
               <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-                <Badge variant={bandBadgeVariant(audit.band)}>
-                  {audit.percentage !== null ? `${audit.percentage.toFixed(1)}%` : "No data"} · Band {audit.band ?? "—"}
-                </Badge>
+                <div className="mr-1 text-right">
+                  <p className="text-2xl font-bold leading-none tabular-nums text-foreground">
+                    {audit.percentage !== null ? `${audit.percentage.toFixed(1)}%` : "—"}
+                  </p>
+                  <p className="mt-1 text-xs font-medium tabular-nums text-muted-foreground">
+                    {audit.totalPoints}/{audit.applicablePoints} pts
+                  </p>
+                </div>
+                <Badge variant={bandBadgeVariant(audit.band)}>Band {audit.band ?? "—"}</Badge>
                 {audit.autoFail && <Badge variant="danger">Auto-Fail</Badge>}
                 <Badge variant={audit.status === "published" ? "success" : "outline"}>{audit.status}</Badge>
                 <Button size="sm" variant="outline" onClick={() => window.open(`/api/qa-audits/${audit.id}/pdf`, "_blank")}>
