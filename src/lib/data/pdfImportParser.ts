@@ -60,13 +60,15 @@ const TABLE_LABELS: Record<TableType, string> = {
 
 const GATE_CARD_DEFS: { key: string; test: (t: string) => boolean }[] = [
   { key: "chatTeamAvgResponse", test: (t) => /chat.*team.*avg.*response.*time/i.test(t) },
-  // The card is titled "Team Ticket AHT" in the current report. "Resolution"
-  // is the older wording (the September reports said "Team Ticket Resolution
-  // Time") and is still accepted so those PDFs keep importing. \s+ rather
-  // than a single literal space, because PDF text extraction can hand back a
-  // double space (or a non-breaking one) between the words of a card title,
-  // which a plain "team ticket aht" pattern silently fails to match.
-  { key: "teamTicketAHT", test: (t) => /team\s+ticket\s+(aht|resolution)/i.test(t) },
+  // The card in the PDF is titled "Team Ticket Resolution Time" (the app
+  // itself calls the same metric "Team Ticket AHT"). "Team Ticket AHT" is
+  // still accepted as an alternate title. \s+ rather than a single literal
+  // space, because PDF text extraction can hand back a double space (or a
+  // non-breaking one) between the words of a card title, which a plain
+  // "team ticket resolution" pattern silently fails to match. The second
+  // alternative covers a title whose "Team" word was split away from the
+  // rest of it (e.g. a card title wrapped onto two lines).
+  { key: "teamTicketAHT", test: (t) => /team\s+ticket\s+(resolution|aht)|ticket\s+resolution\s+time/i.test(t) },
   { key: "clientAvgWaitTime", test: (t) => /client avg wait time/i.test(t) },
   { key: "teamProcessingTime", test: (t) => /avg team processing time/i.test(t) },
 ];
@@ -254,7 +256,13 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
       const cardItems = nonEmpty.filter((i) => i.y > headerY + 15);
       if (cardItems.length > 0) {
         for (const cluster of clusterByX(cardItems)) {
-          const clusterText = cluster.map((c) => c.str).join(" ");
+          // Read the card's text top-to-bottom, then left-to-right, rather
+          // than in raw PDF stream order, so a title that wraps onto two
+          // lines still reads as "Team Ticket Resolution Time".
+          const clusterText = [...cluster]
+            .sort((a, b) => (Math.abs(b.y - a.y) > 2.5 ? b.y - a.y : a.x - b.x))
+            .map((c) => c.str)
+            .join(" ");
           const def = GATE_CARD_DEFS.find((d) => d.test(clusterText));
           const valueItem = cluster.find((c) => DURATION_LIKE.test(c.str.trim()));
           if (def && valueItem) {
