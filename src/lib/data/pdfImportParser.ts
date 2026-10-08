@@ -60,7 +60,13 @@ const TABLE_LABELS: Record<TableType, string> = {
 
 const GATE_CARD_DEFS: { key: string; test: (t: string) => boolean }[] = [
   { key: "chatTeamAvgResponse", test: (t) => /chat.*team.*avg.*response.*time/i.test(t) },
-  { key: "teamTicketAHT", test: (t) => /team ticket (resolution|aht)/i.test(t) },
+  // The card is titled "Team Ticket AHT" in the current report. "Resolution"
+  // is the older wording (the September reports said "Team Ticket Resolution
+  // Time") and is still accepted so those PDFs keep importing. \s+ rather
+  // than a single literal space, because PDF text extraction can hand back a
+  // double space (or a non-breaking one) between the words of a card title,
+  // which a plain "team ticket aht" pattern silently fails to match.
+  { key: "teamTicketAHT", test: (t) => /team\s+ticket\s+(aht|resolution)/i.test(t) },
   { key: "clientAvgWaitTime", test: (t) => /client avg wait time/i.test(t) },
   { key: "teamProcessingTime", test: (t) => /avg team processing time/i.test(t) },
 ];
