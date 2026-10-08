@@ -101,6 +101,40 @@ function clusterByX(items: PageTextItem[], gapThreshold = 120): PageTextItem[][]
   return clusters.map((xs) => items.filter((i) => xs.includes(i.x)));
 }
 
+/** Finds each Business Gate card's value by POSITION: locate the card's title
+ *  item, then take the duration sitting closest below it within that card's
+ *  column (from the title's x up to the next card title's x).
+ *
+ *  This exists because grouping by x-gaps alone (clusterByX) only works when
+ *  neighbouring cards are well separated. In the current report layout the
+ *  cards sit close enough together that every card on the page collapses
+ *  into ONE cluster; the cluster then matched the first card definition
+ *  (Chat Team Avg Response Time) and took the first duration in the cluster,
+ *  so the Team Ticket Resolution Time card sitting right beside it was never
+ *  read at all. The "30 sec" / "30 minutes" Target lines sit just under each
+ *  title, so only durations well below the title (> 30 units) count. */
+function findGateCardValues(cardItems: PageTextItem[]): { key: string; seconds: number }[] {
+  const titles = cardItems
+    .map((item) => ({ item, def: GATE_CARD_DEFS.find((d) => d.test(item.str)) }))
+    .filter((t): t is { item: PageTextItem; def: (typeof GATE_CARD_DEFS)[number] } => t.def !== undefined)
+    .sort((a, b) => a.item.x - b.item.x);
+
+  const hits: { key: string; seconds: number }[] = [];
+  titles.forEach((t, idx) => {
+    const left = t.item.x - 5;
+    const nextTitle = titles.slice(idx + 1).find((n) => n.item.x > t.item.x + 20);
+    const right = nextTitle ? nextTitle.item.x - 5 : Number.POSITIVE_INFINITY;
+    const candidates = cardItems
+      .filter((i) => DURATION_LIKE.test(i.str.trim()) && i.x >= left && i.x < right && i.y < t.item.y - 30)
+      .sort((a, b) => b.y - a.y);
+    const best = candidates[0];
+    if (!best) return;
+    const seconds = parseDurationToSeconds(best.str.trim());
+    if (seconds !== null) hits.push({ key: t.def.key, seconds });
+  });
+  return hits;
+}
+
 function matchAgent(nameRaw: string, agents: Agent[]): Agent | null {
   const normalized = nameRaw.trim().toLowerCase().replace(/\s+/g, " ");
   return agents.find((a) => a.name.trim().toLowerCase().replace(/\s+/g, " ") === normalized) ?? null;
@@ -255,6 +289,24 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
       const headerY = allRows[headerRowIdx]![0]!.y;
       const cardItems = nonEmpty.filter((i) => i.y > headerY + 15);
       if (cardItems.length > 0) {
+        const applyGate = (key: string, seconds: number) => {
+          gateFieldsFound.push(key);
+          if (key === "chatTeamAvgResponse") gate.chatTeamAvgResponseSec = seconds;
+          if (key === "teamTicketAHT") gate.teamTicketAHTMin = seconds / 60;
+          if (key === "clientAvgWaitTime") gate.clientAvgWaitTimeMin = seconds / 60;
+          if (key === "teamProcessingTime") gate.teamProcessingTimeMin = seconds / 60;
+        };
+
+        // 1) By position under each card's own title (see findGateCardValues).
+        const handledOnPage = new Set<string>();
+        for (const hit of findGateCardValues(cardItems)) {
+          applyGate(hit.key, hit.seconds);
+          handledOnPage.add(hit.key);
+        }
+
+        // 2) Fallback for layouts where a card's title is split across
+        //    several text items: group by x-gap like before, but never
+        //    re-read a card the positional pass already resolved.
         for (const cluster of clusterByX(cardItems)) {
           // Read the card's text top-to-bottom, then left-to-right, rather
           // than in raw PDF stream order, so a title that wraps onto two
@@ -264,16 +316,11 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
             .map((c) => c.str)
             .join(" ");
           const def = GATE_CARD_DEFS.find((d) => d.test(clusterText));
+          if (!def || handledOnPage.has(def.key)) continue;
           const valueItem = cluster.find((c) => DURATION_LIKE.test(c.str.trim()));
-          if (def && valueItem) {
+          if (valueItem) {
             const seconds = parseDurationToSeconds(valueItem.str.trim());
-            if (seconds !== null) {
-              gateFieldsFound.push(def.key);
-              if (def.key === "chatTeamAvgResponse") gate.chatTeamAvgResponseSec = seconds;
-              if (def.key === "teamTicketAHT") gate.teamTicketAHTMin = seconds / 60;
-              if (def.key === "clientAvgWaitTime") gate.clientAvgWaitTimeMin = seconds / 60;
-              if (def.key === "teamProcessingTime") gate.teamProcessingTimeMin = seconds / 60;
-            }
+            if (seconds !== null) applyGate(def.key, seconds);
           }
         }
       }
