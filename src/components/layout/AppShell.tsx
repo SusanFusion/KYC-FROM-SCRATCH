@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
+import { StartupExperience } from "./StartupExperience";
 import { UserProvider } from "@/lib/auth/UserContext";
 import type { SessionPayload } from "@/lib/auth/session";
 
@@ -19,6 +20,8 @@ export function AppShell({ user, children }: { user: SessionPayload | null; chil
         children
       ) : (
         <div className="flex min-h-screen">
+          {/* Opens on the Dashboard and shows the KYC Updates pop-up -- once per browser tab. */}
+          <StartupExperience />
           <div className="hidden lg:block">
             <div className="fixed inset-y-0 left-0 z-40">
               <Sidebar />
