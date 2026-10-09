@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Megaphone, Trash2, XCircle } from "lucide-react";
+import { Loader2, Lock, Megaphone, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { PasswordGate } from "@/components/shared/PasswordGate";
 import { ROSTER } from "@/lib/auth/roster";
 import type { Announcement } from "@/lib/data/announcements";
 
@@ -25,15 +26,42 @@ function readRememberedAuthor(): string {
   return LEADS[0]?.name ?? "";
 }
 
-export function AnnouncementsManager({ items, loadError }: { items: Announcement[]; loadError: string | null }) {
+/** Asks the server whether this browser has already entered the shared
+ *  Lead/Manager password (the cookie is httpOnly, so it can't be read from
+ *  JS). Re-checks whenever the page data refreshes, so "Log out as
+ *  Lead/Auditor" in the sidebar hides the controls again. */
+function useUnlocked(refreshKey: unknown) {
+  const [unlocked, setUnlocked] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/action-access")
+      .then((res) => res.json())
+      .then((data: { unlocked?: boolean }) => {
+        if (!cancelled) setUnlocked(Boolean(data.unlocked));
+      })
+      .catch(() => {
+        if (!cancelled) setUnlocked(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+  return [unlocked, setUnlocked] as const;
+}
+
+/** The "Post an update" form. Only ever mounted inside a PasswordGate, so
+ *  reaching this component at all means the password was accepted. */
+function PostUpdateCard({ onUnlocked }: { onUnlocked: () => void }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [author, setAuthor] = React.useState(LEADS[0]?.name ?? "");
   const [text, setText] = React.useState("");
   const [posting, setPosting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [confirmId, setConfirmId] = React.useState<string | null>(null);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    onUnlocked();
+  }, [onUnlocked]);
 
   React.useEffect(() => {
     setAuthor(readRememberedAuthor());
@@ -73,6 +101,82 @@ export function AnnouncementsManager({ items, loadError }: { items: Announcement
     }
   }
 
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4" /> Post an update
+        </CardTitle>
+        <CardDescription>
+          Everyone sees the 3 newest updates in a pop-up they have to read and close when they open the app. Updates sent from the
+          Teams chat appear here too.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Posted by</label>
+          <Select value={author} onChange={(e) => setAuthor(e.target.value)} disabled={posting}>
+            {LEADS.map((l) => (
+              <option key={l.email} value={l.name}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Update</label>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={5}
+            maxLength={MAX_LENGTH}
+            disabled={posting}
+            placeholder="Write the announcement…"
+            className="w-full rounded-md border border-input bg-card p-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <p className="mt-1 text-right text-xs text-muted-foreground">
+            {text.length}/{MAX_LENGTH}
+          </p>
+        </div>
+        {error && (
+          <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+            <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        <Button onClick={handlePost} disabled={posting}>
+          {posting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Posting…
+            </>
+          ) : (
+            "Post update"
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AnnouncementsManager({ items, loadError }: { items: Announcement[]; loadError: string | null }) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [unlocked, setUnlocked] = useUnlocked(items);
+  const [showUnlock, setShowUnlock] = React.useState(false);
+  const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  const markUnlocked = React.useCallback(() => {
+    setUnlocked(true);
+    setShowUnlock(false);
+  }, [setUnlocked]);
+
+  // If the password is no longer valid (e.g. "Log out as Lead/Auditor"),
+  // put the page back to the read-only view.
+  React.useEffect(() => {
+    if (!unlocked) setConfirmId(null);
+  }, [unlocked]);
+
   async function handleDelete(id: string) {
     setDeletingId(id);
     try {
@@ -94,59 +198,27 @@ export function AnnouncementsManager({ items, loadError }: { items: Announcement
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Megaphone className="h-4 w-4" /> Post an update
-          </CardTitle>
-          <CardDescription>
-            Everyone sees the 3 newest updates in a pop-up they have to read and close when they open the app. Updates sent from the
-            Teams chat appear here too.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Posted by</label>
-            <Select value={author} onChange={(e) => setAuthor(e.target.value)} disabled={posting}>
-              {LEADS.map((l) => (
-                <option key={l.email} value={l.name}>
-                  {l.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Update</label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={5}
-              maxLength={MAX_LENGTH}
-              disabled={posting}
-              placeholder="Write the announcement…"
-              className="w-full rounded-md border border-input bg-card p-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <p className="mt-1 text-right text-xs text-muted-foreground">
-              {text.length}/{MAX_LENGTH}
-            </p>
-          </div>
-          {error && (
-            <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-              <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
+      {unlocked || showUnlock ? (
+        <div className="space-y-2">
+          <PasswordGate description="Enter the shared Lead/Manager password to post or remove updates.">
+            <PostUpdateCard onUnlocked={markUnlocked} />
+          </PasswordGate>
+          {!unlocked && (
+            <div className="text-center">
+              <Button variant="ghost" size="sm" onClick={() => setShowUnlock(false)}>
+                Cancel
+              </Button>
             </div>
           )}
-          <Button onClick={handlePost} disabled={posting}>
-            {posting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Posting…
-              </>
-            ) : (
-              "Post update"
-            )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <p className="text-sm text-muted-foreground">Leads and Managers can post or remove updates here.</p>
+          <Button variant="outline" size="sm" onClick={() => setShowUnlock(true)}>
+            <Lock className="h-3.5 w-3.5" /> Lead / Manager: post an update
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -171,22 +243,24 @@ export function AnnouncementsManager({ items, loadError }: { items: Announcement
                     </div>
                     <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">{a.text}</p>
                   </div>
-                  <div className="flex-shrink-0">
-                    {confirmId === a.id ? (
-                      <div className="flex gap-1.5">
-                        <Button size="sm" variant="danger" disabled={deletingId === a.id} onClick={() => handleDelete(a.id)}>
-                          {deletingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirm"}
+                  {unlocked && (
+                    <div className="flex-shrink-0">
+                      {confirmId === a.id ? (
+                        <div className="flex gap-1.5">
+                          <Button size="sm" variant="danger" disabled={deletingId === a.id} onClick={() => handleDelete(a.id)}>
+                            {deletingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirm"}
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={deletingId === a.id} onClick={() => setConfirmId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => setConfirmId(a.id)}>
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
                         </Button>
-                        <Button size="sm" variant="outline" disabled={deletingId === a.id} onClick={() => setConfirmId(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button size="sm" variant="outline" className="text-danger hover:text-danger" onClick={() => setConfirmId(a.id)}>
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </Button>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
