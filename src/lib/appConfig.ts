@@ -5,6 +5,7 @@ export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "KYC Team Performanc
 
 export const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard" as const },
+  { href: "/announcements", label: "Announcements", icon: "Megaphone" as const },
   { href: "/team-performance", label: "Team Performance", icon: "Users" as const },
   { href: "/scorecards", label: "Individual Scorecards", icon: "IdCard" as const },
   { href: "/rankings", label: "Rankings", icon: "Trophy" as const },
