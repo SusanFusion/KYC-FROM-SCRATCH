@@ -5,6 +5,7 @@ import { Lock, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ACTION_ACCESS_EVENT, notifyActionAccessChanged } from "@/lib/auth/actionAccessEvents";
 
 type ActionAccessStatus = "checking" | "locked" | "unlocked";
 
@@ -31,6 +32,22 @@ function useActionAccess() {
     };
   }, []);
 
+  // Another part of the page (e.g. the sidebar's "Log out as Lead/Auditor")
+  // can lock or unlock this browser; re-ask the server so a gate that is
+  // already on screen reacts immediately instead of staying open.
+  React.useEffect(() => {
+    function onChange() {
+      fetch("/api/auth/action-access", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data: { unlocked?: boolean }) => setStatus(data.unlocked ? "unlocked" : "locked"))
+        .catch(() => {
+          // keep whatever is showing
+        });
+    }
+    window.addEventListener(ACTION_ACCESS_EVENT, onChange);
+    return () => window.removeEventListener(ACTION_ACCESS_EVENT, onChange);
+  }, []);
+
   async function unlock(password: string): Promise<{ ok: boolean; error?: string }> {
     try {
       const res = await fetch("/api/auth/action-access", {
@@ -41,6 +58,7 @@ function useActionAccess() {
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         setStatus("unlocked");
+        notifyActionAccessChanged();
         return { ok: true };
       }
       return { ok: false, error: data.error ?? "Incorrect password." };
