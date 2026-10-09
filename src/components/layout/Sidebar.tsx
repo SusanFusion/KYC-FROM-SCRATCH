@@ -15,6 +15,7 @@ import {
   FileBarChart,
   UploadCloud,
   Database,
+  Megaphone,
   Settings,
   ShieldCheck,
   LogOut,
@@ -36,6 +37,7 @@ const ICON_MAP = {
   FileBarChart,
   UploadCloud,
   Database,
+  Megaphone,
   Settings,
 };
 
