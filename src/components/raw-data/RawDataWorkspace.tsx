@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, AlertTriangle, History, Search, XCircle } from "lucide-react";
+import { Pencil, Trash2, Loader2, AlertTriangle, History, Search, XCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { ROSTER } from "@/lib/auth/roster";
 import {
@@ -35,6 +35,11 @@ export interface RawDataRow {
 const LEADS = ROSTER.filter((r) => r.role === "lead");
 const CHANGED_BY_STORAGE_KEY = "kyc-raw-data-changed-by";
 const MIN_REASON_LENGTH = 5;
+
+// Frozen header cells: opaque background so rows scrolling underneath don't
+// show through, and a shadow instead of a border (borders don't travel with
+// sticky cells in a collapsed-border table).
+const STICKY_HEAD = "sticky top-0 z-10 bg-muted shadow-[0_1px_0_0_rgba(128,128,128,0.35)]";
 
 function readRememberedLead(): string {
   try {
@@ -313,20 +318,77 @@ function DeleteEntryForm({ row, onCancel, onDeleted }: { row: RawDataRow; onCanc
 }
 
 function ChangeHistory({ changes, loadError, filter }: { changes: RawDataChange[] | null; loadError: string | null; filter: string }) {
+  const { showToast } = useToast();
   const [showAll, setShowAll] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
   const needle = filter.trim().toLowerCase();
   const visible = (changes ?? []).filter((c) => !needle || c.agentName.toLowerCase().includes(needle));
   const shown = showAll ? visible : visible.slice(0, 15);
 
+  // Downloads the whole history (not just the 15 shown) as a PDF -- limited to
+  // the agent in the filter box, if one is typed -- using the same times as
+  // this page (the browser's own time zone is sent along).
+  async function handleExportPdf() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (needle) params.set("agent", filter.trim());
+      try {
+        params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      } catch {
+        // the server falls back to UTC
+      }
+      const res = await fetch(`/api/raw-data/history-pdf?${params.toString()}`);
+      if (!res.ok) {
+        let message = "Couldn't create the PDF.";
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          // keep the generic message
+        }
+        showToast(message, "error");
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `raw-data-change-history-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      showToast("Change history PDF downloaded.", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Couldn't create the PDF.", "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <Card className="mt-4">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <History className="h-4 w-4" /> Change history
-        </CardTitle>
-        <CardDescription>
-          Every edit and deletion made on this page, with who made it and the reason they gave. Entries are never removed from this list.
-        </CardDescription>
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-4 w-4" /> Change history
+          </CardTitle>
+          <CardDescription>
+            Every edit and deletion made on this page, with who made it and the reason they gave. Entries are never removed from this list.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={exporting || visible.length === 0}
+          title={needle ? "Export the history for the filtered agent as a PDF" : "Export the full change history as a PDF"}
+        >
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+          {exporting ? "Creating PDF…" : "Export PDF"}
+        </Button>
       </CardHeader>
       <CardContent>
         {loadError ? (
@@ -440,22 +502,28 @@ export function RawDataWorkspace({ rows, monthLabel }: { rows: RawDataRow[]; mon
           {visibleRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No entries match.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Agent</TableHead>
+            // Own scroll box (instead of the shared <Table>, whose wrapper only
+            // scrolls sideways): the table scrolls up/down inside the card, so
+            // the header row below can stay frozen while the rows move.
+            <div className="max-h-[calc(100vh-15rem)] min-h-[16rem] w-full overflow-auto scrollbar-thin rounded-lg border border-border">
+              <table className="w-full caption-bottom text-sm">
+              <thead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className={STICKY_HEAD}>Date</TableHead>
+                  <TableHead className={STICKY_HEAD}>Agent</TableHead>
                   {RAW_FIELDS.slice(0, 6).map((f) => (
-                    <TableHead key={f.key}>{f.short}</TableHead>
+                    <TableHead key={f.key} className={STICKY_HEAD}>
+                      {f.short}
+                    </TableHead>
                   ))}
-                  <TableHead>Total Chats</TableHead>
-                  <TableHead>CSAT</TableHead>
-                  <TableHead>DSAT</TableHead>
-                  <TableHead>DSAT %</TableHead>
-                  <TableHead>QA %</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className={STICKY_HEAD}>Total Chats</TableHead>
+                  <TableHead className={STICKY_HEAD}>CSAT</TableHead>
+                  <TableHead className={STICKY_HEAD}>DSAT</TableHead>
+                  <TableHead className={STICKY_HEAD}>DSAT %</TableHead>
+                  <TableHead className={STICKY_HEAD}>QA %</TableHead>
+                  <TableHead className={`${STICKY_HEAD} text-right`}>Actions</TableHead>
                 </TableRow>
-              </TableHeader>
+              </thead>
               <TableBody>
                 {visibleRows.map((row) => (
                   <TableRow key={row.key}>
@@ -489,7 +557,8 @@ export function RawDataWorkspace({ rows, monthLabel }: { rows: RawDataRow[]; mon
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
