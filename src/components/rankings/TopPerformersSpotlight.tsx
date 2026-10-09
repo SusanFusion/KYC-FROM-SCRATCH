@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { RankMedal } from "@/components/rankings/RankMedal";
+import { TopThreeConfetti } from "@/components/rankings/TopThreeConfetti";
 import { cn } from "@/lib/utils";
 
 export interface SpotlightAgent {
@@ -53,6 +54,7 @@ export function TopPerformersSpotlight({ agents }: { agents: SpotlightAgent[] })
 
   return (
     <section className="rounded-xl border border-border bg-card p-5 shadow-card sm:p-6">
+      <TopThreeConfetti />
       <div className="mb-5 flex items-center gap-2">
         <Trophy className="h-4 w-4 text-amber-500" />
         <h2 className="text-sm font-semibold text-foreground">Top Performers</h2>
@@ -63,6 +65,7 @@ export function TopPerformersSpotlight({ agents }: { agents: SpotlightAgent[] })
           return (
             <Link
               key={a.agentId}
+              data-podium-rank={rank}
               href={`/scorecards/${a.agentId}`}
               className={cn(
                 "flex flex-1 flex-col items-center rounded-lg border border-border p-5 text-center shadow-card transition-transform hover:-translate-y-0.5 sm:max-w-[220px]",
