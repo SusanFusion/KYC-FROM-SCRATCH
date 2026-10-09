@@ -15,5 +15,6 @@ export const NAV_ITEMS = [
   { href: "/qa-quality", label: "QA / Quality", icon: "BadgeCheck" as const },
   { href: "/reports", label: "Reports", icon: "FileBarChart" as const },
   { href: "/import", label: "Data Import", icon: "UploadCloud" as const },
+  { href: "/raw-data", label: "Raw Data", icon: "Database" as const },
   { href: "/settings", label: "Settings", icon: "Settings" as const },
 ];
