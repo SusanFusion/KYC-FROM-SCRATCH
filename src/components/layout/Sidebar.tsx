@@ -14,6 +14,7 @@ import {
   BadgeCheck,
   FileBarChart,
   UploadCloud,
+  Database,
   Settings,
   ShieldCheck,
   LogOut,
@@ -34,6 +35,7 @@ const ICON_MAP = {
   BadgeCheck,
   FileBarChart,
   UploadCloud,
+  Database,
   Settings,
 };
 
