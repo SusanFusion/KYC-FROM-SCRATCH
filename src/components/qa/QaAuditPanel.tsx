@@ -23,6 +23,8 @@ import {
   type QaAuditRecord,
   type QaAuditType,
 } from "@/lib/qa/auditDefinitions";
+import { notifyQaAuditsChanged } from "@/lib/qa/auditQuota";
+import { AuditProgress } from "@/components/qa/AuditProgress";
 
 interface AgentOption {
   id: string;
@@ -275,6 +277,7 @@ function SubmitAuditForm({
         setError(data.error ?? "Failed to save the audit.");
         return;
       }
+      notifyQaAuditsChanged();
       if (editing) {
         if (data.republished) {
           showToast(
@@ -673,6 +676,7 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
         showToast("Audit deleted — no published audits remain for that agent/period, and no earlier Manual Entry/Import value was found, so the scorecard's QA Audit % was cleared.", "success");
       }
       setPendingDelete(null);
+      notifyQaAuditsChanged();
       await load();
       router.refresh();
     } catch (err) {
@@ -903,6 +907,7 @@ export function QaAuditWorkspace({ agents, periods }: { agents: AgentOption[]; p
 
   return (
     <div className="space-y-4">
+      <AuditProgress agents={agents} />
       <div className="max-w-xs">
         <label className="mb-1 block text-xs font-medium text-muted-foreground">Audit form</label>
         <Select value={auditType} onChange={(e) => setAuditType(e.target.value as QaAuditType)} className="w-full">
