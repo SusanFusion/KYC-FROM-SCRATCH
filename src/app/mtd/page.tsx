@@ -5,6 +5,7 @@ import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
 import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
+import { GateMultiplierConfetti } from "@/components/metrics/GateMultiplierConfetti";
 import { Progress } from "@/components/ui/progress";
 import { RangePicker } from "@/components/shared/RangePicker";
 import { RankingTable, type RankingRow } from "@/components/rankings/RankingTable";
@@ -156,11 +157,16 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
                 instead of always-primary, so it reflects this month's
                 actual overall tier at a glance. */}
             <div
+              data-confetti-target="gate-multiplier"
               className={cn(
                 "mt-5 flex flex-col items-center gap-2 rounded-xl border p-6 text-center transition-all duration-200",
                 TONE_GRADIENT[multiplierToneRaw]
               )}
             >
+              {/* Confetti only when the month's overall tier is Exceptional --
+                  the blue one (tierTone -> "primary"). Keyed by month so
+                  switching months in the picker can celebrate again. */}
+              {gate.overallTier === "Exceptional" && <GateMultiplierConfetti key={selectedMonth.key} />}
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
               <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
               <TierBadge tier={gate.overallTier} />
