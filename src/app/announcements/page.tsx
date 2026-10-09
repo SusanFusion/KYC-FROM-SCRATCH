@@ -1,6 +1,5 @@
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
-import { PasswordGate } from "@/components/shared/PasswordGate";
 import { AnnouncementsManager } from "@/components/announcements/AnnouncementsManager";
 import { listAnnouncements } from "@/lib/data/announcements";
 
@@ -20,9 +19,10 @@ export default async function AnnouncementsPage() {
     <>
       <TopHeader title="Announcements" description="The KYC Updates people see in the pop-up when they open the app" />
       <PageShell>
-        <PasswordGate description="Enter the shared Lead/Manager password to post or remove updates.">
-          <AnnouncementsManager items={items} loadError={loadError} />
-        </PasswordGate>
+        {/* Everyone can read the list. The Post / Delete controls inside are
+            only revealed after the shared Lead/Manager password is entered
+            (see AnnouncementsManager), and the API enforces it too. */}
+        <AnnouncementsManager items={items} loadError={loadError} />
       </PageShell>
     </>
   );
