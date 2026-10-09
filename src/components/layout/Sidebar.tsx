@@ -24,6 +24,7 @@ import {
 import { NAV_ITEMS, APP_NAME } from "@/lib/appConfig";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/UserContext";
+import { ACTION_ACCESS_EVENT, notifyActionAccessChanged } from "@/lib/auth/actionAccessEvents";
 
 const ICON_MAP = {
   LayoutDashboard,
@@ -61,26 +62,33 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   // Separate from handleLogout above: this is the shared Lead/Manager
-  // password unlock (Import, Reports, Record-a-penalty, Penalty records --
-  // see PasswordGate), not the signed-in identity. Checked once on mount so
-  // the control only shows up for someone who's actually unlocked it in
-  // this browser; there's no session to log out of here, so this doesn't
-  // touch /login -- just re-locks and refreshes so every PasswordGate on
-  // the current page re-checks and shows its prompt again.
+  // password unlock (Import, Reports, Raw Data, QA audits, Announcements,
+  // Record-a-penalty, Penalty records -- see PasswordGate), not the
+  // signed-in identity. The server is asked on mount, on every page change,
+  // and whenever a PasswordGate announces that the password was just
+  // entered, so the "Log out as Lead/Auditor" button appears right after
+  // unlocking instead of only after a reload. There's no session to log out
+  // of here, so this doesn't touch /login -- it clears the unlock cookie and
+  // tells every PasswordGate on the page to lock again.
   React.useEffect(() => {
     let cancelled = false;
-    fetch("/api/auth/action-access")
-      .then((res) => res.json())
-      .then((data: { unlocked?: boolean }) => {
-        if (!cancelled) setActionUnlocked(Boolean(data.unlocked));
-      })
-      .catch(() => {
-        if (!cancelled) setActionUnlocked(false);
-      });
+    function check() {
+      fetch("/api/auth/action-access", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data: { unlocked?: boolean }) => {
+          if (!cancelled) setActionUnlocked(Boolean(data.unlocked));
+        })
+        .catch(() => {
+          if (!cancelled) setActionUnlocked(false);
+        });
+    }
+    check();
+    window.addEventListener(ACTION_ACCESS_EVENT, check);
     return () => {
       cancelled = true;
+      window.removeEventListener(ACTION_ACCESS_EVENT, check);
     };
-  }, []);
+  }, [pathname]);
 
   async function handleLeadLogout() {
     setLeadLoggingOut(true);
@@ -89,6 +97,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     } finally {
       setActionUnlocked(false);
       setLeadLoggingOut(false);
+      notifyActionAccessChanged();
       onNavigate?.();
       router.refresh();
     }
@@ -150,15 +159,20 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
         {actionUnlocked && (
-          <button
-            type="button"
-            onClick={handleLeadLogout}
-            disabled={leadLoggingOut}
-            className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            {leadLoggingOut ? "Locking…" : "Log out as Lead/Auditor"}
-          </button>
+          <div className="rounded-md border border-primary-500/30 bg-primary-50 p-2.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-primary-700">
+              <Lock className="h-3 w-3" /> Lead / Auditor access is on
+            </p>
+            <button
+              type="button"
+              onClick={handleLeadLogout}
+              disabled={leadLoggingOut}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              {leadLoggingOut ? "Logging out…" : "Log out as Lead/Auditor"}
+            </button>
+          </div>
         )}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Scores derived from the KYC KPI Realignment Framework. See Settings → Data Notes for assumptions.
