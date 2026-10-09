@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { PasswordGate } from "@/components/shared/PasswordGate";
 import { ROSTER } from "@/lib/auth/roster";
+import { ACTION_ACCESS_EVENT } from "@/lib/auth/actionAccessEvents";
 import type { Announcement } from "@/lib/data/announcements";
 
 const LEADS = ROSTER.filter((r) => r.role === "lead");
@@ -28,22 +29,28 @@ function readRememberedAuthor(): string {
 
 /** Asks the server whether this browser has already entered the shared
  *  Lead/Manager password (the cookie is httpOnly, so it can't be read from
- *  JS). Re-checks whenever the page data refreshes, so "Log out as
- *  Lead/Auditor" in the sidebar hides the controls again. */
+ *  JS). Re-checks whenever the page data refreshes and whenever the password
+ *  is entered or cleared anywhere (see actionAccessEvents), so "Log out as
+ *  Lead/Auditor" in the sidebar hides the controls straight away. */
 function useUnlocked(refreshKey: unknown) {
   const [unlocked, setUnlocked] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
-    fetch("/api/auth/action-access")
-      .then((res) => res.json())
-      .then((data: { unlocked?: boolean }) => {
-        if (!cancelled) setUnlocked(Boolean(data.unlocked));
-      })
-      .catch(() => {
-        if (!cancelled) setUnlocked(false);
-      });
+    function check() {
+      fetch("/api/auth/action-access", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data: { unlocked?: boolean }) => {
+          if (!cancelled) setUnlocked(Boolean(data.unlocked));
+        })
+        .catch(() => {
+          if (!cancelled) setUnlocked(false);
+        });
+    }
+    check();
+    window.addEventListener(ACTION_ACCESS_EVENT, check);
     return () => {
       cancelled = true;
+      window.removeEventListener(ACTION_ACCESS_EVENT, check);
     };
   }, [refreshKey]);
   return [unlocked, setUnlocked] as const;
