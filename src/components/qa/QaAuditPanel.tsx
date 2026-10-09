@@ -35,6 +35,13 @@ interface PeriodOption {
 }
 
 const AUDITORS = ROSTER.filter((r) => r.role === "lead");
+
+const ALL_FILTER = "__all__";
+
+function distinctSorted(names: string[]): string[] {
+  return [...new Set(names.filter((n) => n && n.trim().length > 0))].sort((a, b) => a.localeCompare(b));
+}
+
 const ANSWER_OPTIONS: { value: QaAnswerValue; label: string }[] = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
@@ -550,6 +557,29 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
   const [unpublishingId, setUnpublishingId] = React.useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<QaAuditRecord | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const [auditorFilter, setAuditorFilter] = React.useState(ALL_FILTER);
+  const [agentFilter, setAgentFilter] = React.useState(ALL_FILTER);
+
+  // The dropdowns list every auditor / agent that actually appears in the
+  // loaded audits (not the whole roster), so each choice is guaranteed to
+  // match at least one row.
+  const auditorNames = React.useMemo(() => distinctSorted((audits ?? []).map((a) => a.auditorName)), [audits]);
+  const agentNames = React.useMemo(() => distinctSorted((audits ?? []).map((a) => a.agentName)), [audits]);
+
+  // A selection that no longer exists in the list (e.g. after switching audit
+  // type, or after the last audit by that person was deleted) quietly counts
+  // as "All" instead of leaving the list mysteriously empty.
+  const activeAuditor = auditorNames.includes(auditorFilter) ? auditorFilter : ALL_FILTER;
+  const activeAgent = agentNames.includes(agentFilter) ? agentFilter : ALL_FILTER;
+
+  const visibleAudits = React.useMemo(
+    () =>
+      (audits ?? []).filter(
+        (a) => (activeAuditor === ALL_FILTER || a.auditorName === activeAuditor) && (activeAgent === ALL_FILTER || a.agentName === activeAgent)
+      ),
+    [audits, activeAuditor, activeAgent]
+  );
+  const filtersActive = activeAuditor !== ALL_FILTER || activeAgent !== ALL_FILTER;
 
   const load = React.useCallback(async () => {
     const res = await fetch(`/api/qa-audits?type=${auditType}`);
@@ -665,8 +695,54 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
 
   return (
     <>
+      <div className="mb-3 flex flex-wrap items-end gap-3 rounded-md border border-border bg-muted/40 p-3">
+        <div>
+          <label htmlFor={`audit-filter-auditor-${auditType}`} className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+            Auditor
+          </label>
+          <Select id={`audit-filter-auditor-${auditType}`} value={activeAuditor} onChange={(e) => setAuditorFilter(e.target.value)} className="min-w-[11rem]">
+            <option value={ALL_FILTER}>All auditors</option>
+            {auditorNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <label htmlFor={`audit-filter-agent-${auditType}`} className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+            Agent
+          </label>
+          <Select id={`audit-filter-agent-${auditType}`} value={activeAgent} onChange={(e) => setAgentFilter(e.target.value)} className="min-w-[11rem]">
+            <option value={ALL_FILTER}>All agents</option>
+            {agentNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {filtersActive && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setAuditorFilter(ALL_FILTER);
+              setAgentFilter(ALL_FILTER);
+            }}
+          >
+            <X className="h-3.5 w-3.5" /> Clear filters
+          </Button>
+        )}
+        <p className="ml-auto text-xs text-muted-foreground" aria-live="polite">
+          {filtersActive ? `Showing ${visibleAudits.length} of ${audits.length} audit${audits.length === 1 ? "" : "s"}` : `${audits.length} audit${audits.length === 1 ? "" : "s"}`}
+        </p>
+      </div>
+
+      {visibleAudits.length === 0 && <p className="py-4 text-sm text-muted-foreground">No audits match the selected filters.</p>}
+
       <ul className="divide-y divide-border">
-        {audits.map((audit) => (
+        {visibleAudits.map((audit) => (
           <li key={audit.id} className="py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
