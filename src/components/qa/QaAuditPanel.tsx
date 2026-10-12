@@ -19,7 +19,11 @@ import {
   getAuditDefinition,
   bandLabel,
   QA_AUDIT_TYPE_LABELS,
+  QA_APPLICATION_TYPES,
+  QA_APPLICATION_TYPE_LABELS,
+  isQaApplicationType,
   type QaAnswerValue,
+  type QaApplicationType,
   type QaAuditRecord,
   type QaAuditType,
 } from "@/lib/qa/auditDefinitions";
@@ -121,7 +125,7 @@ function emailAudit(audit: QaAuditRecord): string | null {
   window.open(`/api/qa-audits/${audit.id}/pdf`, "_blank");
 
   const cc = defaultCcFor(audit).join(",");
-  const subject = `QA Audit — ${audit.agentName} — ${QA_AUDIT_TYPE_LABELS[audit.auditType]} (${formatDate(audit.auditDate)})`;
+  const subject = `QA Audit — ${audit.agentName} — ${QA_AUDIT_TYPE_LABELS[audit.auditType]}`;
   const body = buildAuditEmailBody(audit);
   const mailto = `mailto:${to}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailto;
@@ -214,6 +218,9 @@ function SubmitAuditForm({
   const [auditorEmail, setAuditorEmail] = React.useState(editing?.auditorEmail ?? AUDITORS[0]?.email ?? "");
   const [caseReference, setCaseReference] = React.useState(editing?.caseReference ?? "");
   const [auditDate, setAuditDate] = React.useState(() => editing?.auditDate ?? getLocalTodayIso());
+  // Applications audits only. Starts empty on a new audit so the auditor has
+  // to choose it on purpose rather than submitting whatever was pre-selected.
+  const [applicationType, setApplicationType] = React.useState<QaApplicationType | "">(editing?.applicationType ?? "");
   const [answers, setAnswers] = React.useState<Record<string, QaAnswerValue | undefined>>(() => {
     const base: Record<string, QaAnswerValue | undefined> = buildDefaultAnswers(definition);
     if (editing) {
@@ -260,6 +267,7 @@ function SubmitAuditForm({
     setCaseReference("");
     setOverallRemarks("");
     setAuditDate(getLocalTodayIso());
+    setApplicationType("");
   }
 
   async function handleSubmit() {
@@ -267,6 +275,13 @@ function SubmitAuditForm({
     setError(null);
     if (!agentId || !periodId || !auditorEmail) {
       setError("Pick an agent, a period, and an auditor.");
+      return;
+    }
+    // Required for Applications audits -- except an older audit that never had
+    // a type, which can still be edited without picking one.
+    const typeOptional = editing !== null && !editing.applicationType;
+    if (auditType === "applications" && !isQaApplicationType(applicationType) && !typeOptional) {
+      setError("Pick whether this is a New Application or an Additional Account.");
       return;
     }
     submittingRef.current = true;
@@ -282,6 +297,7 @@ function SubmitAuditForm({
           auditorEmail,
           caseReference: caseReference || null,
           auditDate,
+          applicationType: auditType === "applications" && isQaApplicationType(applicationType) ? applicationType : null,
           answers,
           overallRemarks: overallRemarks || null,
         }),
@@ -378,6 +394,26 @@ function SubmitAuditForm({
               ))}
             </Select>
           </div>
+          {auditType === "applications" && (
+            <div>
+              <label htmlFor={`audit-application-type-${editing?.id ?? "new"}`} className="mb-1 block text-xs font-medium text-muted-foreground">
+                Application type
+              </label>
+              <Select
+                id={`audit-application-type-${editing?.id ?? "new"}`}
+                value={applicationType}
+                onChange={(e) => setApplicationType(isQaApplicationType(e.target.value) ? e.target.value : "")}
+                className="w-full"
+              >
+                <option value="">Select type…</option>
+                {QA_APPLICATION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {QA_APPLICATION_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Audit date</label>
             <Input type="date" value={auditDate} onChange={(e) => setAuditDate(e.target.value)} className="w-full" />
@@ -766,6 +802,7 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-foreground">
                   {audit.agentName} · {audit.periodLabel}
+                  {audit.applicationType ? ` · ${QA_APPLICATION_TYPE_LABELS[audit.applicationType]}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Audited {formatDate(audit.auditDate)} by {audit.auditorName}
