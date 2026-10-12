@@ -4,7 +4,14 @@ import { requireActionAccess } from "@/lib/auth/actionAccess";
 import { refreshQaAuditPct } from "@/lib/qa/refreshQaAuditPct";
 import { ROSTER } from "@/lib/auth/roster";
 import { describeError } from "@/lib/utils";
-import { allQuestionKeys, computeAuditScore, getAuditDefinition, type QaAnswerValue } from "@/lib/qa/auditDefinitions";
+import {
+  allQuestionKeys,
+  computeAuditScore,
+  getAuditDefinition,
+  isQaApplicationType,
+  type QaAnswerValue,
+  type QaApplicationType,
+} from "@/lib/qa/auditDefinitions";
 
 export const runtime = "nodejs";
 
@@ -52,6 +59,7 @@ interface EditAuditBody {
   auditorEmail?: string;
   caseReference?: string | null;
   auditDate?: string;
+  applicationType?: QaApplicationType | null;
   answers?: Record<string, QaAnswerValue>;
   overallRemarks?: string | null;
 }
@@ -74,6 +82,18 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (!body.auditorEmail) return NextResponse.json({ error: "Pick who conducted this audit." }, { status: 400 });
     if (!body.auditDate || !/^\d{4}-\d{2}-\d{2}$/.test(body.auditDate)) {
       return NextResponse.json({ error: "Pick the date this audit was performed." }, { status: 400 });
+    }
+
+    // Applications audits carry a "New Application" / "Additional Account"
+    // type. An older Applications audit saved before this was asked may stay
+    // without one; once an audit has a type it can be changed but not cleared.
+    let applicationType: QaApplicationType | null = null;
+    if (existing.auditType === "applications") {
+      if (isQaApplicationType(body.applicationType)) {
+        applicationType = body.applicationType;
+      } else if (existing.applicationType) {
+        return NextResponse.json({ error: "Pick whether this is a New Application or an Additional Account." }, { status: 400 });
+      }
     }
 
     const auditor = ROSTER.find((r) => r.role === "lead" && r.email === body.auditorEmail?.trim().toLowerCase());
@@ -111,6 +131,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       auditorName: auditor.name,
       caseReference: body.caseReference?.trim() || null,
       auditDate: body.auditDate,
+      applicationType,
       answers: requiredKeys.map((questionKey) => ({ questionKey, value: answers[questionKey] as QaAnswerValue })),
       overallRemarks: body.overallRemarks?.trim() || null,
       applicablePoints: score.applicablePoints,
