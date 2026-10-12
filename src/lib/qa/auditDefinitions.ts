@@ -18,6 +18,21 @@ export const QA_AUDIT_TYPE_LABELS: Record<QaAuditType, string> = {
 
 export type QaAnswerValue = "yes" | "no" | "na";
 
+/** What kind of application an Applications audit reviewed. Only asked on the
+ *  Applications form; Emails and Chats audits leave it empty. */
+export type QaApplicationType = "new_application" | "additional_account";
+
+export const QA_APPLICATION_TYPE_LABELS: Record<QaApplicationType, string> = {
+  new_application: "New Application",
+  additional_account: "Additional Account",
+};
+
+export const QA_APPLICATION_TYPES: QaApplicationType[] = ["new_application", "additional_account"];
+
+export function isQaApplicationType(value: unknown): value is QaApplicationType {
+  return typeof value === "string" && (QA_APPLICATION_TYPES as string[]).includes(value);
+}
+
 export type QaAuditStatus = "submitted" | "published";
 
 export interface QaAuditAnswer {
@@ -482,6 +497,10 @@ export interface QaAuditRecord {
   auditorName: string;
   caseReference: string | null;
   auditDate: string; // YYYY-MM-DD
+  /** Applications audits only: "New Application" or "Additional Account".
+   *  Null for Emails/Chats audits, and for Applications audits saved before
+   *  this was asked. */
+  applicationType?: QaApplicationType | null;
   answers: QaAuditAnswer[];
   overallRemarks: string | null;
   applicablePoints: number;
@@ -506,6 +525,7 @@ export interface NewQaAuditInput {
   auditorName: string;
   caseReference: string | null;
   auditDate: string;
+  applicationType?: QaApplicationType | null;
   answers: QaAuditAnswer[];
   overallRemarks: string | null;
 }
