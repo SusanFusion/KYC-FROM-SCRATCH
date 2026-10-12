@@ -135,6 +135,11 @@ create table if not exists qa_audits (
   auditor_name text not null,
   case_reference text,
   audit_date date not null,
+  -- Applications audits only: 'new_application' or 'additional_account'.
+  -- For a database created before this column existed, run:
+  --   alter table qa_audits add column if not exists application_type text
+  --     check (application_type in ('new_application', 'additional_account'));
+  application_type text check (application_type in ('new_application', 'additional_account')),
   answers jsonb not null default '[]'::jsonb,
   overall_remarks text,
   applicable_points integer not null default 0,
