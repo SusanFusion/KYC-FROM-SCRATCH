@@ -394,6 +394,9 @@ export class SupabaseRepository implements DataRepository {
         auditor_name: input.auditorName,
         case_reference: input.caseReference,
         audit_date: input.auditDate,
+        // Only sent when there is one, so Emails/Chats audits never touch the
+        // application_type column.
+        ...(input.applicationType ? { application_type: input.applicationType } : {}),
         answers: input.answers,
         overall_remarks: input.overallRemarks,
         applicable_points: input.applicablePoints,
@@ -433,6 +436,7 @@ export class SupabaseRepository implements DataRepository {
         auditor_name: input.auditorName,
         case_reference: input.caseReference,
         audit_date: input.auditDate,
+        ...(input.auditType === "applications" ? { application_type: input.applicationType ?? null } : {}),
         answers: input.answers,
         overall_remarks: input.overallRemarks,
         applicable_points: input.applicablePoints,
@@ -505,6 +509,7 @@ function mapQaAuditRow(row: Record<string, unknown>): QaAuditRecord {
     auditorName: row.auditor_name as string,
     caseReference: (row.case_reference as string) ?? null,
     auditDate: row.audit_date as string,
+    applicationType: (row.application_type as QaAuditRecord["applicationType"]) ?? null,
     answers: (row.answers as QaAuditRecord["answers"]) ?? [],
     overallRemarks: (row.overall_remarks as string) ?? null,
     applicablePoints: row.applicable_points as number,
