@@ -72,15 +72,29 @@ function bandBadgeVariant(band: 0 | 1 | 2 | 3 | null): "primary" | "success" | "
 // confidentiality note on QaAuditRecord — see auditDefinitions.ts), this
 // intentionally emails the FULL audit, unfiltered, straight to the audited
 // agent. Cc defaults to every Lead/Manager on the roster (including the
-// auditor) so there's always a leadership paper trail on an email that
-// carries confidential audit content out to the agent it's about.
+// auditor) plus anna.go@fusionmarkets.com.au (ALWAYS_CC_EMAILS below), so
+// there's always a leadership paper trail on an email that carries
+// confidential audit content out to the agent it's about.
 function agentEmailFor(agentId: string): string | null {
   return ROSTER.find((r) => r.role === "agent" && r.agentId === agentId)?.email ?? null;
 }
 
+// Always copied on every audit email, on top of the auditor and the
+// Leads/Managers: not on the roster, so they're listed here by hand.
+const ALWAYS_CC_EMAILS = ["anna.go@fusionmarkets.com.au"];
+
 function defaultCcFor(audit: QaAuditRecord): string[] {
   const leadEmails = AUDITORS.map((r) => r.email);
-  return Array.from(new Set([audit.auditorEmail, ...leadEmails]));
+  // De-duplicated ignoring upper/lower case, so nobody is copied twice.
+  const seen = new Set<string>();
+  const cc: string[] = [];
+  for (const email of [audit.auditorEmail, ...leadEmails, ...ALWAYS_CC_EMAILS]) {
+    const key = email.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    cc.push(email.trim());
+  }
+  return cc;
 }
 
 function buildAuditEmailBody(audit: QaAuditRecord): string {
