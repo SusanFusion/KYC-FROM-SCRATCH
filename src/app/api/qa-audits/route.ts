@@ -7,7 +7,9 @@ import {
   allQuestionKeys,
   computeAuditScore,
   getAuditDefinition,
+  isQaApplicationType,
   type QaAnswerValue,
+  type QaApplicationType,
   type QaAuditType,
 } from "@/lib/qa/auditDefinitions";
 
@@ -26,6 +28,7 @@ interface CreateAuditBody {
   auditorEmail?: string;
   caseReference?: string | null;
   auditDate?: string;
+  applicationType?: QaApplicationType | null;
   answers?: Record<string, QaAnswerValue>;
   overallRemarks?: string | null;
 }
@@ -82,6 +85,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Pick the date this audit was performed." }, { status: 400 });
     }
 
+    // Applications audits must say whether this was a New Application or an
+    // Additional Account; Emails and Chats audits never carry one.
+    let applicationType: QaApplicationType | null = null;
+    if (body.auditType === "applications") {
+      if (!isQaApplicationType(body.applicationType)) {
+        return NextResponse.json({ error: "Pick whether this is a New Application or an Additional Account." }, { status: 400 });
+      }
+      applicationType = body.applicationType;
+    }
+
     const auditor = ROSTER.find((r) => r.role === "lead" && r.email === auditorEmailInput.trim().toLowerCase());
     if (!auditor) {
       return NextResponse.json({ error: "The auditor must be one of the KYC Leads/Managers on the roster." }, { status: 400 });
@@ -119,6 +132,7 @@ export async function POST(request: Request) {
       auditorName: auditor.name,
       caseReference: body.caseReference?.trim() || null,
       auditDate: body.auditDate,
+      applicationType,
       // Every key in requiredKeys already passed isAnswerValue() above (the
       // "missing" check returned early otherwise), so this cast is safe.
       answers: requiredKeys.map((questionKey) => ({ questionKey, value: answers[questionKey] as QaAnswerValue })),
