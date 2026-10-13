@@ -5,6 +5,7 @@ import { TierBadge, tierTone } from "@/components/dashboard/PerformanceBadge";
 import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlockCard";
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
+import { GateInfoButton } from "@/components/metrics/GateInfoButton";
 import { GateMultiplierConfetti } from "@/components/metrics/GateMultiplierConfetti";
 import { Progress } from "@/components/ui/progress";
 import { RangePicker } from "@/components/shared/RangePicker";
@@ -167,7 +168,10 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
                   the blue one (tierTone -> "primary"). Keyed by month so
                   switching months in the picker can celebrate again. */}
               {gate.overallTier === "Exceptional" && <GateMultiplierConfetti key={selectedMonth.key} />}
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gate Multiplier</p>
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Gate Multiplier
+                <GateInfoButton />
+              </p>
               <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
               <TierBadge tier={gate.overallTier} />
               <p className="mt-1 max-w-sm text-xs text-muted-foreground">
