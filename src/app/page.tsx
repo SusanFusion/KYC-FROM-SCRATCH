@@ -200,7 +200,7 @@ export default async function DashboardPage() {
                 <CardTitle className="flex items-center gap-1.5">
                   Business Gate — Layer 1
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  <GateInfoButton />
+                  <GateInfoButton gate={results[0]?.gate ?? null} periodLabel={monthThruLabel} />
                 </CardTitle>
                 <CardDescription>Team-level multiplier applied to every agent&apos;s score this period.</CardDescription>
               </div>
