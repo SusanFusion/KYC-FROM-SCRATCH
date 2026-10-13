@@ -17,6 +17,7 @@
 import type { MtdReportData, MtdStreak } from "../data/mtdReportData";
 import { INDIVIDUAL_METRICS, GATE_METRICS, SCORE_PASS_THRESHOLD } from "../scoring/thresholds";
 import { formatSeconds, formatMinutesValue } from "../data/time";
+import { formatMagnitude } from "../scoring/display";
 import type { Grade, GateTier, IndividualMetricKey, GateMetricKey } from "../scoring/types";
 import { APP_NAME } from "../appConfig";
 
@@ -324,12 +325,25 @@ export function generateMtdReportHtml(data: MtdReportData): string {
     const values = series.days.map((d) => d.actual).filter((v): v is number => v !== null);
     const avg = values.length ? values.reduce((s, v) => s + v, 0) / values.length : null;
     const m = data.gateOverall?.metrics.find((mm) => mm.key === def.key) ?? null;
+    // "vs. Target" compares the MTD Average to the number printed in the Target
+    // column right beside it (the Exceptional threshold). It used to show the
+    // room left before the metric would tip into Amber (measured from the Green
+    // limit), which has nothing to do with the Target column and read as wrong,
+    // e.g. "57m 9s under" next to a 1h 2m 51s average and a 1h target.
+    const targetValue = def.bands[0]!.max ?? def.bands[0]!.min ?? 0;
+    let vsTarget = "—";
+    if (avg !== null) {
+      const diff = def.direction === "lower-is-better" ? targetValue - avg : avg - targetValue;
+      const word = def.direction === "lower-is-better" ? (diff >= 0 ? "under" : "over") : diff >= 0 ? "above" : "below";
+      vsTarget = `${formatMagnitude(def.unit, diff)} ${word}`;
+    }
+    const vsTargetColor = avg === null ? COLOR.muted : (def.direction === "lower-is-better" ? targetValue - avg : avg - targetValue) >= 0 ? "#1b5e20" : "#b71c1c";
     return `<tr style="border-top:1px solid ${COLOR.border};">
       <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(def.name)}</td>
-      <td style="padding:8px 10px;color:${COLOR.muted};">${def.direction === "lower-is-better" ? "≤" : "≥"} ${formatGateValue(def.unit, def.bands[0]!.max ?? def.bands[0]!.min ?? 0)}</td>
+      <td style="padding:8px 10px;color:${COLOR.muted};">${def.direction === "lower-is-better" ? "≤" : "≥"} ${formatGateValue(def.unit, targetValue)}</td>
       <td style="padding:8px 10px;font-weight:600;color:${COLOR.ink};">${avg !== null ? escapeHtml(formatGateValue(def.unit, avg)) : "—"}</td>
       <td style="padding:8px 10px;color:${m?.tier ? GATE_TIER_COLOR[m.tier] : COLOR.muted};font-weight:600;">${m?.tier ?? "—"}</td>
-      <td style="padding:8px 10px;color:${COLOR.muted};">${m?.bufferLabel ?? "—"}</td>
+      <td style="padding:8px 10px;color:${vsTargetColor};">${vsTarget}</td>
       <td style="padding:8px 10px;color:${COLOR.muted};">${(def.weight * 100).toFixed(0)}%</td>
     </tr>`;
   }).join("");
@@ -500,128 +514,4 @@ export function generateMtdReportHtml(data: MtdReportData): string {
     const momRows = rows
       .map((r, i) => {
         const status = r.delta > 0.005 ? { label: "▲ Improved", color: "#1b5e20" } : r.delta < -0.005 ? { label: "▼ Regressed", color: "#b71c1c" } : { label: "→ Maintained", color: "#6b7280" };
-        return `<tr style="${i % 2 === 1 ? "background:#fafafa;" : ""}border-top:1px solid ${COLOR.border};">
-          <td style="padding:6px 10px;color:${COLOR.muted};font-size:12px;">${i + 1}</td>
-          <td style="padding:6px 10px;font-weight:600;color:${COLOR.ink};">${escapeHtml(r.agent.name)}</td>
-          <td style="padding:6px 10px;text-align:center;">${escapeHtml(r.agent.department)}</td>
-          <td style="padding:6px 10px;text-align:center;font-weight:700;color:${scoreCategory(r.prevScore!).color};">${r.prevScore!.toFixed(2)}<div style="font-size:9px;font-weight:500;">${scoreCategory(r.prevScore!).label}</div></td>
-          <td style="padding:6px 10px;text-align:center;font-weight:700;color:${scoreCategory(r.currentScore!).color};">${r.currentScore!.toFixed(2)}<div style="font-size:9px;font-weight:500;">${scoreCategory(r.currentScore!).label}</div></td>
-          <td style="padding:6px 10px;text-align:center;font-weight:800;color:${status.color};">${r.delta > 0.005 ? "▲" : r.delta < -0.005 ? "▼" : "→"} ${r.delta === 0 ? "±0.00" : `${r.delta > 0 ? "+" : ""}${r.delta.toFixed(2)}`}</td>
-          <td style="padding:6px 10px;text-align:center;"><span style="background:${status.color}18;color:${status.color};border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700;">${status.label}</span></td>
-        </tr>`;
-      })
-      .join("");
-    momSection = `
-      <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid #6b46c1;border-radius:10px;padding:20px 22px;margin-bottom:20px;">
-        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">📊 Month-over-Month Score Comparison</p>
-        <p style="margin:0 0 14px;font-size:12px;color:${COLOR.muted};">${escapeHtml(data.mom.prevMonthLabel)} final vs ${escapeHtml(data.monthLabel)} MTD &nbsp;·&nbsp; ${rows.length} agents compared</p>
-        <div style="display:flex;height:12px;border-radius:8px;overflow:hidden;margin-bottom:8px;border:1px solid ${COLOR.border};">
-          <div style="flex:${improved || 0.0001};background:#22c55e;" title="Improved: ${improved}"></div>
-          <div style="flex:${maintained || 0.0001};background:#d1d5db;" title="Maintained: ${maintained}"></div>
-          <div style="flex:${regressed || 0.0001};background:#ef4444;" title="Regressed: ${regressed}"></div>
-        </div>
-        <div style="display:flex;gap:20px;font-size:11px;font-weight:700;flex-wrap:wrap;margin-bottom:18px;">
-          <span style="color:#16a34a;">▲ ${improved} improved (${Math.round((improved / total) * 100)}%)</span>
-          <span style="color:#6b7280;">→ ${maintained} maintained (${Math.round((maintained / total) * 100)}%)</span>
-          <span style="color:#dc2626;">▼ ${regressed} regressed (${Math.round((regressed / total) * 100)}%)</span>
-        </div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead><tr style="text-align:left;color:${COLOR.muted};font-size:10px;text-transform:uppercase;letter-spacing:.03em;">
-              <th style="padding:6px 10px;width:28px;">#</th><th style="padding:6px 10px;">Agent</th><th style="padding:6px 10px;text-align:center;">Dept</th>
-              <th style="padding:6px 10px;text-align:center;">${escapeHtml(data.mom.prevMonthLabel)}</th><th style="padding:6px 10px;text-align:center;">${escapeHtml(data.monthLabel)} MTD</th>
-              <th style="padding:6px 10px;text-align:center;">Change</th><th style="padding:6px 10px;text-align:center;">Status</th>
-            </tr></thead>
-            <tbody>${momRows}</tbody>
-          </table>
-        </div>
-        ${excluded.length ? `<p style="font-size:10px;color:${COLOR.muted};margin-top:10px;">${excluded.length} agent${excluded.length === 1 ? "" : "s"} excluded from comparison (no ${escapeHtml(data.mom.prevMonthLabel)} data): ${excluded.map((r) => escapeHtml(r.agent.name)).join(", ")}.</p>` : ""}
-      </div>`;
-  }
-
-  // ── Consistent Performers / Agents Needing Attention ────────────────
-  const consistentSection = renderStreakSection("⭐ Consistent Performers", "Agents with 3+ consecutive on-target days (Recognition candidates)", data.consistentStreaks, "#1b5e20", "#dcfce7");
-  const attentionSection = renderStreakSection("⚠️ Agents Needing Attention", "Agents with 3+ consecutive below-target days (Performance Reminder candidates)", data.attentionStreaks, "#b71c1c", "#fee2e2");
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(APP_NAME)} — MTD Report — ${escapeHtml(data.monthLabel)}</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:Inter,system-ui,-apple-system,sans-serif;color:${COLOR.ink};">
-  <div style="max-width:980px;margin:0 auto;padding:32px 24px 60px;">
-    ${header}
-    ${alertsSection}
-    ${execSummarySection}
-    ${businessGateSection}
-    ${agentRankingsSection}
-    ${momSection}
-    ${consistentSection}
-    ${attentionSection}
-    <p style="text-align:center;font-size:11px;color:${COLOR.muted};margin-top:8px;">Generated by ${escapeHtml(APP_NAME)} · MTD Report · ${escapeHtml(data.generatedLabel)}</p>
-  </div>
-</body>
-</html>`;
-}
-
-function summaryCard(label: string, value: string, note: string, color: string): string {
-  return `<div style="border-left:4px solid ${color};background:${color}0d;border-radius:8px;padding:10px 12px;">
-    <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:${COLOR.muted};">${escapeHtml(label)}</p>
-    <p style="margin:3px 0 0;font-size:22px;font-weight:700;color:${color};">${escapeHtml(value)}</p>
-    <p style="margin:2px 0 0;font-size:10px;color:${color};">${escapeHtml(note)}</p>
-  </div>`;
-}
-
-function alertRow(tone: "danger" | "warning" | "success", text: string): string {
-  const bg = tone === "danger" ? "#fee2e2" : tone === "warning" ? "#fef3c7" : "#dcfce7";
-  const color = tone === "danger" ? "#b71c1c" : tone === "warning" ? "#92400e" : "#1b5e20";
-  return `<div style="background:${bg};color:${color};border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:13px;font-weight:600;">${text}</div>`;
-}
-
-function renderStreakSection(title: string, subtitle: string, streaks: MtdStreak[], color: string, bg: string): string {
-  if (streaks.length === 0) return "";
-  const byMetric = new Map<string, MtdStreak[]>();
-  for (const s of streaks) {
-    const list = byMetric.get(s.metricName) ?? [];
-    list.push(s);
-    byMetric.set(s.metricName, list);
-  }
-  const groups = [...byMetric.entries()]
-    .map(([metricName, list]) => {
-      const rows = list
-        .map(
-          (s) => `<tr style="border-top:1px solid ${COLOR.border};">
-        <td style="padding:8px 10px;font-weight:600;color:${COLOR.ink};">${escapeHtml(s.agentName)}</td>
-        <td style="padding:8px 10px;text-align:center;"><span style="background:${bg};color:${color};border:1px solid ${color}33;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700;">${s.length} days</span></td>
-        <td style="padding:8px 10px;text-align:center;font-weight:700;color:${color};">${escapeHtml(s.latestDisplay)}</td>
-        <td style="padding:8px 10px;text-align:center;color:#888;">${escapeHtml(s.target)}</td>
-        <td style="padding:8px 10px;color:#777;font-size:11px;">${escapeHtml(s.periodLabel)}</td>
-        <td style="padding:8px 10px;color:#888;font-size:11px;">${s.recentValues.map(escapeHtml).join(", ")}</td>
-        <td style="padding:8px 10px;">${renderSparkline(s.sparklineValues, color)}</td>
-      </tr>`
-        )
-        .join("");
-      return `
-        <div style="margin-bottom:20px;">
-          <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:8px;padding:4px 12px;background:${bg};border-radius:6px;display:inline-block;">${escapeHtml(metricName)}</div>
-          <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
-              <thead><tr style="text-align:left;color:${COLOR.muted};font-size:10px;text-transform:uppercase;letter-spacing:.03em;">
-                <th style="padding:6px 10px;">Agent</th><th style="padding:6px 10px;text-align:center;">Streak</th><th style="padding:6px 10px;text-align:center;">Latest</th><th style="padding:6px 10px;text-align:center;">Target</th><th style="padding:6px 10px;">Period</th><th style="padding:6px 10px;">Recent Values</th><th style="padding:6px 10px;">Trend</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-        </div>`;
-    })
-    .join("");
-
-  return `
-    <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid ${color};border-radius:10px;padding:20px 22px;margin-bottom:20px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">${title}</p>
-      <p style="margin:0 0 16px;font-size:12px;color:${COLOR.muted};">${subtitle}</p>
-      ${groups}
-    </div>`;
-}
+        return `<tr style="${i % 2 === 1
