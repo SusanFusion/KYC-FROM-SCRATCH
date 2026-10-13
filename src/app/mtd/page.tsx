@@ -170,7 +170,7 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
               {gate.overallTier === "Exceptional" && <GateMultiplierConfetti key={selectedMonth.key} />}
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Gate Multiplier
-                <GateInfoButton />
+                <GateInfoButton gate={gate} periodLabel={monthThruLabel} />
               </p>
               <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
               <TierBadge tier={gate.overallTier} />
