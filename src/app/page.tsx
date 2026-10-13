@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Target, Users, Trophy, Gauge, ArrowRight, Sparkles } from "lucide-react";
+import { GateInfoButton } from "@/components/metrics/GateInfoButton";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScoreRing } from "@/components/dashboard/ScoreRing";
@@ -199,6 +200,7 @@ export default async function DashboardPage() {
                 <CardTitle className="flex items-center gap-1.5">
                   Business Gate — Layer 1
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <GateInfoButton />
                 </CardTitle>
                 <CardDescription>Team-level multiplier applied to every agent&apos;s score this period.</CardDescription>
               </div>
