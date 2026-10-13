@@ -129,7 +129,7 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
             >
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Gate Multiplier
-                <GateInfoButton />
+                <GateInfoButton gate={gate} periodLabel={period.label} />
               </p>
               <p className="text-5xl font-bold tabular-nums tracking-tight text-foreground">{gate.gateMultiplier.toFixed(4)}×</p>
               <TierBadge tier={gate.overallTier} />
