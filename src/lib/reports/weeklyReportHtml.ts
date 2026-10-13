@@ -23,6 +23,7 @@ import type { PeriodDataset, AgentPeriodResult } from "../data/query";
 import type { DateRange } from "../data/dateRanges";
 import type { GateMetricKey, GateTier, IndividualMetricKey } from "../scoring/types";
 import { APP_NAME } from "../appConfig";
+import { renderGateReference } from "./gateReferenceHtml";
 
 export interface WeeklyReportWeekData {
   range: DateRange;
@@ -571,6 +572,8 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
       ${coachingCards || `<p style="font-size:12px;color:${COLOR.muted};">No agents fell below target on 2 or more KPIs this week.</p>`}
     </div>`;
 
+  const gateReferenceSection = renderGateReference({ gate: thisGate, scope: "week", periodLabel: thisWeek.label });
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -582,6 +585,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
   <div style="max-width:920px;margin:0 auto;padding:32px 24px 60px;">
     ${header}
     ${businessGateSection}
+    ${gateReferenceSection}
     ${scoreboardSection}
     ${movementSection}
     ${coachWatchSection}
