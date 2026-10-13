@@ -20,7 +20,7 @@ import { formatSeconds, formatMinutesValue } from "../data/time";
 import { formatMagnitude } from "../scoring/display";
 import type { Grade, GateTier, IndividualMetricKey, GateMetricKey } from "../scoring/types";
 import { APP_NAME } from "../appConfig";
-import { renderGateReference } from "./gateReferenceHtml";
+import { renderGateReference, renderGateInfoButton } from "./gateReferenceHtml";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -366,7 +366,7 @@ export function generateMtdReportHtml(data: MtdReportData): string {
 
   const businessGateSection = `
     <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid ${COLOR.primary};border-radius:10px;padding:20px 22px;margin-bottom:20px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">🏢 Business Gate — Month-to-Date</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">🏢 Business Gate — Month-to-Date${renderGateInfoButton()}</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:14px 0 18px;">
         ${summaryCard("MTD Gate Score", gatePct !== null ? `${gatePct.toFixed(2)}%` : "—", data.gateOverall ? data.gateOverall.overallTier : "No data", gatePct !== null ? GATE_TIER_COLOR[data.gateOverall!.overallTier] : COLOR.muted)}
         ${summaryCard("Days Logged", String(data.gateDaysLogged), `of ${data.gateDaily.length} this month`, COLOR.primary)}
