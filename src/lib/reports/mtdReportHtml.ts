@@ -20,6 +20,7 @@ import { formatSeconds, formatMinutesValue } from "../data/time";
 import { formatMagnitude } from "../scoring/display";
 import type { Grade, GateTier, IndividualMetricKey, GateMetricKey } from "../scoring/types";
 import { APP_NAME } from "../appConfig";
+import { renderGateReference } from "./gateReferenceHtml";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -394,6 +395,8 @@ export function generateMtdReportHtml(data: MtdReportData): string {
       </div>
     </div>`;
 
+  const gateReferenceSection = renderGateReference({ gate: data.gateOverall, scope: "month", periodLabel: data.monthLabel });
+
   // ── Individual Agent Rankings ────────────────────────────────────────
   const gradeDist = [
     { label: "Exceptional", count: exceptionalCount, color: CATEGORY.exceptional.color },
@@ -570,6 +573,7 @@ export function generateMtdReportHtml(data: MtdReportData): string {
     ${alertsSection}
     ${execSummarySection}
     ${businessGateSection}
+    ${gateReferenceSection}
     ${agentRankingsSection}
     ${momSection}
     ${consistentSection}
