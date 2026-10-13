@@ -23,7 +23,7 @@ import type { PeriodDataset, AgentPeriodResult } from "../data/query";
 import type { DateRange } from "../data/dateRanges";
 import type { GateMetricKey, GateTier, IndividualMetricKey } from "../scoring/types";
 import { APP_NAME } from "../appConfig";
-import { renderGateReference } from "./gateReferenceHtml";
+import { renderGateReference, renderGateInfoButton } from "./gateReferenceHtml";
 
 export interface WeeklyReportWeekData {
   range: DateRange;
@@ -303,7 +303,7 @@ export function generateWeeklyReportHtml(thisWeek: WeeklyReportWeekData, lastWee
 
   const businessGateSection = `
     <div style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid ${COLOR.primary};border-radius:10px;padding:20px 22px;margin-bottom:20px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">📘 Business Gate — Week-on-Week</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">📘 Business Gate — Week-on-Week${renderGateInfoButton()}</p>
       ${gauges}
       <p style="margin:16px 0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${COLOR.muted};">KPI Comparison — Last Week vs This Week</p>
       <div style="border:1px solid ${COLOR.border};border-radius:8px;padding:14px 16px;">
