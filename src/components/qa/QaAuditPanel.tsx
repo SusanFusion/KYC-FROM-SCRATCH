@@ -48,6 +48,37 @@ function distinctSorted(names: string[]): string[] {
   return [...new Set(names.filter((n) => n && n.trim().length > 0))].sort((a, b) => a.localeCompare(b));
 }
 
+// ── Weekly filter for the History list. Weeks run Monday to Sunday and are
+// based on the audit date (the "Audit date" field on the form), not on when the
+// record was saved. Everything here works on the plain YYYY-MM-DD text in UTC,
+// so the browser's time zone can never push an audit into the wrong week.
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function isoFromUtc(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** The Monday (YYYY-MM-DD) of the week the given audit date falls in. */
+function weekStartIso(dateIso: string): string {
+  const [y, m, d] = dateIso.slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return isoFromUtc(date);
+}
+
+function weekLabel(startIso: string): string {
+  const [y, m, d] = startIso.split("-").map(Number);
+  const start = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const fmt = (dt: Date) => `${MONTH_SHORT[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  return sameYear
+    ? `${fmt(start)} – ${fmt(end)}, ${end.getUTCFullYear()}`
+    : `${fmt(start)}, ${start.getUTCFullYear()} – ${fmt(end)}, ${end.getUTCFullYear()}`;
+}
+
 const ANSWER_OPTIONS: { value: QaAnswerValue; label: string }[] = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
@@ -612,6 +643,7 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
   const [deleting, setDeleting] = React.useState(false);
   const [auditorFilter, setAuditorFilter] = React.useState(ALL_FILTER);
   const [agentFilter, setAgentFilter] = React.useState(ALL_FILTER);
+  const [weekFilter, setWeekFilter] = React.useState(ALL_FILTER);
 
   // The dropdowns list every auditor / agent that actually appears in the
   // loaded audits (not the whole roster), so each choice is guaranteed to
@@ -625,14 +657,24 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
   const activeAuditor = auditorNames.includes(auditorFilter) ? auditorFilter : ALL_FILTER;
   const activeAgent = agentNames.includes(agentFilter) ? agentFilter : ALL_FILTER;
 
+  // Only weeks that actually contain an audit are offered, newest first.
+  const weekStarts = React.useMemo(
+    () => [...new Set((audits ?? []).map((a) => weekStartIso(a.auditDate)))].sort((a, b) => b.localeCompare(a)),
+    [audits]
+  );
+  const activeWeek = weekStarts.includes(weekFilter) ? weekFilter : ALL_FILTER;
+
   const visibleAudits = React.useMemo(
     () =>
       (audits ?? []).filter(
-        (a) => (activeAuditor === ALL_FILTER || a.auditorName === activeAuditor) && (activeAgent === ALL_FILTER || a.agentName === activeAgent)
+        (a) =>
+          (activeAuditor === ALL_FILTER || a.auditorName === activeAuditor) &&
+          (activeAgent === ALL_FILTER || a.agentName === activeAgent) &&
+          (activeWeek === ALL_FILTER || weekStartIso(a.auditDate) === activeWeek)
       ),
-    [audits, activeAuditor, activeAgent]
+    [audits, activeAuditor, activeAgent, activeWeek]
   );
-  const filtersActive = activeAuditor !== ALL_FILTER || activeAgent !== ALL_FILTER;
+  const filtersActive = activeAuditor !== ALL_FILTER || activeAgent !== ALL_FILTER || activeWeek !== ALL_FILTER;
 
   const load = React.useCallback(async () => {
     const res = await fetch(`/api/qa-audits?type=${auditType}`);
@@ -776,6 +818,19 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
             ))}
           </Select>
         </div>
+        <div>
+          <label htmlFor={`audit-filter-week-${auditType}`} className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+            Week (Mon–Sun)
+          </label>
+          <Select id={`audit-filter-week-${auditType}`} value={activeWeek} onChange={(e) => setWeekFilter(e.target.value)} className="min-w-[13rem]">
+            <option value={ALL_FILTER}>All weeks</option>
+            {weekStarts.map((start) => (
+              <option key={start} value={start}>
+                {weekLabel(start)}
+              </option>
+            ))}
+          </Select>
+        </div>
         {filtersActive && (
           <Button
             size="sm"
@@ -783,6 +838,7 @@ function AuditHistory({ auditType, agents, periods }: { auditType: QaAuditType; 
             onClick={() => {
               setAuditorFilter(ALL_FILTER);
               setAgentFilter(ALL_FILTER);
+              setWeekFilter(ALL_FILTER);
             }}
           >
             <X className="h-3.5 w-3.5" /> Clear filters
