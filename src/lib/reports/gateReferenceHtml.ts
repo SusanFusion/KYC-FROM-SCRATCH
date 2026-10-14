@@ -85,7 +85,7 @@ const STYLES = `
 
 export function renderGateReference(opts: GateReferenceOptions): string {
   const { gate, scope, periodLabel } = opts;
-  const span = scope === "week" ? "the days of the week" : "every day imported so far this month";
+  const periodWord = scope === "week" ? "the week" : "the month";
 
   const scale = buildGateScaleTable();
   const scaleHead = scale.columns
@@ -115,10 +115,9 @@ export function renderGateReference(opts: GateReferenceOptions): string {
   const sourceRows = getGateMetricSources()
     .map(
       (m) => `<tr style="border-top:1px solid ${COLOR.border};vertical-align:top;">
-        <td style="padding:8px 10px;color:${COLOR.ink};font-weight:600;">${escapeHtml(m.label)}<br><span style="font-size:10px;font-weight:400;color:${COLOR.muted};">${pct(m.weight)} of the Gate</span></td>
-        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.measures)}<br><span style="font-size:10px;color:${COLOR.muted};">Framework name: ${escapeHtml(m.officialName)}</span></td>
-        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.source)}</td>
-        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.combined)}</td>
+        <td style="padding:7px 10px;color:${COLOR.ink};font-weight:600;">${escapeHtml(m.label)}</td>
+        <td style="padding:7px 10px;color:${COLOR.ink};">${escapeHtml(m.measures)}</td>
+        <td style="padding:7px 10px;color:${COLOR.muted};white-space:nowrap;">${escapeHtml(m.source)}</td>
       </tr>`
     )
     .join("");
@@ -131,7 +130,6 @@ export function renderGateReference(opts: GateReferenceOptions): string {
     const weightCounted = counted.reduce((s, m) => s + m.weight, 0);
     const rawMultiplier = weightCounted > 0 ? sumContribution / weightCounted : 1;
     const wasClamped = Math.abs(Math.round(rawMultiplier * 10000) / 10000 - gate.gateMultiplier) > 0.00005;
-    const sumExpression = counted.map((m) => (m.weightedContribution ?? 0).toFixed(4)).join(" + ");
     const tierColor = TIER_COLOR[gate.overallTier];
     const rows = gate.metrics
       .map((m) => {
@@ -139,7 +137,7 @@ export function renderGateReference(opts: GateReferenceOptions): string {
         if (m.weightedContribution === null || m.tier === null || m.tierScore === null) {
           return `<tr style="border-top:1px solid ${COLOR.border};">
             <td style="padding:7px 10px;color:${COLOR.ink};">${escapeHtml(label)}</td>
-            <td style="padding:7px 10px;color:${COLOR.muted};" colspan="4"><em>No data for this period, so it is left out and the other weights are scaled up to fill 100%. It is never counted as zero.</em></td>
+            <td style="padding:7px 10px;color:${COLOR.muted};" colspan="4"><em>No data this period, so it is left out (never counted as zero).</em></td>
           </tr>`;
         }
         return `<tr style="border-top:1px solid ${COLOR.border};vertical-align:top;">
@@ -165,13 +163,7 @@ export function renderGateReference(opts: GateReferenceOptions): string {
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <div style="margin-top:10px;border:1px solid ${COLOR.border};border-radius:8px;padding:10px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:${COLOR.muted};line-height:1.7;">
-        <div><strong style="color:${COLOR.ink};">Sum of contributions</strong> = ${sumExpression || "—"} = <strong style="color:${COLOR.ink};">${sumContribution.toFixed(4)}</strong></div>
-        <div><strong style="color:${COLOR.ink};">Weight counted</strong> = ${pct(weightCounted)}${counted.length < gate.metrics.length ? " (metrics with no data left out)" : ""}</div>
-        <div><strong style="color:${COLOR.ink};">Gate multiplier</strong> = ${sumContribution.toFixed(4)} ÷ ${weightCounted.toFixed(2)} = <strong style="color:${tierColor};">${gate.gateMultiplier.toFixed(4)}×</strong></div>
-        ${wasClamped ? `<div>The raw result (${rawMultiplier.toFixed(4)}) fell outside the allowed range, so it is held to ${GATE_MULTIPLIER_MIN.toFixed(2)}–${GATE_MULTIPLIER_MAX.toFixed(2)}.</div>` : ""}
-      </div>
-      <p style="margin:10px 0 0;font-size:12px;color:${COLOR.muted};">This multiplier is applied to every agent's bonus: the agent's own score sets the bonus bracket, then this figure scales it.</p>`;
+      <p style="margin:10px 0 0;font-size:12px;color:${COLOR.muted};">Sum ${sumContribution.toFixed(4)} ÷ weight counted ${weightCounted.toFixed(2)} = <strong style="color:${tierColor};">${gate.gateMultiplier.toFixed(4)}×</strong>${counted.length < gate.metrics.length ? ". Metrics with no data are left out and the rest scaled up" : ""}${wasClamped ? `. The raw result (${rawMultiplier.toFixed(4)}) is held to ${GATE_MULTIPLIER_MIN.toFixed(2)}–${GATE_MULTIPLIER_MAX.toFixed(2)}` : ""}.</p>`;
   }
 
   return `${STYLES}
@@ -179,23 +171,12 @@ export function renderGateReference(opts: GateReferenceOptions): string {
       <a class="gate-info-backdrop" href="#${CLOSE_ID}" aria-label="Close"></a>
       <div class="gate-info-panel" style="background:#fff;border:1px solid ${COLOR.border};border-left:4px solid ${COLOR.primary};border-radius:10px;padding:20px 22px;margin-bottom:20px;">
         <a class="gate-info-close" href="#${CLOSE_ID}">Close ✕</a>
-        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:${COLOR.ink};">ℹ️ ${gate ? "Business Gate — current calculation" : "How the Business Gate is calculated"}</p>
-        <p style="margin:0 0 14px;font-size:12px;color:${COLOR.muted};">${gate ? "Exactly how the Gate figure in this report was worked out, followed by how the Gate works." : "Reference for the Gate figures in this report."}</p>
+        <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:${COLOR.ink};">ℹ️ ${gate ? "Business Gate — current calculation" : "How the Business Gate is calculated"}</p>
 
         ${worked}
 
-        <p style="margin:20px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">What it is</p>
-        <p style="margin:0 0 6px;font-size:13px;color:${COLOR.ink};">The Business Gate is a team-level multiplier, not an individual score. It reflects how the whole KYC team performed on four service measures, and it is applied to every agent's bonus (the agent's own score sets the bonus bracket first, then the Gate multiplier scales it). 100% means the bonus is paid as is; above 100% increases it, below 100% reduces it.</p>
-
-        <p style="margin:12px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">How it is worked out</p>
-        <ol style="margin:0;padding-left:20px;font-size:12px;color:${COLOR.ink};line-height:1.6;">
-          <li>Take the four team metrics for the period (see "Where the numbers come from" below).</li>
-          <li>Grade each metric into a tier using the scale below. For all four, lower is better.</li>
-          <li>Turn each tier into a tier score: ${tierScoreLine}.</li>
-          <li>Multiply each tier score by that metric's weight and add the results together.</li>
-          <li>If a metric has no data for the period it is left out and the remaining weights are scaled back up to 100%. Missing data is never counted as zero.</li>
-          <li>The result is the Gate multiplier, kept between ${GATE_MULTIPLIER_MIN.toFixed(2)} and ${GATE_MULTIPLIER_MAX.toFixed(2)} and shown as a percentage (1.00 = 100%). Overall status: 115% or more is Exceptional, 100% to under 115% is Green, 70% to under 100% is Amber, and under 70% is Red.</li>
-        </ol>
+        <p style="margin:16px 0 4px;font-size:13px;font-weight:700;color:${COLOR.ink};">How it works</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:${COLOR.ink};">The Gate is a team-level multiplier applied to every agent's bonus: 100% pays it as is, above 100% increases it, below 100% reduces it. Each metric is graded into a tier (${tierScoreLine}), multiplied by its weight and added up. A metric with no data is left out and the rest scaled to 100%. The result is kept between ${GATE_MULTIPLIER_MIN.toFixed(2)} and ${GATE_MULTIPLIER_MAX.toFixed(2)}. Lower is better on all four.</p>
 
         <p style="margin:16px 0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${COLOR.muted};">Weights and tier scale</p>
         <div style="overflow-x:auto;">
@@ -207,24 +188,17 @@ export function renderGateReference(opts: GateReferenceOptions): string {
           </table>
         </div>
 
-        <p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">What data each metric uses</p>
+        <p style="margin:16px 0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${COLOR.muted};">What data each metric uses</p>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead><tr style="text-align:left;color:${COLOR.muted};font-size:10px;text-transform:uppercase;letter-spacing:.03em;">
-              <th style="padding:6px 10px;">Metric</th><th style="padding:6px 10px;">What it measures</th><th style="padding:6px 10px;">Taken from</th><th style="padding:6px 10px;">Over ${scope === "week" ? "the week" : "the month"}</th>
+              <th style="padding:6px 10px;">Metric</th><th style="padding:6px 10px;">Measured from → to</th><th style="padding:6px 10px;">Recorded in</th>
             </tr></thead>
             <tbody>${sourceRows}</tbody>
           </table>
         </div>
 
-        <p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">Where the numbers come from</p>
-        <ul style="margin:0;padding-left:20px;font-size:12px;color:${COLOR.ink};line-height:1.6;">
-          <li>Each day's four gate figures are taken from the daily KYC Team Performance report imported for that day (or entered by hand on the Manual Entry page).</li>
-          <li>For ${span}, Client Avg Wait Time and Team Processing Time are the plain average of the daily values.</li>
-          <li>Chat Team Avg Response is the average of the daily values weighted by each day's chat volume, and Team Ticket AHT is weighted by each day's email and KYB ticket volume, so busier days count for more. The tier is graded on these weighted figures, which can differ slightly from a plain average of the daily entries.</li>
-          <li>A day imported more than once counts once; for each figure the most recent import with a value is used.</li>
-          <li>The Gate is recalculated from the stored daily data each time a report is exported, so a report reflects the data as it stood when it was generated. If a day is corrected or re-imported later, a newer export of the same period can differ from an older one.</li>
-        </ul>
+        <p style="margin:12px 0 0;font-size:11px;line-height:1.6;color:${COLOR.muted};">Daily figures come from the daily KYC Team Performance report. Over ${periodWord}, wait and processing times are averaged; chat response and ticket AHT are weighted by chat and ticket volume. A day imported twice counts once. Reports reflect the data at the time of export.</p>
       </div>
     </div>`;
 }
