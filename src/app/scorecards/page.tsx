@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import type { Grade, IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
 import { cn, formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { QaScoreWarning } from "@/components/qa/QaScoreWarning";
 
 // Scores are derived fresh from live data on every request — see
 // rankings/page.tsx for why this must never be served from a cached/stale
@@ -179,6 +180,7 @@ export default async function ScorecardsPage({
         }
       />
       <PageShell>
+        <QaScoreWarning start={rangeSpec.start} end={rangeSpec.end} />
         <Card>
           <CardContent className="p-5">
             <div className="overflow-x-auto">
