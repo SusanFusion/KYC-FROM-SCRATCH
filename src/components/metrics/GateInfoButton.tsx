@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { GATE_TIER_SCORES, GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX } from "@/lib/scoring/thresholds";
 import { buildGateScaleTable } from "@/lib/scoring/display";
+import { getGateMetricSources } from "@/lib/scoring/gateMetricSources";
 import type { BusinessGateResult, GateMetricKey } from "@/lib/scoring/types";
 
 /**
@@ -54,6 +55,7 @@ export function GateInfoButton({
 }) {
   const [open, setOpen] = React.useState(false);
   const scale = React.useMemo(() => buildGateScaleTable(), []);
+  const sources = React.useMemo(() => getGateMetricSources(), []);
 
   // ── Worked calculation for the figure currently on screen ──────────────
   const counted = gate ? gate.metrics.filter((m) => m.weightedContribution !== null) : [];
@@ -247,6 +249,38 @@ export function GateInfoButton({
           </section>
 
           <section>
+            <h3 className="mb-1 font-semibold">What data each metric uses</h3>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[560px] text-xs">
+                <thead>
+                  <tr className="bg-muted/50 text-left text-muted-foreground">
+                    <th className="px-2.5 py-2 font-semibold">Metric</th>
+                    <th className="px-2.5 py-2 font-semibold">What it measures</th>
+                    <th className="px-2.5 py-2 font-semibold">Taken from</th>
+                    <th className="px-2.5 py-2 font-semibold">Over a week or month</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((m) => (
+                    <tr key={m.key} className="border-t border-border align-top">
+                      <td className="px-2.5 py-2 font-medium">
+                        {m.label}
+                        <span className="block text-[10px] font-normal text-muted-foreground">{pct(m.weight)} of the Gate</span>
+                      </td>
+                      <td className="px-2.5 py-2">
+                        {m.measures}
+                        <span className="mt-0.5 block text-[10px] text-muted-foreground">Framework name: {m.officialName}</span>
+                      </td>
+                      <td className="px-2.5 py-2 text-muted-foreground">{m.source}</td>
+                      <td className="px-2.5 py-2 text-muted-foreground">{m.combined}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section>
             <h3 className="mb-1 font-semibold">Where the numbers come from</h3>
             <ul className="list-disc space-y-1.5 pl-5 text-muted-foreground marker:text-border">
               <li>
@@ -258,7 +292,7 @@ export function GateInfoButton({
               </li>
               <li>
                 Chat Team Avg Response is weighted by each day&apos;s chat volume, and Team Ticket AHT by each day&apos;s email and
-                KYB ticket volume (application tickets are not included), so busier days count for more.
+                KYB ticket volume, so busier days count for more.
               </li>
               <li>A day imported more than once counts once; for each figure the most recent import with a value is used.</li>
             </ul>
