@@ -6,6 +6,7 @@ import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlock
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { GateInfoButton } from "@/components/metrics/GateInfoButton";
+import { QaScoreWarning } from "@/components/qa/QaScoreWarning";
 import { GateMultiplierConfetti } from "@/components/metrics/GateMultiplierConfetti";
 import { Progress } from "@/components/ui/progress";
 import { RangePicker } from "@/components/shared/RangePicker";
@@ -127,6 +128,7 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     <>
       <TopHeader title="Overall MTD" description={`Month-to-date average for ${monthThruLabel}`} actions={monthPicker} />
       <PageShell>
+        <QaScoreWarning start={selectedMonth.start} end={selectedMonth.end} />
         <Card>
           <CardHeader>
             <CardTitle>{monthThruLabel}</CardTitle>
