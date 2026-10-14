@@ -17,6 +17,7 @@ import { loadAgentRangeResult, listAvailableMonths, loadAgentDailyTrend } from "
 import { buildIndividualScaleTable } from "@/lib/scoring/display";
 import { initials, formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { QaScoreWarning } from "@/components/qa/QaScoreWarning";
 
 // Scores are derived fresh from live data on every request — see
 // rankings/page.tsx for why this must never be served from a cached/stale
@@ -113,6 +114,7 @@ export default async function AgentScorecardPage({
         }
       />
       <PageShell>
+        <QaScoreWarning start={selectedMonth.start} end={selectedMonth.end} agentId={params.agentId} />
         <Card>
           <CardContent className="flex flex-wrap items-center gap-6 p-6">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-lg font-semibold text-primary-700">
