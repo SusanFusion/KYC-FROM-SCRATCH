@@ -17,6 +17,7 @@
 
 import { GATE_TIER_SCORES, GATE_MULTIPLIER_MIN, GATE_MULTIPLIER_MAX } from "../scoring/thresholds";
 import { buildGateScaleTable } from "../scoring/display";
+import { getGateMetricSources } from "../scoring/gateMetricSources";
 import type { BusinessGateResult, GateMetricKey, GateTier } from "../scoring/types";
 
 const COLOR = {
@@ -110,6 +111,18 @@ export function renderGateReference(opts: GateReferenceOptions): string {
     return colIndex >= 0 && row ? (row.cells[colIndex] ?? "") : "";
   }
 
+  // ── What data each metric uses ───────────────────────────────────────
+  const sourceRows = getGateMetricSources()
+    .map(
+      (m) => `<tr style="border-top:1px solid ${COLOR.border};vertical-align:top;">
+        <td style="padding:8px 10px;color:${COLOR.ink};font-weight:600;">${escapeHtml(m.label)}<br><span style="font-size:10px;font-weight:400;color:${COLOR.muted};">${pct(m.weight)} of the Gate</span></td>
+        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.measures)}<br><span style="font-size:10px;color:${COLOR.muted};">Framework name: ${escapeHtml(m.officialName)}</span></td>
+        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.source)}</td>
+        <td style="padding:8px 10px;color:${COLOR.ink};">${escapeHtml(m.combined)}</td>
+      </tr>`
+    )
+    .join("");
+
   // ── This report's own calculation (leads the pop-up) ─────────────────
   let worked = "";
   if (gate) {
@@ -194,11 +207,21 @@ export function renderGateReference(opts: GateReferenceOptions): string {
           </table>
         </div>
 
+        <p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">What data each metric uses</p>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="text-align:left;color:${COLOR.muted};font-size:10px;text-transform:uppercase;letter-spacing:.03em;">
+              <th style="padding:6px 10px;">Metric</th><th style="padding:6px 10px;">What it measures</th><th style="padding:6px 10px;">Taken from</th><th style="padding:6px 10px;">Over ${scope === "week" ? "the week" : "the month"}</th>
+            </tr></thead>
+            <tbody>${sourceRows}</tbody>
+          </table>
+        </div>
+
         <p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:${COLOR.ink};">Where the numbers come from</p>
         <ul style="margin:0;padding-left:20px;font-size:12px;color:${COLOR.ink};line-height:1.6;">
           <li>Each day's four gate figures are taken from the daily KYC Team Performance report imported for that day (or entered by hand on the Manual Entry page).</li>
           <li>For ${span}, Client Avg Wait Time and Team Processing Time are the plain average of the daily values.</li>
-          <li>Chat Team Avg Response is the average of the daily values weighted by each day's chat volume, and Team Ticket AHT is weighted by each day's email and KYB ticket volume (application tickets are not included), so busier days count for more. The tier is graded on these weighted figures, which can differ slightly from a plain average of the daily entries.</li>
+          <li>Chat Team Avg Response is the average of the daily values weighted by each day's chat volume, and Team Ticket AHT is weighted by each day's email and KYB ticket volume, so busier days count for more. The tier is graded on these weighted figures, which can differ slightly from a plain average of the daily entries.</li>
           <li>A day imported more than once counts once; for each figure the most recent import with a value is used.</li>
           <li>The Gate is recalculated from the stored daily data each time a report is exported, so a report reflects the data as it stood when it was generated. If a day is corrected or re-imported later, a newer export of the same period can differ from an older one.</li>
         </ul>
