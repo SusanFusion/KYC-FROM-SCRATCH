@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Announcement } from "@/lib/data/announcements";
-import { AnnouncementImages } from "@/components/announcements/AnnouncementImages";
 
 // The pop-up is tied to three pages: the Dashboard, Individual Scorecards
 // (the list and any agent's scorecard) and Overall MTD. It shows each time
@@ -143,8 +142,7 @@ export function StartupExperience() {
                   </span>
                 )}
               </div>
-              {a.text && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{a.text}</p>}
-              <AnnouncementImages ids={a.imageIds ?? []} variant="popup" />
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{a.text}</p>
             </article>
           ))}
         </div>
