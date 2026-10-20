@@ -12,6 +12,7 @@ export const NAV_ITEMS = [
   { href: "/trends", label: "Trends", icon: "TrendingUp" as const },
   { href: "/mtd", label: "Overall MTD", icon: "CalendarDays" as const },
   { href: "/quarter", label: "Quarter", icon: "CalendarDays" as const },
+  { href: "/calculator", label: "Score Calculator", icon: "Calculator" as const },
   { href: "/penalties", label: "Penalties", icon: "ShieldAlert" as const },
   { href: "/qa-quality", label: "QA / Quality", icon: "BadgeCheck" as const },
   { href: "/reports", label: "Reports", icon: "FileBarChart" as const },
