@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { loadRangeDataset, listAvailableMonths } from "@/lib/data/query";
-import { hasSufficientDataCoverage } from "@/lib/scoring/thresholds";
+import { hasSufficientDataCoverage, SCORE_PASS_THRESHOLD } from "@/lib/scoring/thresholds";
 import { cn, formatDate, initials } from "@/lib/utils";
 
 // Scores are derived fresh from live data on every request — see
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
     : 0;
-  const onTarget = results.filter((r) => r.individual.finalScore >= 2.8).length;
+  const onTarget = results.filter((r) => r.individual.finalScore >= SCORE_PASS_THRESHOLD).length;
   const incompleteCount = results.filter((r) => r.individual.hasIncompleteData).length;
 
   // Same "rankable" rule Rankings/RankingTable uses (see isRankable there):
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
   );
   const topPerformer = rankable[0];
 
-  const teamTone = teamAverage >= 2.8 ? "success" : "warning";
+  const teamTone = teamAverage >= SCORE_PASS_THRESHOLD ? "success" : "warning";
   const gateMetricsAvailable = results[0]?.gate.metrics.filter((m) => m.tier !== null).length ?? 0;
   const completePct = results.length > 0 ? ((results.length - incompleteCount) / results.length) * 100 : 0;
 
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
               </span>
               <ScoreRing value={teamAverage} max={3} size={184} tone={teamTone} label="out of 3.00" />
               <div className="flex flex-col items-center gap-1 lg:items-start">
-                <Badge variant={teamTone}>{teamAverage >= 2.8 ? "On Target" : "Needs Attention"}</Badge>
+                <Badge variant={teamTone}>{teamAverage >= SCORE_PASS_THRESHOLD ? "On Target" : "Needs Attention"}</Badge>
                 <p className="text-xs text-muted-foreground">Individual Scorecard (Layer 2) · {monthThruLabel}</p>
               </div>
             </div>
@@ -177,7 +177,7 @@ export default async function DashboardPage() {
                 icon={Users}
                 label="Agents On Target"
                 value={`${onTarget} / ${results.length}`}
-                sublabel="Final score ≥ 2.80"
+                sublabel={`Final score ≥ ${SCORE_PASS_THRESHOLD.toFixed(2)}`}
                 tone={results.length > 0 && onTarget === results.length ? "success" : "primary"}
                 progress={results.length > 0 ? (onTarget / results.length) * 100 : 0}
               />
