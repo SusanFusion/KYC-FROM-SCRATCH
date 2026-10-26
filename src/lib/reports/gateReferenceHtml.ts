@@ -198,7 +198,7 @@ export function renderGateReference(opts: GateReferenceOptions): string {
           </table>
         </div>
 
-        <p style="margin:12px 0 0;font-size:11px;line-height:1.6;color:${COLOR.muted};">Daily figures come from the daily KYC Team Performance report. Over ${periodWord}, wait and processing times are averaged; chat response and ticket AHT are weighted by chat and ticket volume. A day imported twice counts once. Reports reflect the data at the time of export.</p>
+        <p style="margin:12px 0 0;font-size:11px;line-height:1.6;color:${COLOR.muted};">Daily figures are the ones entered or imported for each day. Over ${periodWord}, each metric is the plain average of those daily figures, with every day counting equally; chat and ticket volumes and individual agents' numbers are not used. A day imported twice counts once. Reports reflect the data at the time of export.</p>
       </div>
     </div>`;
 }
