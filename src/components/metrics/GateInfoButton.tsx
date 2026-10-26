@@ -236,8 +236,8 @@ export function GateInfoButton({
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
               Daily figures are the ones entered or imported for each day. Over a week or month, each metric is the plain average of
-              those daily figures, with every day counting equally; chat and ticket volumes and individual agents' numbers are not
-              used. A day imported twice counts once.
+              those daily figures, with every day counting equally; chat and ticket volumes and the numbers of individual agents are
+              not used. A day imported twice counts once.
             </p>
           </section>
         </div>
