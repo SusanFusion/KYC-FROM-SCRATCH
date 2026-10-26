@@ -23,8 +23,12 @@ export interface QaScoreIssue {
   agentId: string;
   agentName: string;
   periodId: string;
-  /** The day the audit is filed against, YYYY-MM-DD. */
+  /** The day's scorecard record the audit is filed against, YYYY-MM-DD. */
   date: string;
+  /** The dates on the audits themselves (the "Audit date" typed when each one
+   *  was submitted), YYYY-MM-DD, oldest first, one entry per distinct date.
+   *  This is what the banner shows for a not_published audit. */
+  auditDates: string[];
   /** Audits involved (published ones for not_calculated, submitted ones for not_published). */
   auditCount: number;
   /** not_calculated only: what the published audits average to. */
@@ -49,15 +53,30 @@ export async function findQaScoreIssues(opts: { start: string; end: string; agen
     periods.filter((p) => p.startDate === p.endDate && p.startDate >= opts.start && p.endDate <= opts.end).map((p) => [p.id, p])
   );
 
-  const groups = new Map<string, { agentId: string; agentName: string; periodId: string; published: number[]; submitted: number }>();
+  const groups = new Map<
+    string,
+    { agentId: string; agentName: string; periodId: string; published: number[]; publishedDates: Set<string>; submitted: number; submittedDates: Set<string> }
+  >();
   for (const a of audits) {
     if (!periodById.has(a.periodId)) continue;
     const key = `${a.agentId}|${a.periodId}`;
-    const g = groups.get(key) ?? { agentId: a.agentId, agentName: a.agentName, periodId: a.periodId, published: [], submitted: 0 };
+    const g = groups.get(key) ?? {
+      agentId: a.agentId,
+      agentName: a.agentName,
+      periodId: a.periodId,
+      published: [],
+      publishedDates: new Set<string>(),
+      submitted: 0,
+      submittedDates: new Set<string>(),
+    };
     if (a.status === "published") {
-      if (a.percentage !== null) g.published.push(a.percentage);
+      if (a.percentage !== null) {
+        g.published.push(a.percentage);
+        g.publishedDates.add(a.auditDate);
+      }
     } else {
       g.submitted += 1;
+      g.submittedDates.add(a.auditDate);
     }
     groups.set(key, g);
   }
@@ -85,6 +104,7 @@ export async function findQaScoreIssues(opts: { start: string; end: string; agen
           agentName: g.agentName,
           periodId: g.periodId,
           date,
+          auditDates: [...g.publishedDates].sort(),
           auditCount: g.published.length,
           expectedPct: expected,
           currentPct: stored,
@@ -98,6 +118,7 @@ export async function findQaScoreIssues(opts: { start: string; end: string; agen
         agentName: g.agentName,
         periodId: g.periodId,
         date,
+        auditDates: [...g.submittedDates].sort(),
         auditCount: g.submitted,
         expectedPct: null,
         currentPct: null,
