@@ -290,10 +290,14 @@ export function parseKycReportPages(pages: PageTextItem[][], agents: Agent[]): P
       const cardItems = nonEmpty.filter((i) => i.y > headerY + 15);
       if (cardItems.length > 0) {
         const applyGate = (key: string, seconds: number) => {
+          // Client Avg Wait Time is typed in by hand (Manual Entry), never read
+          // from a PDF, so a PDF can't set or overwrite it. The card is still
+          // listed in GATE_CARD_DEFS only so the other cards' columns are
+          // measured correctly if a report ever includes it.
+          if (key === "clientAvgWaitTime") return;
           gateFieldsFound.push(key);
           if (key === "chatTeamAvgResponse") gate.chatTeamAvgResponseSec = seconds;
           if (key === "teamTicketAHT") gate.teamTicketAHTMin = seconds / 60;
-          if (key === "clientAvgWaitTime") gate.clientAvgWaitTimeMin = seconds / 60;
           if (key === "teamProcessingTime") gate.teamProcessingTimeMin = seconds / 60;
         };
 
