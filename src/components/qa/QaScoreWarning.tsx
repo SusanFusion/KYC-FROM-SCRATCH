@@ -28,6 +28,15 @@ function prettyDate(iso: string): string {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+/** The dates shown on a row: the audits' own dates ("Oct 5, 2026" or
+ *  "Oct 5, Oct 7, 2026" when an agent has audits on several days), falling back
+ *  to the scorecard day only if an audit somehow has no date. */
+function dateLabel(auditDates: string[], fallback: string): string {
+  if (auditDates.length === 0) return prettyDate(fallback);
+  if (auditDates.length === 1) return prettyDate(auditDates[0]!);
+  return auditDates.map((d, idx) => (idx === auditDates.length - 1 ? prettyDate(d) : prettyDate(d).replace(/,\s*\d{4}$/, ""))).join(", ");
+}
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
@@ -135,7 +144,7 @@ export function QaScoreWarning({ start, end, agentId }: { start: string; end: st
             return (
               <li key={key} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-card/70 px-3 py-2">
                 <span className="text-xs text-foreground">
-                  <span className="font-semibold">{i.agentName}</span> · {prettyDate(i.date)} —{" "}
+                  <span className="font-semibold">{i.agentName}</span> · {i.kind === "not_published" ? dateLabel(i.auditDates, i.date) : prettyDate(i.date)} —{" "}
                   {i.kind === "not_calculated" ? (
                     <>
                       {plural(i.auditCount, "published audit")} average{i.auditCount === 1 ? "s" : ""} {i.expectedPct}%, but the scorecard{" "}
