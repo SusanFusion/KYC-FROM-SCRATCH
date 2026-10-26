@@ -235,8 +235,9 @@ export function GateInfoButton({
               </table>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-              Daily figures come from the daily KYC Team Performance report. Over a week or month, wait and processing times are
-              averaged; chat response and ticket AHT are weighted by chat and ticket volume. A day imported twice counts once.
+              Daily figures are the ones entered or imported for each day. Over a week or month, each metric is the plain average of
+              those daily figures, with every day counting equally; chat and ticket volumes and individual agents' numbers are not
+              used. A day imported twice counts once.
             </p>
           </section>
         </div>
