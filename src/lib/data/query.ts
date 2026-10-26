@@ -275,41 +275,13 @@ function aggregateAgentRaw(agentId: string, periodId: string, dayRows: RawAgentM
   return result;
 }
 
-/** Shared by both weighted GATE_FIELDS below -- weights each day's value by
- *  that day's volume (a chat count or a ticket count) instead of averaging
- *  days equally.
- *
- *  A day with no volume figure at all (weight 0 -- an older period
- *  imported before its volume table existed, or a day that just hasn't
- *  been backfilled yet) does NOT get silently dropped from the average.
- *  Simply treating a missing weight as 0 would mean that day's value
- *  contributes nothing at all the moment even ONE other day in the same
- *  week has real weight data -- effectively vanishing rather than
- *  averaging fairly. Instead, a weightless day is imputed the AVERAGE of
- *  whatever weights ARE known this week, so it still counts roughly as
- *  much as a typical day. If NO day this week has any weight data, every
- *  day falls back to an equal weight of 1, which reduces this to exactly
- *  the same plain mean this always used before volume weighting existed. */
-function weightedOrPlainMean(values: (number | null)[], weights: number[]): number | null {
-  const present = values
-    .map((v, i) => ({ value: v, weight: weights[i] ?? 0 }))
-    .filter((p): p is { value: number; weight: number } => p.value !== null);
-  if (present.length === 0) return null;
-
-  const knownWeights = present.map((p) => p.weight).filter((w) => w > 0);
-  const fallbackWeight = knownWeights.length > 0 ? mean(knownWeights)! : 1;
-  const effectiveWeight = (w: number) => (w > 0 ? w : fallbackWeight);
-
-  const totalWeight = present.reduce((s, p) => s + effectiveWeight(p.weight), 0);
-  return present.reduce((s, p) => s + p.value * effectiveWeight(p.weight), 0) / totalWeight;
-}
-
-function aggregateGate(
-  dayGates: (RawGateMetrics | null)[],
-  periodId: string,
-  chatVolumeByDay: number[] = [],
-  ticketVolumeByDay: number[] = []
-): RawGateMetrics {
+/** Period average of each Business Gate metric: a plain average of the daily
+ *  figures that were entered or imported, every day counting equally. It does
+ *  NOT weight by chat or ticket volume and does not look at any individual
+ *  agent's numbers -- the Gate is the team figure for the day (typed in, or
+ *  read from the PDF's "Chat Team Avg Response Time" and "Team Ticket
+ *  Resolution Time" cards), and a week/month/range is the average of those. */
+function aggregateGate(dayGates: (RawGateMetrics | null)[], periodId: string): RawGateMetrics {
   const result: RawGateMetrics = {
     periodId,
     clientAvgWaitTimeMin: null,
@@ -318,21 +290,7 @@ function aggregateGate(
     teamTicketAHTMin: null,
   };
   for (const field of GATE_FIELDS) {
-    // Weighted by that day's actual volume (already imported per-agent as
-    // totalChatConversations / emailTicketCount) instead of a plain
-    // day-average -- an equal-weighted average treats a 5-chat day and a
-    // 50-chat day the same, which is why these used to drift from the
-    // source report's own weekly figure (a true volume-weighted average).
-    if (field === "chatTeamAvgResponseSec") {
-      result.chatTeamAvgResponseSec = weightedOrPlainMean(dayGates.map((g) => g?.chatTeamAvgResponseSec ?? null), chatVolumeByDay);
-    } else if (field === "teamTicketAHTMin") {
-      // Volume here is email + KYB ticket count only (confirmed with
-      // Susan) -- Team Ticket AHT does not include application tickets,
-      // so this is the correct full weighting basis, not a partial proxy.
-      result.teamTicketAHTMin = weightedOrPlainMean(dayGates.map((g) => g?.teamTicketAHTMin ?? null), ticketVolumeByDay);
-    } else {
-      result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
-    }
+    result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
   }
   return result;
 }
@@ -451,24 +409,7 @@ export async function loadRangeDataset(spec: RangeSpec): Promise<PeriodDataset> 
     return aggregateAgentRaw(agent.id, spec.id, rows);
   });
 
-  // Each day's total chat volume (summed across every agent's own
-  // totalChatConversations for that day) -- used to weight
-  // chatTeamAvgResponseSec by actual volume instead of averaging days
-  // equally. Same order/length as perDayGate (both built per calendar day
-  // above), so index i always lines up with the same calendar day.
-  const chatVolumeByDay = perDayRaw.map((dayRows) =>
-    dayRows.reduce((total, r) => total + (r.totalChatConversations ?? 0), 0)
-  );
-
-  // Same idea for teamTicketAHTMin -- each day's total email + KYB ticket
-  // volume (from the "Agent KYC Email Ave Volume" report table, only
-  // present in more recent imports; older days simply sum to 0 and
-  // aggregateGate falls back to a plain mean for those).
-  const ticketVolumeByDay = perDayRaw.map((dayRows) =>
-    dayRows.reduce((total, r) => total + (r.emailTicketCount ?? 0), 0)
-  );
-
-  const gateInput = aggregateGate(perDayGate, spec.id, chatVolumeByDay, ticketVolumeByDay);
+  const gateInput = aggregateGate(perDayGate, spec.id);
     // Penalties carry their own occurredOn date (independent of which period
   // they were logged against), so a range view re-tags every penalty whose
   // date falls in the window with this range's synthetic period id —
