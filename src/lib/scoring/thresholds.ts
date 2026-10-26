@@ -173,13 +173,15 @@ export const INDIVIDUAL_MAX_SCORE = 3;
 
 /**
  * The single pass/fail line used wherever an agent's overall final score
- * (0-3) is shown as green vs red — Individual Scorecards and Rankings both
- * import this rather than each hardcoding their own number, precisely so
- * the two pages can't drift out of sync on what counts as "passing"
- * (deliberately independent of the per-metric grade bands above, which use
- * their own 3/2/1/0 thresholds for a different purpose).
+ * (0-3) is shown as green vs red — the Dashboard, Individual Scorecards,
+ * Rankings, Quarter, the Score Calculator and the reports all import this
+ * rather than each hardcoding their own number, precisely so the pages
+ * can't drift out of sync on what counts as "passing" (deliberately
+ * independent of the per-metric grade bands above, which use their own
+ * 3/2/1/0 thresholds for a different purpose, and of the bonus brackets
+ * below, which have their own score cut-offs). Set to 2.50 per Susan.
  */
-export const SCORE_PASS_THRESHOLD = 2.8;
+export const SCORE_PASS_THRESHOLD = 2.5;
 
 /**
  * Minimum share of the individual scorecard's total weight (0-1) that must
