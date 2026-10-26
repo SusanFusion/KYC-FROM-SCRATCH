@@ -12,6 +12,9 @@ import { gradeTone } from "@/components/dashboard/PerformanceBadge";
 import { loadRangeDataset, listAvailableMonths, listAvailableWeeks, type RangeSpec } from "@/lib/data/query";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import type { Grade, IndividualMetricKey, MetricScoreBreakdown } from "@/lib/scoring/types";
+// Overall-score highlight line: one pass/fail line across the final 0–3 score,
+// shared with every other page (see thresholds.ts).
+import { SCORE_PASS_THRESHOLD } from "@/lib/scoring/thresholds";
 import { cn, formatDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { QaScoreWarning } from "@/components/qa/QaScoreWarning";
@@ -20,11 +23,6 @@ import { QaScoreWarning } from "@/components/qa/QaScoreWarning";
 // rankings/page.tsx for why this must never be served from a cached/stale
 // build snapshot.
 export const dynamic = "force-dynamic";
-
-// Overall-score highlight threshold — deliberately independent of the
-// per-metric grade bands (3/2/1/0): this is a single pass/fail line across
-// the final 0–3 score, per explicit instruction.
-const SCORE_PASS_THRESHOLD = 2.8;
 
 // The three period modes this page can be viewed in — same RangePicker
 // component used for the mode switch itself as for the mtd/week presets it
