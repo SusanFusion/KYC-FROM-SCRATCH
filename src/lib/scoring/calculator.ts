@@ -35,6 +35,10 @@ export interface CalculatorResult {
   effectiveWeight: number;
   hasMissing: boolean;
   penaltyTotal: number;
+  /** The Disciplinary share of penaltyTotal. */
+  disciplinaryTotal: number;
+  /** The Attendance share of penaltyTotal. */
+  attendanceTotal: number;
   /** After penalties, never below 0. */
   finalScore: number;
   maxScore: number;
@@ -120,10 +124,14 @@ export function calculateFromValues(values: CalculatorValues, penaltyCounts: Rec
   const effectiveWeight = available.reduce((sum, r) => sum + r.weight, 0);
   const baseScore = effectiveWeight > 0 ? weightedSubtotal / effectiveWeight : 0;
 
-  let penaltyTotal = 0;
+  let disciplinaryTotal = 0;
+  let attendanceTotal = 0;
   for (const def of CALCULATOR_PENALTIES) {
-    penaltyTotal += penaltyDeduction(def, penaltyCounts[def.code] ?? 0);
+    const deduction = penaltyDeduction(def, penaltyCounts[def.code] ?? 0);
+    if (def.category === "attendance") attendanceTotal += deduction;
+    else disciplinaryTotal += deduction;
   }
+  const penaltyTotal = disciplinaryTotal + attendanceTotal;
 
   const finalScore = available.length === 0 ? 0 : Math.max(0, round2(baseScore - penaltyTotal));
 
@@ -133,6 +141,8 @@ export function calculateFromValues(values: CalculatorValues, penaltyCounts: Rec
     effectiveWeight,
     hasMissing: available.length !== rows.length,
     penaltyTotal: round2(penaltyTotal),
+    disciplinaryTotal: round2(disciplinaryTotal),
+    attendanceTotal: round2(attendanceTotal),
     finalScore,
     maxScore: INDIVIDUAL_MAX_SCORE,
     passes: finalScore >= SCORE_PASS_THRESHOLD,
