@@ -292,6 +292,10 @@ function aggregateGate(dayGates: (RawGateMetrics | null)[], periodId: string): R
   for (const field of GATE_FIELDS) {
     result[field] = mean(dayGates.map((g) => g?.[field] ?? null).filter((v): v is number => v !== null));
   }
+  // Team Rejection Rate (visibility only, typed in daily): the same plain
+  // average of the days that have a figure. Not a Gate metric, so it plays no
+  // part in any tier or multiplier.
+  result.teamRejectionRatePct = mean(dayGates.map((g) => g?.teamRejectionRatePct ?? null).filter((v): v is number => v !== null));
   return result;
 }
 
@@ -337,6 +341,7 @@ function collapseDayGate(gates: (RawGateMetrics | null)[]): RawGateMetrics | nul
       const value = gate[field];
       if (value !== null) merged[field] = value;
     }
+    if (gate.teamRejectionRatePct !== undefined && gate.teamRejectionRatePct !== null) merged.teamRejectionRatePct = gate.teamRejectionRatePct;
   }
   return merged;
 }
