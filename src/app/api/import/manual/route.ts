@@ -70,6 +70,11 @@ export async function POST(request: Request) {
       (pair): pair is [string, number] => typeof pair[1] === "number" && Number.isFinite(pair[1])
     );
 
+    const rejectionRate = body.gate?.teamRejectionRatePct;
+    if (typeof rejectionRate === "number" && (!Number.isFinite(rejectionRate) || rejectionRate < 0 || rejectionRate > 100)) {
+      return NextResponse.json({ error: "Team Rejection Rate must be a percentage between 0 and 100." }, { status: 422 });
+    }
+
     // Gate-only submissions (e.g. just the two Business Gate fields the team
     // has this week, no per-agent data at all) are valid — only reject if
     // NEITHER kind of value was entered anywhere on the form.
