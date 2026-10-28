@@ -118,10 +118,13 @@ export default async function MtdPage({ searchParams }: { searchParams: { month?
     chatFRTPoint: r.individual.metrics.find((m) => m.key === "chatFRT")?.grade ?? null,
     csatDsatPoint: r.individual.metrics.find((m) => m.key === "csatDsat")?.grade ?? null,
     qaAuditPoint: r.individual.metrics.find((m) => m.key === "qaAudit")?.grade ?? null,
-    // Total points deducted from this agent's score by every penalty applied
-    // across the month so far -- shown as its own "Total Deduction" column
-    // via RankingTable's showDeductionColumn prop below (Overall MTD only).
+    // Points deducted from this agent's score by the penalties applied across
+    // the month so far, split into Disciplinary and Attendance -- shown as
+    // their own columns via RankingTable's showDeductionColumn prop below
+    // (Overall MTD only).
     penaltyTotal: r.individual.penaltyTotal,
+    disciplinaryTotal: r.individual.disciplinaryTotal,
+    attendanceTotal: r.individual.attendanceTotal,
   }));
 
   return (
