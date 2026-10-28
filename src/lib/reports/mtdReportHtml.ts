@@ -437,14 +437,16 @@ export function generateMtdReportHtml(data: MtdReportData): string {
             const gc = m.grade !== null ? GRADE_COLOR[m.grade] : COLOR.muted;
             return `<td style="padding:6px;text-align:center;color:${gc};">${escapeHtml(m.actualDisplay)}<div style="font-size:9px;font-weight:600;margin-top:1px;">${escapeHtml(m.gradeLabel)}</div></td>`;
           }).join("");
-          const penCount = a.result.individual.penaltiesApplied.length;
+          const disciplinary = a.result.individual.disciplinaryTotal;
+          const attendance = a.result.individual.attendanceTotal;
           return `<tr style="${i % 2 === 1 ? `background:#fafafa;` : ""}border-top:1px solid ${COLOR.border};">
             <td style="padding:6px;text-align:center;"><span style="background:${i === 0 ? "#d4a017" : i === 1 ? "#a0a0a0" : i === 2 ? "#b87333" : "#e5e7eb"};color:${i < 3 ? "#fff" : COLOR.ink};border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">${i + 1}</span></td>
             <td style="padding:6px 10px;font-weight:600;color:${COLOR.ink};">${escapeHtml(a.agent.name)}<div style="font-size:10px;color:${COLOR.muted};font-weight:400;">${a.daysLogged} days logged</div></td>
             <td style="padding:6px;text-align:center;font-weight:700;color:${cat.color};">${score.toFixed(2)}/3</td>
             <td style="padding:6px;text-align:center;"><span style="background:${cat.color}18;color:${cat.color};border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700;">${escapeHtml(cat.label)}</span></td>
             ${metricCells}
-            <td style="padding:6px;text-align:center;color:${penCount > 0 ? COLOR.danger : COLOR.muted};">${penCount}</td>
+            <td style="padding:6px;text-align:center;color:${disciplinary > 0 ? COLOR.danger : COLOR.muted};">${disciplinary > 0 ? `-${disciplinary.toFixed(2)}` : "—"}</td>
+            <td style="padding:6px;text-align:center;color:${attendance > 0 ? COLOR.danger : COLOR.muted};">${attendance > 0 ? `-${attendance.toFixed(2)}` : "—"}</td>
           </tr>`;
         })
         .join("");
@@ -459,7 +461,7 @@ export function generateMtdReportHtml(data: MtdReportData): string {
               <thead><tr style="text-align:center;color:${COLOR.muted};font-size:10px;text-transform:uppercase;letter-spacing:.03em;">
                 <th style="padding:6px;width:32px;">#</th><th style="padding:6px;text-align:left;">Agent</th><th style="padding:6px;">Score</th><th style="padding:6px;">Grade</th>
                 ${INDIVIDUAL_METRICS.map((d) => `<th style="padding:6px;">${escapeHtml(METRIC_SHORT_LABEL[d.key])}</th>`).join("")}
-                <th style="padding:6px;">Penalties</th>
+                <th style="padding:6px;">Disciplinary</th><th style="padding:6px;">Attendance</th>
               </tr></thead>
               <tbody>${rows}</tbody>
             </table>
