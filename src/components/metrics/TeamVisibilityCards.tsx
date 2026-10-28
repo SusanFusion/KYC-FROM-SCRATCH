@@ -40,10 +40,10 @@ export function TeamVisibilityCards({
             badge={<Badge variant="outline">Visibility only</Badge>}
             weightLabel={
               qualityRatingPct === null
-                ? `No published QA audits ${periodNoun} yet`
-                : `Average of ${qualityAuditCount} published QA audit${qualityAuditCount === 1 ? "" : "s"} ${periodNoun}`
+                ? "No QA audits recorded yet"
+                : `Average of all ${qualityAuditCount} QA audit${qualityAuditCount === 1 ? "" : "s"} recorded in the app`
             }
-            tooltip="The average score of the QA audits published for this period. Audits that are submitted but not yet published are not counted."
+            tooltip="The overall average score of every QA audit recorded in the app, published or not. It is the same number on every page."
             emphasized
           />
           <MetricBlockCard
