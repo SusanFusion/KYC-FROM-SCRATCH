@@ -1,14 +1,60 @@
-import { ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, HelpCircle, ShieldCheck, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricBlockCard } from "@/components/metrics/MetricBlockCard";
+import type { Tone } from "@/components/dashboard/PerformanceBadge";
+
+// Color of the Team Quality Rating. Display only: it never feeds the Business
+// Gate or any score. 90% and above is green, 80% up to (not including) 90% is
+// amber, below 80% is red. The check uses the same one-decimal number that is
+// shown on the card, so 89.9% reads amber and 90.0% reads green.
+export const QUALITY_GREEN_MIN = 90;
+export const QUALITY_AMBER_MIN = 80;
+
+function qualityTone(pct: number | null): Tone {
+  if (pct === null) return "muted";
+  if (pct >= QUALITY_GREEN_MIN) return "success";
+  if (pct >= QUALITY_AMBER_MIN) return "warning";
+  return "danger";
+}
+
+function QualityBadge({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return (
+      <Badge variant="outline">
+        <HelpCircle className="h-3 w-3" /> No Data
+      </Badge>
+    );
+  }
+  if (pct >= QUALITY_GREEN_MIN) {
+    return (
+      <Badge variant="success">
+        <CheckCircle2 className="h-3 w-3" /> Green
+      </Badge>
+    );
+  }
+  if (pct >= QUALITY_AMBER_MIN) {
+    return (
+      <Badge variant="warning">
+        <AlertTriangle className="h-3 w-3" /> Amber
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="danger">
+      <XCircle className="h-3 w-3" /> Red
+    </Badge>
+  );
+}
 
 /**
  * Team Quality Rating and Team Rejection Rate, side by side.
  *
  * Both are here for visibility only: neither is a Business Gate metric, so
- * neither has a tier, a weight or a color judgement, and neither changes the
- * Gate multiplier or any score. Used on Team Performance and the Dashboard.
+ * neither has a weight and neither changes the Gate multiplier or any score.
+ * The Team Quality Rating is color-coded (green 90%+, amber 80% to under 90%,
+ * red under 80%); the Rejection Rate has no color. Used on Team Performance
+ * and the Dashboard.
  */
 export function TeamVisibilityCards({
   periodNoun,
@@ -36,14 +82,14 @@ export function TeamVisibilityCards({
           <MetricBlockCard
             label="Team Quality Rating"
             value={qualityRatingPct === null ? "—" : `${qualityRatingPct.toFixed(1)}%`}
-            tone="muted"
-            badge={<Badge variant="outline">Visibility only</Badge>}
+            tone={qualityTone(qualityRatingPct)}
+            badge={<QualityBadge pct={qualityRatingPct} />}
             weightLabel={
               qualityRatingPct === null
                 ? "No QA audits recorded yet"
                 : `Average of all ${qualityAuditCount} QA audit${qualityAuditCount === 1 ? "" : "s"} recorded in the app`
             }
-            tooltip="The overall average score of every QA audit recorded in the app, published or not. It is the same number on every page."
+            tooltip="The overall average score of every QA audit recorded in the app, published or not. It is the same number on every page. Green is 90% and above, Amber is 80% up to under 90%, Red is under 80%."
             emphasized
           />
           <MetricBlockCard
