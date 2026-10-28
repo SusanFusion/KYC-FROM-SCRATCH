@@ -120,7 +120,7 @@ export default async function DashboardPage() {
     type: "month-to-date",
   });
   // Visibility only -- neither of these touches the Business Gate or any score.
-  const quality = await loadTeamQualityRating({ start: selectedMonth.start, end: selectedMonth.end });
+  const quality = await loadTeamQualityRating();
 
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
