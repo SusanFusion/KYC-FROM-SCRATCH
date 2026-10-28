@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Target, Users, Trophy, Gauge, ArrowRight, Sparkles } from "lucide-react";
 import { GateInfoButton } from "@/components/metrics/GateInfoButton";
+import { TeamVisibilityCards } from "@/components/metrics/TeamVisibilityCards";
+import { loadTeamQualityRating } from "@/lib/qa/teamQualityRating";
 import { TopHeader } from "@/components/layout/TopHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { ScoreRing } from "@/components/dashboard/ScoreRing";
@@ -110,13 +112,15 @@ export default async function DashboardPage() {
   // had already been switched to a running month-to-date total.
   const selectedMonth = months[0]!;
   const monthThruLabel = `${selectedMonth.label} (thru ${formatDate(selectedMonth.end)})`;
-  const { period, results, ranked, tieForTop } = await loadRangeDataset({
+  const { period, results, ranked, tieForTop, gate: rawGate } = await loadRangeDataset({
     start: selectedMonth.start,
     end: selectedMonth.end,
     label: monthThruLabel,
     id: `mtd-${selectedMonth.key}`,
     type: "month-to-date",
   });
+  // Visibility only -- neither of these touches the Business Gate or any score.
+  const quality = await loadTeamQualityRating({ start: selectedMonth.start, end: selectedMonth.end });
 
   const teamAverage = results.length
     ? results.reduce((sum, r) => sum + r.individual.finalScore, 0) / results.length
@@ -264,6 +268,15 @@ export default async function DashboardPage() {
               <Link href="/settings" className="block text-xs text-primary hover:underline">See data notes &amp; assumptions →</Link>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="mt-4">
+          <TeamVisibilityCards
+            periodNoun="this month"
+            qualityRatingPct={quality.ratingPct}
+            qualityAuditCount={quality.auditCount}
+            rejectionRatePct={rawGate?.teamRejectionRatePct ?? null}
+          />
         </div>
 
         <Card className="mt-4">
