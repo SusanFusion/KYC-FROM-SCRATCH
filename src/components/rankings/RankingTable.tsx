@@ -62,6 +62,11 @@ export interface RankingRow {
    *  only the Overall MTD page passes that today -- Dashboard and Rankings
    *  leave both this field and the prop unset, so nothing changes there. */
   penaltyTotal?: number;
+  /** The Disciplinary share of the deduction above (positive number) -- shown
+   *  in its own column, next to Attendance, when showDeductionColumn is on. */
+  disciplinaryTotal?: number;
+  /** The Attendance share of the deduction above (positive number). */
+  attendanceTotal?: number;
 }
 
 type SortKey = "finalScore" | "name";
@@ -114,8 +119,8 @@ function pointCell(point: Grade | null) {
  *  shown; an agent with nothing deducted this period/range reads as a
  *  plain dash rather than a literal "-0.00", which would misleadingly look
  *  like a real (if tiny) deduction. */
-function deductionCell(penaltyTotal: number | undefined) {
-  const total = penaltyTotal ?? 0;
+function deductionCell(deductionTotal: number | undefined) {
+  const total = deductionTotal ?? 0;
   if (total === 0) return <span className="text-muted-foreground">—</span>;
   return <span className="text-danger">-{total.toFixed(2)}</span>;
 }
@@ -127,7 +132,7 @@ export function RankingTable({
 }: {
   rows: RankingRow[];
   departments: string[];
-  /** Adds a "Total Deduction" column right before Score -- off by default so
+  /** Adds "Disciplinary" and "Attendance" deduction columns right before Score -- off by default so
    *  Dashboard and Rankings (which also render this table) are unaffected;
    *  only the Overall MTD page turns it on. */
   showDeductionColumn?: boolean;
@@ -208,7 +213,8 @@ export function RankingTable({
               <TableHead>Point</TableHead>
               <TableHead>QA Audit</TableHead>
               <TableHead>Point</TableHead>
-              {showDeductionColumn && <TableHead>Total Deduction</TableHead>}
+              {showDeductionColumn && <TableHead>Disciplinary</TableHead>}
+              {showDeductionColumn && <TableHead>Attendance</TableHead>}
               <TableHead>
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("finalScore")}>
                   Score <ArrowUpDown className="h-3 w-3" />
@@ -250,7 +256,8 @@ export function RankingTable({
                   <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                   <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
-                  {showDeductionColumn && <TableCell>{deductionCell(r.penaltyTotal)}</TableCell>}
+                  {showDeductionColumn && <TableCell>{deductionCell(r.disciplinaryTotal)}</TableCell>}
+                  {showDeductionColumn && <TableCell>{deductionCell(r.attendanceTotal)}</TableCell>}
                   <TableCell>{scoreCell(r)}</TableCell>
                 </TableRow>
               );
@@ -295,7 +302,8 @@ export function RankingTable({
                     <TableCell>{pointCell(r.csatDsatPoint)}</TableCell>
                     <TableCell className="text-muted-foreground">{r.qaAudit}</TableCell>
                     <TableCell>{pointCell(r.qaAuditPoint)}</TableCell>
-                    {showDeductionColumn && <TableCell>{deductionCell(r.penaltyTotal)}</TableCell>}
+                    {showDeductionColumn && <TableCell>{deductionCell(r.disciplinaryTotal)}</TableCell>}
+                  {showDeductionColumn && <TableCell>{deductionCell(r.attendanceTotal)}</TableCell>}
                     <TableCell>{scoreCell(r)}</TableCell>
                   </TableRow>
                 ))}
