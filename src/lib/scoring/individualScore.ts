@@ -131,6 +131,11 @@ export function calculateIndividualScore(
 
   const penaltiesApplied = calculatePenalty(raw.agentId, raw.periodId, penalties);
   const penaltyTotal = totalPenaltyDeduction(penaltiesApplied);
+  // The same deductions split by kind, so the score records can show
+  // Disciplinary and Attendance on their own. Escalation-only entries
+  // (feedback, warnings...) never deduct, so they belong to neither.
+  const disciplinaryTotal = penaltiesApplied.filter((p) => p.category === "disciplinary").reduce((sum, p) => sum + p.deduction, 0);
+  const attendanceTotal = penaltiesApplied.filter((p) => p.category === "attendance").reduce((sum, p) => sum + p.deduction, 0);
 
   // Floored at 0 — see notes.ts "penalty-floor".
   const finalScore = Math.max(0, round2(baseScore - penaltyTotal));
@@ -145,6 +150,8 @@ export function calculateIndividualScore(
     baseScore: round2(baseScore),
     maxScore: INDIVIDUAL_MAX_SCORE,
     penaltyTotal: round2(penaltyTotal),
+    disciplinaryTotal: round2(disciplinaryTotal),
+    attendanceTotal: round2(attendanceTotal),
     penaltiesApplied,
     finalScore,
   };
