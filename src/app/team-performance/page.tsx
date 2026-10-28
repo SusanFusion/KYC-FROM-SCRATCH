@@ -55,7 +55,7 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
   });
   const gate = results[0]?.gate;
   // Visibility only -- neither of these touches the Business Gate above.
-  const quality = await loadTeamQualityRating({ start: selectedWeek.start, end: selectedWeek.end });
+  const quality = await loadTeamQualityRating();
 
   const weekPicker = (
     <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
