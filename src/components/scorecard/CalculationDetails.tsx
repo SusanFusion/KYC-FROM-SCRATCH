@@ -29,17 +29,34 @@ export function CalculationDetails({ result }: { result: AgentPeriodResult }) {
           {individual.penaltiesApplied.length > 0 && (
             <>
               <p className="mt-1 font-semibold text-danger">Step 2 — Penalties</p>
-              {individual.penaltiesApplied.map((p) => (
-                <p key={p.code}>
-                  {p.label} × {p.count} = -{p.deduction.toFixed(2)}
-                </p>
-              ))}
+              {(
+                [
+                  { category: "disciplinary", title: "Disciplinary", total: individual.disciplinaryTotal },
+                  { category: "attendance", title: "Attendance", total: individual.attendanceTotal },
+                ] as const
+              ).map((group) => {
+                const entries = individual.penaltiesApplied.filter((p) => p.category === group.category);
+                if (entries.length === 0) return null;
+                return (
+                  <div key={group.category}>
+                    <p className="mt-1 font-semibold text-foreground">
+                      {group.title}: -{group.total.toFixed(2)}
+                    </p>
+                    {entries.map((p) => (
+                      <p key={p.id}>
+                        {p.label} × {p.count} = -{p.deduction.toFixed(2)}
+                      </p>
+                    ))}
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
         <div className="rounded-md bg-primary-50 p-3 font-sans text-sm font-semibold text-primary-700">
           Final Score: {individual.baseScore.toFixed(2)}
-          {individual.penaltyTotal > 0 && ` - ${individual.penaltyTotal.toFixed(2)}`} = {individual.finalScore.toFixed(2)} / 3.00
+          {individual.disciplinaryTotal > 0 && ` - ${individual.disciplinaryTotal.toFixed(2)} (Disciplinary)`}
+          {individual.attendanceTotal > 0 && ` - ${individual.attendanceTotal.toFixed(2)} (Attendance)`} = {individual.finalScore.toFixed(2)} / 3.00
         </div>
       </div>
     </details>
