@@ -238,30 +238,71 @@ export default async function AgentScorecardPage({
               {individual.penaltiesApplied.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No penalties recorded.</p>
               ) : (
-                <ul className="space-y-2">
-                  {individual.penaltiesApplied.map((p) => (
-                    // key={p.id}, not p.code -- an agent can now legitimately
-                    // have more than one entry with the SAME code in one
-                    // view (e.g. several Late Onsite <15min occurrences this
-                    // month), which duplicate-keyed p.code.
-                    <li key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-                      <span className="text-foreground">
-                        {p.label} {p.count > 1 && <span className="text-muted-foreground">×{p.count}</span>}
-                      </span>
-                      {p.status ? (
-                        <Badge variant={p.status.variant}>{p.status.label}</Badge>
-                      ) : p.deduction === 0 ? (
-                        // A monthlyGrace-metered code (e.g. Late Onsite
-                        // <15min) can genuinely deduct nothing this time --
-                        // "-0.00" would misleadingly read as a real, if
-                        // tiny, deduction.
-                        <span className="text-sm text-muted-foreground">—</span>
-                      ) : (
-                        <span className="font-medium text-danger">-{p.deduction.toFixed(2)}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-4">
+                  {(
+                    [
+                      { category: "disciplinary", title: "Disciplinary", total: individual.disciplinaryTotal },
+                      { category: "attendance", title: "Attendance", total: individual.attendanceTotal },
+                    ] as const
+                  ).map((group) => {
+                    const entries = individual.penaltiesApplied.filter((p) => p.category === group.category);
+                    return (
+                      <div key={group.category}>
+                        <div className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <span>{group.title}</span>
+                          {group.total > 0 ? (
+                            <span className="text-danger">-{group.total.toFixed(2)}</span>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                        {entries.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">None recorded.</p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {entries.map((p) => (
+                              // key={p.id}, not p.code -- an agent can now legitimately
+                              // have more than one entry with the SAME code in one
+                              // view (e.g. several Late Onsite <15min occurrences this
+                              // month), which duplicate-keyed p.code.
+                              <li key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                                <span className="text-foreground">
+                                  {p.label} {p.count > 1 && <span className="text-muted-foreground">×{p.count}</span>}
+                                </span>
+                                {p.status ? (
+                                  <Badge variant={p.status.variant}>{p.status.label}</Badge>
+                                ) : p.deduction === 0 ? (
+                                  // A monthlyGrace-metered code (e.g. Late Onsite
+                                  // <15min) can genuinely deduct nothing this time --
+                                  // "-0.00" would misleadingly read as a real, if
+                                  // tiny, deduction.
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                ) : (
+                                  <span className="font-medium text-danger">-{p.deduction.toFixed(2)}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {individual.penaltiesApplied.some((p) => p.category === "escalation") && (
+                    <div>
+                      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Escalation record</div>
+                      <ul className="space-y-2">
+                        {individual.penaltiesApplied
+                          .filter((p) => p.category === "escalation")
+                          .map((p) => (
+                            <li key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                              <span className="text-foreground">{p.label}</span>
+                              {p.status ? <Badge variant={p.status.variant}>{p.status.label}</Badge> : <span className="text-sm text-muted-foreground">—</span>}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               )}
               <Link href="/penalties" className="mt-3 block text-xs text-primary hover:underline">
                 Manage penalties →
