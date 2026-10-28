@@ -6,6 +6,8 @@ import { MetricBlockCard, TONE_GRADIENT } from "@/components/metrics/MetricBlock
 import { ScoringScaleTable } from "@/components/metrics/ScoringScaleTable";
 import { GateCalculationDetails } from "@/components/metrics/GateCalculationDetails";
 import { GateInfoButton } from "@/components/metrics/GateInfoButton";
+import { TeamVisibilityCards } from "@/components/metrics/TeamVisibilityCards";
+import { loadTeamQualityRating } from "@/lib/qa/teamQualityRating";
 import { Progress } from "@/components/ui/progress";
 import { RangePicker } from "@/components/shared/RangePicker";
 import { loadRangeDataset, listAvailableWeeks } from "@/lib/data/query";
@@ -44,7 +46,7 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
   // per the team's own week convention — with older weeks reachable via the
   // picker in the header.
   const selectedWeek = weeks.find((w) => w.start === searchParams.week) ?? weeks[0]!;
-  const { period, results } = await loadRangeDataset({
+  const { period, results, gate: rawGate } = await loadRangeDataset({
     start: selectedWeek.start,
     end: selectedWeek.end,
     label: `Week of ${selectedWeek.label}`,
@@ -52,6 +54,8 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
     type: "weekly",
   });
   const gate = results[0]?.gate;
+  // Visibility only -- neither of these touches the Business Gate above.
+  const quality = await loadTeamQualityRating({ start: selectedWeek.start, end: selectedWeek.end });
 
   const weekPicker = (
     <RangePicker paramName="week" current={selectedWeek.start} options={weeks.map((w) => ({ value: w.start, label: w.label }))} />
@@ -140,6 +144,15 @@ export default async function TeamPerformancePage({ searchParams }: { searchPara
             <GateCalculationDetails gate={gate} />
           </CardContent>
         </Card>
+
+        <div className="mt-4">
+          <TeamVisibilityCards
+            periodNoun="this week"
+            qualityRatingPct={quality.ratingPct}
+            qualityAuditCount={quality.auditCount}
+            rejectionRatePct={rawGate?.teamRejectionRatePct ?? null}
+          />
+        </div>
 
         <Card className="mt-4">
           <CardHeader>
