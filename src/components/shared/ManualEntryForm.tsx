@@ -49,6 +49,8 @@ const GATE_FIELDS: { key: string; label: string; hint: string }[] = [
   { key: "teamProcessingTimeMin", label: "Avg Team Processing Time", hint: "minutes" },
   { key: "chatTeamAvgResponseSec", label: "Chat Team Avg Response Time", hint: "seconds" },
   { key: "teamTicketAHTMin", label: "Team Ticket AHT", hint: "minutes" },
+  // Visibility only -- shown on Team Performance and the Dashboard, never scored.
+  { key: "teamRejectionRatePct", label: "Team Rejection Rate", hint: "%, for visibility only" },
 ];
 
 type CellValues = Record<string, Record<string, string>>; // agentId -> metricKey -> raw string
