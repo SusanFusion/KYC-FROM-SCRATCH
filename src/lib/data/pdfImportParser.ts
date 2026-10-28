@@ -45,7 +45,13 @@ const TABLE_MATCHERS: { type: TableType; test: (pageText: string) => boolean }[]
 // cell has been seen rendered as one two-word cell ("Agent name") rather
 // than split the way the older tables' headers are -- listing both means
 // detection works regardless of exactly how this particular PDF splits it.
-const HEADER_FIRST_CELLS = new Set(["agent", "assigned agent name", "agent name"]);
+//
+// "agents" / "agents name" added after the chat page of a newer report layout
+// started rendering its header as "Agents" + "Name". Because the header row
+// wasn't recognised, the whole page was skipped -- taking the chat table AND
+// the two Business Gate cards (Chat Team Avg Response, Team Ticket Resolution
+// Time) printed above it down with it.
+const HEADER_FIRST_CELLS = new Set(["agent", "agents", "assigned agent name", "agent name", "agents name"]);
 const IGNORE_ROW_PATTERNS = [/^date range/i, /^generated date/i, /^\+\s*\d+\s*additional/i, /^\s*$/];
 
 const TABLE_LABELS: Record<TableType, string> = {
