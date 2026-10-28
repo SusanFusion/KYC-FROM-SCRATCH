@@ -9,6 +9,10 @@ import type { RawAgentMetrics, RawGateMetrics } from "@/lib/scoring/types";
 import type { ImportRow, Period } from "@/types/domain";
 
 const GATE_FIELD_KEYS = ["clientAvgWaitTimeMin", "teamProcessingTimeMin", "chatTeamAvgResponseSec", "teamTicketAHTMin"] as const;
+// Not a Business Gate metric (it never affects a score) but it is stored on
+// the same per-day team record, so it is carried through exactly the same way:
+// a value in this commit wins, otherwise whatever was already stored is kept.
+const TEAM_REJECTION_KEY = "teamRejectionRatePct" as const;
 
 export interface CommitImportRowsParams {
   importId: string;
@@ -137,6 +141,13 @@ export async function commitImportRows(params: CommitImportRowsParams): Promise<
   for (const key of GATE_FIELD_KEYS) {
     const provided = gateInput?.[key];
     gate[key] = typeof provided === "number" && Number.isFinite(provided) ? provided : (existingGate?.[key] ?? null);
+  }
+
+  const providedRejection = gateInput?.[TEAM_REJECTION_KEY];
+  if (typeof providedRejection === "number" && Number.isFinite(providedRejection)) {
+    gate[TEAM_REJECTION_KEY] = providedRejection;
+  } else if (existingGate && existingGate[TEAM_REJECTION_KEY] !== undefined) {
+    gate[TEAM_REJECTION_KEY] = existingGate[TEAM_REJECTION_KEY];
   }
 
   const committedPeriod = await repo.commitImport(importId, period, [...byAgent.values()], gate);
