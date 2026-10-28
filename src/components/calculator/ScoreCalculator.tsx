@@ -173,31 +173,41 @@ export function ScoreCalculator({ agents, monthLabel }: { agents: CalculatorAgen
                 ▾
               </span>
             </summary>
-            <CardContent className="space-y-1 pt-0">
-              {CALCULATOR_PENALTIES.map((def) => {
-                const deduction = penaltyDeduction(def, penaltyCounts[def.code] ?? 0);
-                return (
-                  <div key={def.code} className="grid gap-2 border-t border-border py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_5rem] sm:items-center">
-                    <div className="min-w-0">
-                      <p className="text-sm text-foreground">{def.label}</p>
-                      <p className="text-xs text-muted-foreground">{penaltyHint(def)}</p>
-                    </div>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      inputMode="numeric"
-                      aria-label={`How many: ${def.label}`}
-                      placeholder="0"
-                      value={counts[def.code] ?? ""}
-                      onChange={(e) => setCounts((prev) => ({ ...prev, [def.code]: e.target.value }))}
-                    />
-                    <span className={cn("text-right text-sm tabular-nums", deduction > 0 ? "text-danger" : "text-muted-foreground")}>
-                      {deduction > 0 ? `-${fmt(deduction)}` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
+            <CardContent className="space-y-4 pt-0">
+              {(
+                [
+                  { category: "disciplinary", title: "Disciplinary" },
+                  { category: "attendance", title: "Attendance" },
+                ] as const
+              ).map((group) => (
+                <div key={group.category}>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</p>
+                  {CALCULATOR_PENALTIES.filter((def) => (group.category === "attendance" ? def.category === "attendance" : def.category !== "attendance")).map((def) => {
+                    const deduction = penaltyDeduction(def, penaltyCounts[def.code] ?? 0);
+                    return (
+                      <div key={def.code} className="grid gap-2 border-t border-border py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_5rem] sm:items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm text-foreground">{def.label}</p>
+                          <p className="text-xs text-muted-foreground">{penaltyHint(def)}</p>
+                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          aria-label={`How many: ${def.label}`}
+                          placeholder="0"
+                          value={counts[def.code] ?? ""}
+                          onChange={(e) => setCounts((prev) => ({ ...prev, [def.code]: e.target.value }))}
+                        />
+                        <span className={cn("text-right text-sm tabular-nums", deduction > 0 ? "text-danger" : "text-muted-foreground")}>
+                          {deduction > 0 ? `-${fmt(deduction)}` : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </CardContent>
           </details>
         </Card>
@@ -235,9 +245,15 @@ export function ScoreCalculator({ agents, monthLabel }: { agents: CalculatorAgen
                     <dd className="tabular-nums text-foreground">{fmt(result.baseScore)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Penalties</dt>
-                    <dd className={cn("tabular-nums", result.penaltyTotal > 0 ? "text-danger" : "text-foreground")}>
-                      {result.penaltyTotal > 0 ? `-${fmt(result.penaltyTotal)}` : "0.00"}
+                    <dt className="text-muted-foreground">Disciplinary penalties</dt>
+                    <dd className={cn("tabular-nums", result.disciplinaryTotal > 0 ? "text-danger" : "text-foreground")}>
+                      {result.disciplinaryTotal > 0 ? `-${fmt(result.disciplinaryTotal)}` : "0.00"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Attendance penalties</dt>
+                    <dd className={cn("tabular-nums", result.attendanceTotal > 0 ? "text-danger" : "text-foreground")}>
+                      {result.attendanceTotal > 0 ? `-${fmt(result.attendanceTotal)}` : "0.00"}
                     </dd>
                   </div>
                   <div className="flex justify-between font-medium">
