@@ -41,7 +41,7 @@ const INDIVIDUAL_KEYS = new Set([
   "emailTicketCount",
 ]);
 
-const GATE_KEYS = new Set(["clientAvgWaitTimeMin", "teamProcessingTimeMin", "chatTeamAvgResponseSec", "teamTicketAHTMin"]);
+const GATE_KEYS = new Set(["clientAvgWaitTimeMin", "teamProcessingTimeMin", "chatTeamAvgResponseSec", "teamTicketAHTMin", "teamRejectionRatePct"]);
 
 interface ClearFieldBody {
   periodId: string;
