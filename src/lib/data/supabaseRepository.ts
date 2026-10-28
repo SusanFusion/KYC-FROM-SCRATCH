@@ -279,6 +279,10 @@ export class SupabaseRepository implements DataRepository {
         team_processing_time_min: gate.teamProcessingTimeMin,
         chat_team_avg_response_sec: gate.chatTeamAvgResponseSec,
         team_ticket_aht_min: gate.teamTicketAHTMin,
+        // Only sent when this write actually carries a value for it, so
+        // saving the four Gate numbers never touches a stored rejection rate
+        // (and never fails on a database that doesn't have the column yet).
+        ...(gate.teamRejectionRatePct !== undefined ? { team_rejection_rate_pct: gate.teamRejectionRatePct } : {}),
       },
       { onConflict: "period_id" }
     );
@@ -494,6 +498,10 @@ function mapGateRow(row: Record<string, unknown>): RawGateMetrics {
     teamProcessingTimeMin: (row.team_processing_time_min as number) ?? null,
     chatTeamAvgResponseSec: (row.chat_team_avg_response_sec as number) ?? null,
     teamTicketAHTMin: (row.team_ticket_aht_min as number) ?? null,
+    // Left undefined (not null) when the database has no such column yet, so
+    // a read-then-write of this row can never try to write a column that
+    // isn't there.
+    ...("team_rejection_rate_pct" in row ? { teamRejectionRatePct: (row.team_rejection_rate_pct as number) ?? null } : {}),
   };
 }
 
