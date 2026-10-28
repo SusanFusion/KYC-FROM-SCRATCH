@@ -203,7 +203,8 @@ export default async function ScorecardsPage({
                     <TableHead>Point</TableHead>
                     <TableHead>QA Audit</TableHead>
                     <TableHead>Point</TableHead>
-                    <TableHead className="text-right">Penalty</TableHead>
+                    <TableHead className="text-right">Disciplinary</TableHead>
+                    <TableHead className="text-right">Attendance</TableHead>
                     <TableHead className="text-right">Score</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -259,8 +260,15 @@ export default async function ScorecardsPage({
                           {canSeeQaAudit ? pointCell(metricPoint(r.individual.metrics, "qaAudit")) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-right">
-                          {r.individual.penaltyTotal > 0 ? (
-                            <span className="font-medium text-danger">-{r.individual.penaltyTotal.toFixed(2)}</span>
+                          {r.individual.disciplinaryTotal > 0 ? (
+                            <span className="font-medium text-danger">-{r.individual.disciplinaryTotal.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.individual.attendanceTotal > 0 ? (
+                            <span className="font-medium text-danger">-{r.individual.attendanceTotal.toFixed(2)}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
