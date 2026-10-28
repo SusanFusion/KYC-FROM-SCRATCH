@@ -100,6 +100,11 @@ export interface RawGateMetrics {
   teamProcessingTimeMin: number | null;
   chatTeamAvgResponseSec: number | null;
   teamTicketAHTMin: number | null;
+  /** Team Rejection Rate for the day, as a percentage (0-100), typed in by hand
+   *  in Manual Entry. For visibility only: it is NOT one of the four Business
+   *  Gate metrics, never changes the Gate multiplier or any score, and so is
+   *  optional (undefined = never entered, null = cleared). */
+  teamRejectionRatePct?: number | null;
 }
 
 export type PenaltyCode =
@@ -224,10 +229,15 @@ export interface IndividualScoreResult {
   baseScore: number; // weightedSubtotal renormalized to the full 0-3 scale
   maxScore: number; // always 3
   penaltyTotal: number;
+  /** Points taken off by Disciplinary penalties (a part of penaltyTotal). */
+  disciplinaryTotal: number;
+  /** Points taken off by Attendance penalties (a part of penaltyTotal). */
+  attendanceTotal: number;
   penaltiesApplied: {
     id: string;
     code: PenaltyCode;
     label: string;
+    category: PenaltyCategory;
     deduction: number;
     count: number;
     occurredOn: string;
