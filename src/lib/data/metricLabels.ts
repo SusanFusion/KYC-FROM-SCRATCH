@@ -20,6 +20,7 @@ export const METRIC_FIELD_LABELS: Record<string, string> = {
   teamProcessingTimeMin: "Avg Team Processing Time",
   chatTeamAvgResponseSec: "Chat Team Avg Response Time",
   teamTicketAHTMin: "Team Ticket AHT",
+  teamRejectionRatePct: "Team Rejection Rate",
 };
 
 export function metricFieldLabel(key: string): string {
